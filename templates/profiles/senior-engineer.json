@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "senior-engineer",
+  "label": "Senior Engineer",
+  "description": "I architect and build production systems with deep technical expertise",
+  "axes": {
+    "communication": "expert",
+    "autonomy": "high",
+    "workflow": "advanced",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}

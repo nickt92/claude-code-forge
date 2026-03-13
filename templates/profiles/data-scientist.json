@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "data-scientist",
+  "label": "Data Scientist",
+  "description": "I build models, pipelines, and analytical systems",
+  "axes": {
+    "communication": "technical",
+    "autonomy": "moderate",
+    "workflow": "standard",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}

@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, feat/test-coverage]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install jq (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify jq available
+        run: jq --version
+
+      - name: Run tests
+        run: ./test/run_tests.sh

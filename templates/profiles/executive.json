@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "executive",
+  "label": "Executive / Business Lead",
+  "description": "I make business decisions and need technical work done right",
+  "axes": {
+    "communication": "plain",
+    "autonomy": "guided",
+    "workflow": "simplified",
+    "depth": "conceptual"
+  },
+  "quality": ["core"]
+}
