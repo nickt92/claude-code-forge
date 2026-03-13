@@ -21,7 +21,7 @@ teardown() {
     local output="$TEST_SANDBOX/output-$(basename "$profile_json" .json).md"
     run assemble_claude_md "$profile_json" "$output"
     assert_success
-    ((count++))
+    count=$((count + 1))
   done
   assert [ "$count" -eq 12 ]
 }
