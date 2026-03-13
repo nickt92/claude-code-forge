@@ -1,0 +1,52 @@
+#!/usr/bin/env bats
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Settings Template — validation tests
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+setup() {
+  load '../helpers/test_helper'
+  SETTINGS="$PROJECT_ROOT/templates/settings.json"
+}
+
+# ── Valid JSON ───────────────────────────────────────────────
+
+@test "settings.json is valid JSON" {
+  run jq -e '.' "$SETTINGS"
+  assert_success
+}
+
+# ── Hook Commands Reference Existing Scripts ─────────────────
+
+@test "hook commands reference existing hook scripts" {
+  # Extract all hook commands
+  local commands
+  commands=$(jq -r '.. | .command? // empty' "$SETTINGS" | grep "hooks/")
+
+  while IFS= read -r cmd; do
+    # Extract the script path (after "bash ")
+    local script_name
+    script_name=$(echo "$cmd" | grep -oE 'hooks/[a-z-]+\.sh')
+    [ -z "$script_name" ] && continue
+    assert [ -f "$PROJECT_ROOT/$script_name" ]
+  done <<< "$commands"
+}
+
+# ── Plugin Count ─────────────────────────────────────────────
+
+@test "settings template has 18 plugins" {
+  run jq '.enabledPlugins | length' "$SETTINGS"
+  assert_output "18"
+}
+
+# ── Reasonable Timeouts ─────────────────────────────────────
+
+@test "hook timeouts are between 1 and 30 seconds" {
+  local timeouts
+  timeouts=$(jq -r '.. | .timeout? // empty' "$SETTINGS")
+
+  while IFS= read -r timeout; do
+    [ -z "$timeout" ] && continue
+    assert [ "$timeout" -ge 1 ]
+    assert [ "$timeout" -le 30 ]
+  done <<< "$timeouts"
+}
