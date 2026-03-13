@@ -17,30 +17,52 @@
 
 set -euo pipefail
 
-RED='\033[31m'
-GREEN='\033[32m'
-CYAN='\033[36m'
-BOLD='\033[1m'
-DIM='\033[90m'
-RST='\033[0m'
+# ── Help ─────────────────────────────────────────────────────
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+Init Project CLAUDE.md — Greenfield Project Setup
+
+Usage:
+  mkdir my-new-project && cd my-new-project && git init
+  ~/.claude/scripts/init-project-claude.sh
+
+Launches an interactive Claude session that walks you through
+setting up a new project. Adapts to your forge persona.
+
+Requirements:
+  - Claude Code CLI (claude) installed
+  - Run from the root of your new project
+EOF
+  exit 0
+fi
+
+# ── Source UI library ────────────────────────────────────────
+if [ -f "$HOME/.claude/lib/ui.sh" ]; then
+  source "$HOME/.claude/lib/ui.sh"
+else
+  # Fallback if run before install
+  fail() { printf "❌  %s\n" "$1"; }
+  info() { printf "       %s\n" "$1"; }
+  banner() { printf "\n🔨 %s\n" "$1"; }
+fi
 
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
 # ── Pre-flight ───────────────────────────────────────────────
 if ! command -v claude >/dev/null 2>&1; then
-  echo -e "${RED}Claude Code CLI not found.${RST} Install from: https://docs.anthropic.com/en/docs/claude-code" >&2
+  fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
   exit 1
 fi
 
 if [ ! -d ".git" ]; then
-  echo -e "This directory isn't a git repo yet."
+  echo "This directory isn't a git repo yet."
   read -p "Initialize one here? (Y/n) " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     git init
   else
-    echo -e "${RED}Cancelled.${RST}" >&2
+    fail "Cancelled."
     exit 1
   fi
 fi
@@ -62,18 +84,13 @@ else
 fi
 
 # ── Launch ───────────────────────────────────────────────────
+banner "Claude Code Forge — New Project Setup"
 echo ""
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-echo -e "${BOLD}  Claude Code Forge — New Project Setup${RST}"
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+info "Project: ${PROJECT_NAME}"
+info "Path:    ${PROJECT_DIR}"
 echo ""
-echo -e "  Project: ${CYAN}${PROJECT_NAME}${RST}"
-echo -e "  Path:    ${DIM}${PROJECT_DIR}${RST}"
-echo ""
-echo -e "  Starting an interactive session. Tell Claude what you're"
-echo -e "  building and it'll handle the rest."
-echo ""
-echo -e "${DIM}  Tip: Keep it simple. \"We're a law firm, need a website\" is fine.${RST}"
+echo "   Tell Claude what you're building — it'll handle the rest."
+echo "   Tip: \"We're a law firm, need a website\" is totally fine."
 echo ""
 
 # ── Build system prompt based on persona ─────────────────────
