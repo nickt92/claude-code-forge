@@ -17,7 +17,7 @@ Whether you're a CTO, a product manager, or someone building their first app wit
 
 <div align="center">
 
-**12 Personas** · **18 Specialist Agents** · **3 Enforcement Hooks** · **5 Rules Files** · **Premium Status Line**
+**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **6 Rules Files** · **Premium Status Line**
 
 </div>
 
@@ -166,8 +166,9 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
-| `prompt-classifier.sh` | First prompt per session | Detects significant task keywords, nudges classification |
+| `session-init.sh` | First prompt per session | Persona-aware classification nudge (adapts to autonomy level) |
 | `architect-gate.sh` | Write/Edit tools | Blocks plan files without `## Architect Review` section |
+| `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
 
 ## 📦 What's Included
@@ -183,13 +184,14 @@ claude-code-forge/
 │   ├── sections/                       # 15 axis-value section files
 │   ├── settings.json                   # Hooks + status line + plugins
 │   └── rules/                          # 5 rules files
-├── hooks/                              # 3 enforcement hooks
+├── hooks/                              # 4 enforcement hooks
 ├── scripts/
 │   ├── generate-project-claude.sh      # Brownfield project onboarding
 │   └── init-project-claude.sh          # Greenfield project setup
 └── examples/
     ├── project-CLAUDE.md               # Project-level override template
-    └── personas/                       # Assembled output examples
+    ├── personas/                       # Assembled output examples
+    └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP examples
 ```
 
 ## 🏗 Project Onboarding
@@ -213,6 +215,20 @@ mkdir my-new-project && cd my-new-project && git init
 ```
 
 For a simpler starting point, `examples/project-CLAUDE.md` provides a template you can fill in manually.
+
+### Document Chain (Optional)
+
+For multi-session or multi-phase projects, the forge supports a **document chain** — structured files that give Claude persistent context about your project's vision, requirements, and progress:
+
+```
+your-project/
+├── CLAUDE.md         # Project-level Claude instructions (always)
+├── PROJECT.md        # Vision, goals, constraints, stakeholders
+├── REQUIREMENTS.md   # Scoped requirements with acceptance criteria
+└── ROADMAP.md        # Phased plan with progress tracking
+```
+
+These are team artifacts committed to git. Claude checks for them at session start (via `rules/project-setup.md`) and offers to help generate them when you describe new work. Templates are in `templates/document-chain/`, and filled-in examples are in `examples/document-chain/`.
 
 ## 📊 Status Line
 
