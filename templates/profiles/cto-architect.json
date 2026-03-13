@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "cto-architect",
+  "label": "CTO / Technical Architect",
+  "description": "I make architectural decisions and lead engineering organizations",
+  "axes": {
+    "communication": "expert",
+    "autonomy": "high",
+    "workflow": "advanced",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}

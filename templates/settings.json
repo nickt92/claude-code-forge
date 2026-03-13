@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/hooks/prompt-classifier.sh",
+            "command": "bash ~/.claude/hooks/session-init.sh",
             "timeout": 3
           }
         ]
@@ -18,6 +18,16 @@
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/architect-gate.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/commit-validator.sh",
             "timeout": 5
           }
         ]

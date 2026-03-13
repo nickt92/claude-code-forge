@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "analyst",
+  "label": "Data Analyst",
+  "description": "I analyze data and build queries, dashboards, and reports",
+  "axes": {
+    "communication": "technical",
+    "autonomy": "moderate",
+    "workflow": "standard",
+    "depth": "practical"
+  },
+  "quality": ["core"]
+}
