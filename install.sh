@@ -367,6 +367,15 @@ info "Configuring settings.json..."
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
   EXISTING="$CLAUDE_DIR/settings.json"
   TEMPLATE="$SCRIPT_DIR/templates/settings.json"
+
+  # Migration: replace prompt-classifier with session-init
+  if jq -e '.hooks.UserPromptSubmit[]? | select(.hooks[]?.command | contains("prompt-classifier"))' "$EXISTING" >/dev/null 2>&1; then
+    jq '(.hooks.UserPromptSubmit // []) |= map(select(.hooks[]?.command | contains("prompt-classifier") | not))' "$EXISTING" > "$EXISTING.migrated"
+    mv "$EXISTING.migrated" "$EXISTING"
+    info "Migrated: prompt-classifier.sh → session-init.sh"
+  fi
+  rm -f "$CLAUDE_DIR/hooks/prompt-classifier.sh"
+
   # Additive merge: combine hooks arrays, merge plugins objects, preserve user settings
   # - hooks: concatenate forge hooks into each event's array (dedup by command)
   # - enabledPlugins: merge objects (additive, never removes user plugins)
@@ -472,7 +481,7 @@ for rule in quality-engineering agent-orchestration commit-and-delivery context-
 done
 
 # Check hooks
-for hook in prompt-classifier architect-gate backup-transcript; do
+for hook in session-init architect-gate backup-transcript commit-validator; do
   if [ -f "$CLAUDE_DIR/hooks/${hook}.sh" ] && [ -x "$CLAUDE_DIR/hooks/${hook}.sh" ]; then
     ok "hooks/${hook}.sh exists and executable"
   else
@@ -516,21 +525,72 @@ echo ""
 echo -e "${BOLD}━━━ Hook Smoke Tests ━━━${RST}"
 echo ""
 
-# Test prompt-classifier: should detect "auth" as significant
-classifier_output=$(echo '{"prompt":"Add new auth middleware"}' | bash "$CLAUDE_DIR/hooks/prompt-classifier.sh" 2>/dev/null)
-if echo "$classifier_output" | jq -e '.hookSpecificOutput' >/dev/null 2>&1; then
-  ok "prompt-classifier detects significant keywords"
+# Test session-init: should produce hookSpecificOutput on first run
+# (clear markers to ensure fresh state)
+rm -f /tmp/claude-code-prompted-* 2>/dev/null
+init_output=$(echo '{"prompt":"Build a login page"}' | bash "$CLAUDE_DIR/hooks/session-init.sh" 2>/dev/null)
+if echo "$init_output" | jq -e '.hookSpecificOutput' >/dev/null 2>&1; then
+  ok "session-init produces classification nudge"
 else
-  fail "prompt-classifier did not detect 'auth' as significant"; ((errors++))
+  fail "session-init did not produce hookSpecificOutput"; ((errors++))
 fi
 
-# Test prompt-classifier: should NOT fire on trivial prompts
-trivial_output=$(echo '{"prompt":"Fix a typo in the readme"}' | bash "$CLAUDE_DIR/hooks/prompt-classifier.sh" 2>/dev/null)
-if [ -z "$trivial_output" ]; then
-  ok "prompt-classifier ignores trivial prompts"
+# Test session-init: should NOT fire twice (PPID one-shot)
+init_second=$(echo '{"prompt":"Another prompt"}' | bash "$CLAUDE_DIR/hooks/session-init.sh" 2>/dev/null)
+if [ -z "$init_second" ]; then
+  ok "session-init fires once per session (PPID one-shot)"
 else
-  warn "prompt-classifier fired on a trivial prompt (false positive)"
+  warn "session-init fired on second prompt (should be one-shot)"
 fi
+rm -f /tmp/claude-code-prompted-* 2>/dev/null
+
+# Test commit-validator: use temp files for reliable exit code capture
+SMOKE_TMP="$(get_temp_dir)/claude-forge-smoke"
+
+# Test commit-validator: should BLOCK AI attribution
+echo '{"tool_input":{"command":"git commit -m \"Co-Authored-By: Claude\""}}' > "$SMOKE_TMP"
+bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" >/dev/null 2>&1
+validator_block_exit=$?
+if [ "$validator_block_exit" -eq 2 ]; then
+  ok "commit-validator blocks AI attribution"
+else
+  fail "commit-validator did not block AI attribution (exit: $validator_block_exit)"; ((errors++))
+fi
+
+# Test commit-validator: should WARN on bad format (exit 0)
+echo '{"tool_input":{"command":"git commit -m \"fixed stuff\""}}' > "$SMOKE_TMP"
+validator_warn=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
+validator_warn_exit=$?
+if [ "$validator_warn_exit" -eq 0 ]; then
+  if echo "$validator_warn" | jq -e '.hookSpecificOutput' >/dev/null 2>&1; then
+    ok "commit-validator warns on non-conventional format"
+  else
+    warn "commit-validator allowed bad format without warning"
+  fi
+else
+  fail "commit-validator blocked non-conventional format (should warn only)"; ((errors++))
+fi
+
+# Test commit-validator: should pass valid commits clean
+echo '{"tool_input":{"command":"git commit -m \"feat(auth): add login\""}}' > "$SMOKE_TMP"
+validator_pass=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
+validator_pass_exit=$?
+if [ "$validator_pass_exit" -eq 0 ] && [ -z "$validator_pass" ]; then
+  ok "commit-validator passes valid conventional commits"
+else
+  fail "commit-validator rejected a valid commit"; ((errors++))
+fi
+
+# Test commit-validator: should pass non-git commands
+echo '{"tool_input":{"command":"ls -la"}}' > "$SMOKE_TMP"
+validator_skip=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
+validator_skip_exit=$?
+if [ "$validator_skip_exit" -eq 0 ] && [ -z "$validator_skip" ]; then
+  ok "commit-validator ignores non-git commands"
+else
+  fail "commit-validator acted on a non-git command"; ((errors++))
+fi
+rm -f "$SMOKE_TMP"
 
 # Test architect-gate: should block plan file without Architect Review
 gate_output=$(printf '{"tool_input":{"file_path":"/tmp/.claude/plans/test.md","content":"# Plan\\nJust a plan"}}' | bash "$CLAUDE_DIR/hooks/architect-gate.sh" 2>&1)
