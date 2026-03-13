@@ -36,13 +36,6 @@ Acceptable ONLY when: (1) identified during planning by the architect, (2) flagg
 - If verification is not possible, state what was and was not verified
 - When implementation goes wrong, present revert vs fix-forward options with trade-offs
 
-### Scope Discipline
-
-- Define completion criteria before starting. Know what "done" looks like.
-- Deliver what was asked — not more, not less. No gold-plating.
-- Flag discovered work (bugs, tech debt) as separate items rather than bundling.
-- When in doubt whether something is in scope, ask.
-
 ## Global Rules
 
 ### Commits (Critical)
