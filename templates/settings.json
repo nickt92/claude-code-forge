@@ -1,0 +1,63 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/prompt-classifier.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/architect-gate.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/backup-transcript.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "backend-development@claude-code-workflows": true,
+    "documentation-generation@claude-code-workflows": true,
+    "debugging-toolkit@claude-code-workflows": true,
+    "frontend-mobile-development@claude-code-workflows": true,
+    "full-stack-orchestration@claude-code-workflows": true,
+    "tdd-workflows@claude-code-workflows": true,
+    "code-refactoring@claude-code-workflows": true,
+    "dependency-management@claude-code-workflows": true,
+    "error-debugging@claude-code-workflows": true,
+    "javascript-typescript@claude-code-workflows": true,
+    "cicd-automation@claude-code-workflows": true,
+    "context7@claude-plugins-official": true,
+    "cloud-infrastructure@claude-code-workflows": true,
+    "hr-legal-compliance@claude-code-workflows": true,
+    "database-design@claude-code-workflows": true,
+    "startup-business-analyst@claude-code-workflows": true,
+    "comprehensive-review@claude-code-workflows": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "alwaysThinkingEnabled": true
+}
