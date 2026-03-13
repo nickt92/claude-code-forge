@@ -292,4 +292,4 @@ echo "Review the output and iterate until you are satisfied."
 echo "Claude will only write the file when you explicitly approve."
 echo ""
 
-claude --print "$(<"$CONTEXT_FILE")"
+claude --append-system-prompt "$(<"$CONTEXT_FILE")"
