@@ -104,6 +104,8 @@ The forge uses an **axis-based persona system**. Each role selects values from 4
 | 11 | **Vibe Coder** | plain | guided | simplified | conceptual | core |
 | 12 | **Hobbyist** | plain | moderate | simplified | practical | core |
 
+> **Note:** Some personas share identical axis configurations (e.g., Senior Engineer / CTO / DevOps all produce the same assembled CLAUDE.md). The distinct labels exist for wizard UX — pick the one that best describes you. The real behavioral differences come from the axis values, not the persona name.
+
 ### Adding a Persona
 
 Create one JSON file. If existing axis values cover the behavior, zero section changes needed.
@@ -178,7 +180,7 @@ claude-code-forge/
 │   └── platform.sh                     # Cross-platform (macOS, Linux, WSL)
 ├── templates/
 │   ├── profiles/                       # 12 persona JSON configs
-│   ├── sections/                       # 12 axis-value section files
+│   ├── sections/                       # 15 axis-value section files
 │   ├── settings.json                   # Hooks + status line + plugins
 │   └── rules/                          # 5 rules files
 ├── hooks/                              # 3 enforcement hooks
@@ -272,7 +274,7 @@ Anthropic recommends it. Our testing showed content at line 200+ was frequently 
 <details>
 <summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
 
-12 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift.
+15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift.
 
 </details>
 
