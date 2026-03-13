@@ -4,6 +4,7 @@
 
 **Forge Claude Code into an engineering-governed development environment — adapted to who you are.**
 
+[![Tests](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml/badge.svg)](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-%E2%89%A51.0-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#-persona-system)
@@ -17,7 +18,7 @@ Whether you're a CTO, a product manager, or someone building their first app wit
 
 <div align="center">
 
-**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **6 Rules Files** · **Premium Status Line**
+**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **6 Rules Files** · **121 Tests** · **Premium Status Line**
 
 </div>
 
@@ -178,16 +179,22 @@ claude-code-forge/
 ├── install.sh                          # Installer with onboarding wizard
 ├── statusline-command.sh               # Premium status line
 ├── lib/
-│   └── platform.sh                     # Cross-platform (macOS, Linux, WSL)
+│   ├── platform.sh                     # Cross-platform (macOS, Linux, WSL)
+│   ├── assembly.sh                     # CLAUDE.md assembly from sections
+│   └── settings-merge.sh              # Additive settings merge logic
 ├── templates/
 │   ├── profiles/                       # 12 persona JSON configs
 │   ├── sections/                       # 15 axis-value section files
 │   ├── settings.json                   # Hooks + status line + plugins
-│   └── rules/                          # 5 rules files
+│   └── rules/                          # 6 rules files
 ├── hooks/                              # 4 enforcement hooks
 ├── scripts/
 │   ├── generate-project-claude.sh      # Brownfield project onboarding
 │   └── init-project-claude.sh          # Greenfield project setup
+├── test/
+│   ├── unit/                          # Hook and platform tests
+│   ├── integration/                   # Assembly, merge, install flow
+│   └── validation/                    # Schema and coverage checks
 └── examples/
     ├── project-CLAUDE.md               # Project-level override template
     ├── personas/                       # Assembled output examples
@@ -293,6 +300,25 @@ Anthropic recommends it. Our testing showed content at line 200+ was frequently 
 15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift.
 
 </details>
+
+## 🧪 Testing
+
+121 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+
+```bash
+./test/run_tests.sh              # Run all tests
+./test/run_tests.sh unit         # Hook unit tests only
+./test/run_tests.sh integration  # Assembly, merge, install flow
+./test/run_tests.sh validation   # Profile schema, section coverage
+```
+
+| Suite | Tests | What It Covers |
+|:------|------:|:---------------|
+| **Hook unit tests** | 63 | Commit validation, architect gate, session init, backup, platform |
+| **Integration tests** | 34 | Assembly pipeline, settings merge, end-to-end install flow |
+| **Validation tests** | 24 | Profile schemas, section file coverage, settings template integrity |
+
+All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
 
 ## 🔧 Maintenance
 
