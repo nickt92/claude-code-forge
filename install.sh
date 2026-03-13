@@ -27,8 +27,10 @@ BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"
 SECTIONS_DIR="$SCRIPT_DIR/templates/sections"
 PROFILES_DIR="$SCRIPT_DIR/templates/profiles"
 
-# Source platform utilities
+# Source libraries
 source "$SCRIPT_DIR/lib/platform.sh"
+source "$SCRIPT_DIR/lib/assembly.sh"
+source "$SCRIPT_DIR/lib/settings-merge.sh"
 
 # Colors
 RED='\033[31m'
@@ -151,54 +153,6 @@ run_wizard() {
   selected_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
   echo ""
   ok "Selected: ${selected_label}"
-}
-
-# ── Assemble CLAUDE.md from sections ─────────────────────────
-assemble_claude_md() {
-  local profile_file="$1"
-  local output_file="$2"
-
-  # Validate schema version
-  local schema_ver
-  schema_ver=$(jq -r '.schema_version // 0' "$profile_file")
-  if [ "$schema_ver" -ne 1 ]; then
-    fail "Unsupported profile schema version: $schema_ver (expected 1)"
-    return 1
-  fi
-
-  local comm auto work depth persona_name
-  comm=$(jq -r '.axes.communication' "$profile_file")
-  auto=$(jq -r '.axes.autonomy' "$profile_file")
-  work=$(jq -r '.axes.workflow' "$profile_file")
-  depth=$(jq -r '.axes.depth' "$profile_file")
-  persona_name=$(jq -r '.persona' "$profile_file")
-
-  # Read quality array
-  local quals
-  quals=$(jq -r '.quality[]' "$profile_file")
-
-  # Assemble by concatenating section files
-  {
-    echo "<!-- Assembled by Claude Code Forge | Profile: ${persona_name} | $(date +%Y-%m-%d) -->"
-    echo ""
-    cat "$SECTIONS_DIR/base.md"
-    echo ""
-    cat "$SECTIONS_DIR/communication-${comm}.md"
-    echo ""
-    cat "$SECTIONS_DIR/depth-${depth}.md"
-    echo ""
-    cat "$SECTIONS_DIR/autonomy-${auto}.md"
-    echo ""
-    cat "$SECTIONS_DIR/workflow-${work}.md"
-    echo ""
-    cat "$SECTIONS_DIR/quality-core.md"
-    for q in $quals; do
-      if [ "$q" != "core" ] && [ -f "$SECTIONS_DIR/quality-${q}.md" ]; then
-        echo ""
-        cat "$SECTIONS_DIR/quality-${q}.md"
-      fi
-    done
-  } > "$output_file"
 }
 
 # ── Pre-flight checks ────────────────────────────────────────
@@ -377,29 +331,7 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   rm -f "$CLAUDE_DIR/hooks/prompt-classifier.sh"
 
   # Additive merge: combine hooks arrays, merge plugins objects, preserve user settings
-  # - hooks: concatenate forge hooks into each event's array (dedup by command)
-  # - enabledPlugins: merge objects (additive, never removes user plugins)
-  # - statusLine, alwaysThinkingEnabled: forge values win
-  # - all other user keys: preserved
-  jq -s '
-    def merge_hook_arrays:
-      # For each hook event, combine arrays and deduplicate by .hooks[].command
-      (.[0] // []) + (.[1] // []) | unique_by(.hooks[0].command);
-
-    (.[0] // {}) as $existing |
-    (.[1] // {}) as $template |
-    ($existing * $template) *
-    {
-      hooks: (
-        ($existing.hooks // {}) as $eh |
-        ($template.hooks // {}) as $th |
-        ($eh | keys) + ($th | keys) | unique | map(
-          { (.): ([$eh[.] // [], $th[.] // []] | add | unique_by(.hooks[0].command)) }
-        ) | add // {}
-      ),
-      enabledPlugins: (($existing.enabledPlugins // {}) * ($template.enabledPlugins // {}))
-    }
-  ' "$EXISTING" "$TEMPLATE" > "$CLAUDE_DIR/settings.json.tmp"
+  merge_settings "$EXISTING" "$TEMPLATE" "$CLAUDE_DIR/settings.json.tmp"
   mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
   ok "Merged settings.json (preserved existing hooks + plugins, added forge config)"
 else
