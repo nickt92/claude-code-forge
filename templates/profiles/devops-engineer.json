@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "devops-engineer",
+  "label": "DevOps / Platform Engineer",
+  "description": "I build and maintain infrastructure, CI/CD, and deployment systems",
+  "axes": {
+    "communication": "expert",
+    "autonomy": "high",
+    "workflow": "advanced",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}
