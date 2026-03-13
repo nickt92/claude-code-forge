@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "hobbyist",
+  "label": "Hobbyist / Side Projects",
+  "description": "I code for fun and personal projects on my own time",
+  "axes": {
+    "communication": "plain",
+    "autonomy": "moderate",
+    "workflow": "simplified",
+    "depth": "practical"
+  },
+  "quality": ["core"]
+}

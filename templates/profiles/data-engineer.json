@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "data-engineer",
+  "label": "Data Engineer",
+  "description": "I build data infrastructure, ETL pipelines, and data platforms",
+  "axes": {
+    "communication": "technical",
+    "autonomy": "moderate",
+    "workflow": "advanced",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}

@@ -1,33 +1,151 @@
-# Claude Code Blueprint
+<div align="center">
 
-A production-tested setup for Claude Code that transforms it from a helpful assistant into an engineering-governed development environment. Hooks enforce workflow compliance, specialist agents provide domain expertise, and structured rules ensure consistency across sessions.
+# Claude Code Forge
 
-## What This Is
+**Forge Claude Code into an engineering-governed development environment — adapted to who you are.**
 
-An opinionated, battle-tested configuration for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic's CLI) that includes:
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-%E2%89%A51.0-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
+[![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#-persona-system)
+[![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-- **Global CLAUDE.md** (136 lines) — behavioral directives that Claude follows every session
-- **5 rules files** — quality engineering, agent orchestration, commits, PRs, context management
-- **3 enforcement hooks** — prompt classification, architect gate, transcript backup
-- **Premium status line** — git state, model, context usage, cost, lines changed
-- **18 specialist agent plugins** — architecture, security, testing, frontend, DevOps, and more
-- **Install script** with health check verification
+Whether you're a CTO, a product manager, or someone building their first app with AI — the forge gives you the same quality standards with communication tuned to your role.
+
+</div>
+
+---
+
+<div align="center">
+
+**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **6 Rules Files** · **Premium Status Line**
+
+</div>
 
 ## Why This Exists
 
 Claude Code reads instructions but doesn't always follow them. Through empirical testing, we discovered:
 
-1. **Long CLAUDE.md files lose adherence.** Anthropic recommends under 200 lines — content buried at line 200+ gets ignored. Our setup splits into a focused main file + reference rules.
+> **Long files lose adherence.** Content buried at line 200+ gets ignored. The forge assembles focused CLAUDE.md files under 200 lines — every time.
 
-2. **Passive language gets treated as optional.** "Consider accessibility" is a suggestion. "Apply to ALL frontend work" is a command. Every line uses imperative voice with `NEVER`/`MUST`/`ALWAYS` emphasis.
+> **Passive language is treated as optional.** "Consider accessibility" is a suggestion. "Apply to ALL frontend work" is a command.
 
-3. **Knowing the rules ≠ following them.** Claude can articulate the workflow perfectly in retrospect but still skip it in practice. Hooks create forcing functions that block non-compliant behavior at write time.
+> **Knowing the rules ≠ following them.** Hooks create forcing functions that block non-compliant behavior at write time.
 
-4. **The tool must be named explicitly.** "Enter plan mode" is vague. "`Use the EnterPlanMode tool FIRST`" is unambiguous. "Invoke the architect" is unclear. "`Run the architect via the Agent tool with subagent_type set to backend-development:backend-architect`" works.
+> **One size doesn't fit all.** A product manager doesn't need tier classifications and agent names. A senior engineer does. Same quality, different communication.
 
-## The 4-Phase Workflow
+## ⚡ Quick Start
 
-Every task follows a structured workflow, with the rigor proportional to complexity:
+### Prerequisites
+
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
+- `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
+- macOS or Linux (WSL should work but is not fully tested)
+
+### Install
+
+```bash
+git clone https://github.com/nickt92/claude-code-forge.git
+cd claude-code-forge
+chmod +x install.sh
+./install.sh
+```
+
+The installer walks you through a one-step persona selection, then:
+
+1. Assembles a tailored CLAUDE.md from section files (verified under 200 lines)
+2. Backs up your existing `~/.claude/` configuration
+3. Copies rules files, hooks, and status line
+4. Merges settings (preserves your existing config)
+5. Installs 18 specialist plugins
+6. Runs health checks and assembly smoke tests
+
+### Scripted Install
+
+```bash
+./install.sh --profile senior-engineer    # Skip the wizard
+./install.sh --reconfigure                # Change your persona later
+./install.sh --uninstall                  # Restore backups
+```
+
+### Verify
+
+```bash
+claude     # Start a new session
+/memory    # Check files are loaded
+```
+
+## 🔥 Persona System
+
+The forge uses an **axis-based persona system**. Each role selects values from 4 behavioral axes — the installer reads the selection and assembles a tailored CLAUDE.md from reusable section files.
+
+### The 4 Axes
+
+| Axis | Values | What It Controls |
+|:-----|:-------|:----------------|
+| **Communication** | `plain` · `technical` · `expert` | Jargon level, explanation depth, analogies |
+| **Autonomy** | `guided` · `moderate` · `high` | How often Claude asks vs proceeds |
+| **Workflow** | `simplified` · `standard` · `advanced` | Internal ceremony visibility |
+| **Depth** | `conceptual` · `practical` · `engineering` | Code-level detail in explanations |
+
+### 12 Launch Personas
+
+| # | Persona | Comm | Auto | Workflow | Depth | Quality |
+|:-:|:--------|:----:|:----:|:--------:|:-----:|:-------:|
+| 1 | **Product Manager** | plain | guided | simplified | conceptual | core |
+| 2 | **Executive / Business Lead** | plain | guided | simplified | conceptual | core |
+| 3 | **Designer (UI/UX)** | plain | guided | simplified | practical | core |
+| 4 | **Data Analyst** | technical | moderate | standard | practical | core |
+| 5 | **Data Scientist** | technical | moderate | standard | engineering | core + eng |
+| 6 | **Data Engineer** | technical | moderate | advanced | engineering | core + eng |
+| 7 | **Junior Developer** | technical | moderate | standard | engineering | core + eng |
+| 8 | **Senior Engineer** | expert | high | advanced | engineering | core + eng |
+| 9 | **CTO / Architect** | expert | high | advanced | engineering | core + eng |
+| 10 | **DevOps / Platform** | expert | high | advanced | engineering | core + eng |
+| 11 | **Vibe Coder** | plain | guided | simplified | conceptual | core |
+| 12 | **Hobbyist** | plain | moderate | simplified | practical | core |
+
+> **Note:** Some personas share identical axis configurations (e.g., Senior Engineer / CTO / DevOps all produce the same assembled CLAUDE.md). The distinct labels exist for wizard UX — pick the one that best describes you. The real behavioral differences come from the axis values, not the persona name.
+
+### Adding a Persona
+
+Create one JSON file. If existing axis values cover the behavior, zero section changes needed.
+
+<details>
+<summary><strong>Example: vibe-coder.json</strong></summary>
+
+```json
+{
+  "schema_version": 1,
+  "persona": "vibe-coder",
+  "label": "Vibe Coder",
+  "description": "I don't code but I want to build things with AI",
+  "axes": {
+    "communication": "plain",
+    "autonomy": "guided",
+    "workflow": "simplified",
+    "depth": "conceptual"
+  },
+  "quality": ["core"]
+}
+```
+
+</details>
+
+### The Key Insight: Interpretation Directive
+
+For non-technical personas, the workflow section includes an **interpretation directive** — Claude follows the same engineering rules internally but adapts how it communicates:
+
+| What happens internally | What the vibe coder sees |
+|:------------------------|:-------------------------|
+| "Significant-tier task, Phase 1 design gate" | "Here's my proposed approach" |
+| "Invoking security-auditor agent" | "I'm reviewing this for security" |
+| "Architect review approved with changes" | "I've refined the approach — here's what changed" |
+
+Quality is identical. Jargon is not.
+
+## 🔄 The 4-Phase Workflow
+
+Every task follows a structured workflow, with rigor proportional to complexity:
 
 ```
 Phase 1 — Design     (significant tasks only)
@@ -39,251 +157,167 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 ### 3-Tier Task Classification
 
 | Tier | Criteria | What Happens |
-|------|----------|-------------|
+|:-----|:---------|:-------------|
 | **Trivial** | Single-file, clear requirements | Implement directly, code review before commit |
 | **Moderate** | Multi-file, well-understood domain | Implement, domain architect + code review |
-| **Significant** | New service, auth, architecture, ambiguous | Plan mode, architect review, approval, then implement |
+| **Significant** | New service, auth, architecture | Plan mode → architect review → approval → implement |
 
-### Enforcement Hooks
+### 🛡 Enforcement Hooks
 
 | Hook | Trigger | What It Does |
-|------|---------|-------------|
-| `prompt-classifier.sh` | First prompt | Detects significant task keywords, nudges classification |
+|:-----|:--------|:-------------|
+| `session-init.sh` | First prompt per session | Persona-aware classification nudge (adapts to autonomy level) |
 | `architect-gate.sh` | Write/Edit tools | Blocks plan files without `## Architect Review` section |
+| `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
 
-## What's Included
+## 📦 What's Included
 
 ```
-claude-code-blueprint/
-├── README.md                           # You are here
-├── install.sh                          # One-command installer with health check
-├── statusline-command.sh               # Premium status line (277 lines)
+claude-code-forge/
+├── install.sh                          # Installer with onboarding wizard
+├── statusline-command.sh               # Premium status line
+├── lib/
+│   └── platform.sh                     # Cross-platform (macOS, Linux, WSL)
 ├── templates/
-│   ├── CLAUDE.md                       # Global behavioral directives (137 lines)
-│   ├── settings.json                   # Hooks + status line + plugins config
-│   └── rules/
-│       ├── quality-engineering.md      # Testing, accessibility, performance, observability
-│       ├── agent-orchestration.md      # 4-phase model, 30+ specialist agent routing
-│       ├── commit-and-delivery.md      # Conventional commits, dependency policy
-│       ├── context-and-memory.md       # Compaction, session resumption, context efficiency
-│       └── pull-requests.md            # PR format, layer grouping, test plans
-├── hooks/
-│   ├── prompt-classifier.sh            # Session-start task classification nudge
-│   ├── architect-gate.sh               # Plan file validation + classification nudge
-│   └── backup-transcript.sh            # Pre-compaction transcript backup (30-day auto-cleanup)
+│   ├── profiles/                       # 12 persona JSON configs
+│   ├── sections/                       # 15 axis-value section files
+│   ├── settings.json                   # Hooks + status line + plugins
+│   └── rules/                          # 5 rules files
+├── hooks/                              # 4 enforcement hooks
 ├── scripts/
-│   ├── generate-project-claude.sh      # Brownfield: analyze existing codebase
-│   └── init-project-claude.sh          # Greenfield: design architecture from scratch
+│   ├── generate-project-claude.sh      # Brownfield project onboarding
+│   └── init-project-claude.sh          # Greenfield project setup
 └── examples/
-    └── project-CLAUDE.md               # Template for project-level overrides
+    ├── project-CLAUDE.md               # Project-level override template
+    ├── personas/                       # Assembled output examples
+    └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP examples
 ```
 
-## Quick Start
+## 🏗 Project Onboarding
 
-### Prerequisites
+### Brownfield (Existing Projects)
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
-
-### Install
-
-```bash
-git clone https://github.com/nickthorpe71/claude-code-blueprint.git
-cd claude-code-blueprint
-chmod +x install.sh
-./install.sh
-```
-
-The installer will:
-1. Back up your existing `~/.claude/CLAUDE.md` and `settings.json`
-2. Copy all template files, hooks, and status line
-3. Merge settings (preserves your existing config)
-4. Install 18 specialist plugins
-5. Run a health check to verify everything
-
-### Verify
-
-```bash
-# Start a new session
-claude
-
-# Check files are loaded
-/memory
-```
-
-### Uninstall
-
-```bash
-./install.sh --uninstall
-```
-
-Restores your backed-up configuration.
-
-## Project Onboarding (Brownfield)
-
-For existing projects, the blueprint includes a generator that analyzes your codebase and produces a proper project-level CLAUDE.md — not a template with blanks, but a real analysis of your architecture, tech stack, patterns, and pitfalls.
+The forge includes a generator that analyzes your codebase and produces a project-level CLAUDE.md — not a template with blanks, but a real analysis of your architecture, tech stack, patterns, and pitfalls.
 
 ```bash
 cd /path/to/your-existing-project
 ~/.claude/scripts/generate-project-claude.sh
 ```
 
-The script:
-1. **Gathers context automatically** — directory structure, dependency files (package.json, requirements.txt, go.mod, etc.), config files (tsconfig, docker-compose, CI/CD), git history, test structure, existing docs
-2. **Launches Claude Code** with all that context and a comprehensive prompt
-3. **Claude analyzes the codebase** — architecture, tech stack with specific versions, development commands, patterns, testing conventions, deployment, common pitfalls
-4. **You review and iterate** interactively until the CLAUDE.md is right
-5. **Claude writes the file** only when you explicitly approve
+### Greenfield (New Projects)
 
-The generated CLAUDE.md targets under 200 lines and uses the same structure that proved effective in production projects — specific versions, real commands, actual patterns, not generic placeholders.
-
-### Greenfield Projects
-
-For new projects with no code yet, the blueprint includes an interactive setup that helps you make architectural decisions and generates the CLAUDE.md before the first line of code:
+Interactive setup that helps you make architectural decisions and generates the CLAUDE.md before the first line of code.
 
 ```bash
 mkdir my-new-project && cd my-new-project && git init
 ~/.claude/scripts/init-project-claude.sh
 ```
 
-The script:
-1. **Asks about your project** — what you're building, who it's for, constraints
-2. **Asks about tech preferences** — or recommends a stack based on requirements
-3. **Claude proposes architecture** — tech stack with specific versions, directory structure, patterns, workflow
-4. **You approve or adjust** — iterative conversation until the design is right
-5. **Architect agent validates** — reviews the proposed architecture for scaling, security, and pattern concerns
-6. **Generates the project CLAUDE.md** — written only when you approve
+For a simpler starting point, `examples/project-CLAUDE.md` provides a template you can fill in manually.
 
-The CLAUDE.md becomes the project's constitution — every future Claude Code session follows it. As the project evolves, update it to reflect new patterns, conventions, and decisions that emerge.
+### Document Chain (Optional)
 
-For a simpler starting point, `examples/project-CLAUDE.md` provides a blank template you can fill in manually.
+For multi-session or multi-phase projects, the forge supports a **document chain** — structured files that give Claude persistent context about your project's vision, requirements, and progress:
 
-## Customization
+```
+your-project/
+├── CLAUDE.md         # Project-level Claude instructions (always)
+├── PROJECT.md        # Vision, goals, constraints, stakeholders
+├── REQUIREMENTS.md   # Scoped requirements with acceptance criteria
+└── ROADMAP.md        # Phased plan with progress tracking
+```
 
-### Adding Custom Agents
+These are team artifacts committed to git. Claude checks for them at session start (via `rules/project-setup.md`) and offers to help generate them when you describe new work. Templates are in `templates/document-chain/`, and filled-in examples are in `examples/document-chain/`.
 
-The plugin system supports any specialist. To add a Salesforce agent, for example:
-
-1. Create a plugin or use an existing one that provides Salesforce expertise
-2. Add the agent to `templates/rules/agent-orchestration.md` in the appropriate phase
-3. Update the domain architect routing table in Phase 1
-
-### Adjusting Quality Standards
-
-Edit `templates/rules/quality-engineering.md`:
-- Change coverage targets (default: 85%)
-- Add or remove accessibility requirements
-- Adjust performance checklists
-- Modify observability requirements
-
-### Project-Level Overrides
-
-Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-level instructions override global for project-specific concerns (tech stack, patterns, conventions).
-
-## Status Line
-
-The status line shows real-time session information:
+## 📊 Status Line
 
 ```
 🌿 feat/thing ✦3 ↑2 │ 🧠 Opus │ ▐████░░░░▌ 42% │ 💰 38¢ │ ✏️ +156 −23 │ ⏱️ 12m
 ```
 
 | Segment | What It Shows |
-|---------|-------------|
-| 🌿/🔗 | Git branch (🔗 = worktree), dirty count, ahead/behind, stashes |
+|:--------|:-------------|
+| 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
 | 🧠 | Model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
-| 🤖 | Agent name (when using `--agent`) |
 | ▐████░░▌ | Context window usage (green <70%, yellow 70-90%, red >90%) |
-| 💰 | Session cost (dim <$1, yellow $1-5, red >$5) |
+| 💰 | Session cost |
 | ✏️ | Lines added/removed |
 | ⏱️ | Session duration |
-| INS/VIS/NOR | Vim mode (when vim mode is enabled) |
 
-Branch colors: red = main/master/detached, yellow = develop, blue = feature branches.
+## 🎛 Customization
 
-## Design Decisions
+<details>
+<summary><strong>Adjusting Quality Standards</strong></summary>
 
-### Why hooks instead of just instructions?
+Edit `templates/rules/quality-engineering.md`:
+- Change coverage targets (default: 85%)
+- Add or remove accessibility requirements
+- Adjust performance checklists
+
+</details>
+
+<details>
+<summary><strong>Project-Level Overrides</strong></summary>
+
+Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-level instructions override global for project-specific concerns (tech stack, patterns, conventions).
+
+</details>
+
+<details>
+<summary><strong>Adding Custom Agents</strong></summary>
+
+The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table.
+
+</details>
+
+## 🧠 Design Decisions
+
+<details>
+<summary><strong>Why hooks instead of just instructions?</strong></summary>
 
 Instructions tell Claude what to do. Hooks enforce it. The architect-gate hook literally blocks plan file writes that don't include an `## Architect Review` section. Claude can't skip the step even if it wants to.
 
-### Why 136 lines in the main CLAUDE.md?
+</details>
 
-Anthropic recommends under 200 lines. Our testing showed that content at line 200+ was frequently ignored. The main file contains only behavioral commands (what to do, what never to do). Reference material (lookup tables, checklists) lives in rules files that load with equal priority but don't dilute the main file's attention.
+<details>
+<summary><strong>Why under 200 lines per CLAUDE.md?</strong></summary>
 
-### Why imperative language?
+Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored. The persona system guarantees every assembled CLAUDE.md stays under the limit (verified at install time).
 
-Empirical testing showed "Consider accessibility" gets treated as optional, while "Apply to ALL frontend work" gets followed. Every line uses action verbs and emphasis markers (`NEVER`, `MUST`, `ALWAYS`, `IMPORTANT`).
+</details>
 
-### Why name tools explicitly?
+<details>
+<summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
 
-Claude understood "enter plan mode" as a concept but didn't use the `EnterPlanMode` tool. Once we wrote "Use the `EnterPlanMode` tool FIRST", compliance jumped to near-100%. Same for "invoke via the Agent tool with `subagent_type`".
+15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift.
 
-## Maintenance
+</details>
 
-### Backup directory
-
-The transcript backup hook saves files to `~/.claude/backups/`. Check size periodically:
-
-```bash
-du -sh ~/.claude/backups/
-# Clean files older than 30 days:
-find ~/.claude/backups/ -mtime +30 -delete
-```
-
-### Plugin updates
+## 🔧 Maintenance
 
 ```bash
-claude plugins update
-```
-
-### Health check
-
-Re-run the installer's health check anytime:
-
-```bash
-./install.sh  # It's idempotent — re-running just updates files
+du -sh ~/.claude/backups/                       # Check backup size
+find ~/.claude/backups/ -mtime +30 -delete      # Clean old transcripts
+claude plugins update                           # Update plugins
+./install.sh                                    # Re-run (idempotent)
 ```
 
 ## Credits
 
-Built through iterative testing and refinement with Claude Code itself. The setup evolved through real engineering work — not theoretical best practices, but patterns that survived contact with actual codebases.
+Built through iterative testing and refinement with Claude Code itself — patterns that survived contact with actual codebases, not theoretical best practices.
 
 ### Agent Plugins
 
-The entire specialist agent orchestration model depends on two plugin ecosystems:
-
-**[claude-code-workflows](https://github.com/wshobson/claude-code-workflows)** by [Will Hobson](https://github.com/wshobson) — the foundation. 16 plugins providing 30+ specialist agents that make the 4-phase workflow possible:
-
-| Plugin | Agents Provided |
-|--------|----------------|
-| `backend-development` | backend-architect, graphql-architect, event-sourcing-architect |
-| `comprehensive-review` | architect-review, code-reviewer, security-auditor |
-| `database-design` | database-architect, sql-pro |
-| `frontend-mobile-development` | frontend-developer, mobile-developer |
-| `full-stack-orchestration` | performance-engineer, test-automator, security-auditor, deployment-engineer |
-| `javascript-typescript` | typescript-pro, javascript-pro |
-| `cicd-automation` | cloud-architect, deployment-engineer, kubernetes-architect, terraform-specialist, devops-troubleshooter |
-| `cloud-infrastructure` | network-engineer, hybrid-cloud-architect, service-mesh-expert |
-| `debugging-toolkit` | debugger, dx-optimizer |
-| `error-debugging` | error-detective |
-| `tdd-workflows` | tdd-orchestrator, code-reviewer |
-| `code-refactoring` | legacy-modernizer, code-reviewer |
-| `dependency-management` | legacy-modernizer |
-| `documentation-generation` | docs-architect, api-documenter, mermaid-expert, tutorial-engineer |
-| `startup-business-analyst` | startup-analyst |
-| `hr-legal-compliance` | legal-advisor, hr-pro |
-
-Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate — essentially no engineering governance. The blueprint is the orchestration layer; claude-code-workflows provides the specialists.
+**[claude-code-workflows](https://github.com/wshobson/claude-code-workflows)** by [Will Hobson](https://github.com/wshobson) — 16 plugins providing 30+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
 
 **[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
-- `context7` — real-time library documentation lookup (ensures Claude uses current APIs, not stale training knowledge)
+- `context7` — real-time library documentation lookup
 - `frontend-design` — UI/UX design quality for frontend work
 
 ### Tools
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic — the CLI that makes all of this possible
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic
 
 ## License
 
