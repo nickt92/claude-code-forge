@@ -77,6 +77,11 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     --profile)
+      if [[ $# -lt 2 ]]; then
+        fail "Missing profile name after --profile"
+        echo "Usage: ./install.sh --profile <name>"
+        exit 1
+      fi
       PROFILE_ARG="$2"
       shift 2
       ;;
@@ -153,10 +158,20 @@ assemble_claude_md() {
   local profile_file="$1"
   local output_file="$2"
 
-  local comm auto work
+  # Validate schema version
+  local schema_ver
+  schema_ver=$(jq -r '.schema_version // 0' "$profile_file")
+  if [ "$schema_ver" -ne 1 ]; then
+    fail "Unsupported profile schema version: $schema_ver (expected 1)"
+    return 1
+  fi
+
+  local comm auto work depth persona_name
   comm=$(jq -r '.axes.communication' "$profile_file")
   auto=$(jq -r '.axes.autonomy' "$profile_file")
   work=$(jq -r '.axes.workflow' "$profile_file")
+  depth=$(jq -r '.axes.depth' "$profile_file")
+  persona_name=$(jq -r '.persona' "$profile_file")
 
   # Read quality array
   local quals
@@ -164,9 +179,13 @@ assemble_claude_md() {
 
   # Assemble by concatenating section files
   {
+    echo "<!-- Assembled by Claude Code Forge | Profile: ${persona_name} | $(date +%Y-%m-%d) -->"
+    echo ""
     cat "$SECTIONS_DIR/base.md"
     echo ""
     cat "$SECTIONS_DIR/communication-${comm}.md"
+    echo ""
+    cat "$SECTIONS_DIR/depth-${depth}.md"
     echo ""
     cat "$SECTIONS_DIR/autonomy-${auto}.md"
     echo ""
@@ -348,9 +367,32 @@ info "Configuring settings.json..."
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
   EXISTING="$CLAUDE_DIR/settings.json"
   TEMPLATE="$SCRIPT_DIR/templates/settings.json"
-  jq -s '.[0] * .[1]' "$EXISTING" "$TEMPLATE" > "$CLAUDE_DIR/settings.json.tmp"
+  # Additive merge: combine hooks arrays, merge plugins objects, preserve user settings
+  # - hooks: concatenate forge hooks into each event's array (dedup by command)
+  # - enabledPlugins: merge objects (additive, never removes user plugins)
+  # - statusLine, alwaysThinkingEnabled: forge values win
+  # - all other user keys: preserved
+  jq -s '
+    def merge_hook_arrays:
+      # For each hook event, combine arrays and deduplicate by .hooks[].command
+      (.[0] // []) + (.[1] // []) | unique_by(.hooks[0].command);
+
+    (.[0] // {}) as $existing |
+    (.[1] // {}) as $template |
+    ($existing * $template) *
+    {
+      hooks: (
+        ($existing.hooks // {}) as $eh |
+        ($template.hooks // {}) as $th |
+        ($eh | keys) + ($th | keys) | unique | map(
+          { (.): ([$eh[.] // [], $th[.] // []] | add | unique_by(.hooks[0].command)) }
+        ) | add // {}
+      ),
+      enabledPlugins: (($existing.enabledPlugins // {}) * ($template.enabledPlugins // {}))
+    }
+  ' "$EXISTING" "$TEMPLATE" > "$CLAUDE_DIR/settings.json.tmp"
   mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
-  ok "Merged settings.json (preserved existing settings, added forge config)"
+  ok "Merged settings.json (preserved existing hooks + plugins, added forge config)"
 else
   cp "$SCRIPT_DIR/templates/settings.json" "$CLAUDE_DIR/settings.json"
   ok "Installed settings.json (fresh)"
