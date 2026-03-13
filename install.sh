@@ -1,8 +1,8 @@
 #!/bin/bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Claude Code Blueprint — Installer v2
+# Claude Code Forge — Installer
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Installs the engineering blueprint to ~/.claude/
+# Installs Claude Code Forge to ~/.claude/
 #
 # What it does:
 #   1. Runs onboarding wizard (or uses --profile flag)
@@ -52,8 +52,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --uninstall)
       echo ""
-      echo -e "${BOLD}Uninstalling Claude Code Blueprint${RST}"
-      echo "This will remove blueprint files but preserve your backups."
+      echo -e "${BOLD}Uninstalling Claude Code Forge${RST}"
+      echo "This will remove forge files but preserve your backups."
       echo ""
       read -p "Continue? (y/N) " -n 1 -r
       echo
@@ -73,7 +73,7 @@ while [[ $# -gt 0 ]]; do
         fi
       done
 
-      ok "Blueprint uninstalled"
+      ok "Claude Code Forge uninstalled"
       exit 0
       ;;
     --profile)
@@ -113,7 +113,7 @@ PERSONA_KEYS=(
 run_wizard() {
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-  echo -e "${BOLD}  Claude Code Blueprint — Setup${RST}"
+  echo -e "${BOLD}  Claude Code Forge — Setup${RST}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
   echo ""
   echo "What best describes your role?"
@@ -190,13 +190,13 @@ if [ -z "$PROFILE_ARG" ] && [ "$RECONFIGURE" = false ]; then
     if [ -n "$existing_persona" ]; then
       echo ""
       echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-      echo -e "${BOLD}  Claude Code Blueprint — Installer${RST}"
+      echo -e "${BOLD}  Claude Code Forge — Installer${RST}"
       echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
       echo ""
       existing_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "$existing_persona")
       info "Existing profile detected: ${existing_label}"
       echo ""
-      echo "  1. Keep current profile and update blueprint files"
+      echo "  1. Keep current profile and update forge files"
       echo "  2. Choose a new profile"
       echo "  3. Cancel"
       echo ""
@@ -233,7 +233,7 @@ elif [ -n "$PROFILE_ARG" ]; then
   SELECTED_PERSONA="$PROFILE_ARG"
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-  echo -e "${BOLD}  Claude Code Blueprint — Installer${RST}"
+  echo -e "${BOLD}  Claude Code Forge — Installer${RST}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
   echo ""
   local_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
@@ -350,7 +350,7 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   TEMPLATE="$SCRIPT_DIR/templates/settings.json"
   jq -s '.[0] * .[1]' "$EXISTING" "$TEMPLATE" > "$CLAUDE_DIR/settings.json.tmp"
   mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
-  ok "Merged settings.json (preserved existing settings, added blueprint config)"
+  ok "Merged settings.json (preserved existing settings, added forge config)"
 else
   cp "$SCRIPT_DIR/templates/settings.json" "$CLAUDE_DIR/settings.json"
   ok "Installed settings.json (fresh)"
@@ -516,7 +516,7 @@ echo ""
 assembly_errors=0
 for profile_json in "$PROFILES_DIR"/*.json; do
   persona_key=$(jq -r '.persona' "$profile_json")
-  temp_output="$(get_temp_dir)/claude-blueprint-test-${persona_key}.md"
+  temp_output="$(get_temp_dir)/claude-forge-test-${persona_key}.md"
   if assemble_claude_md "$profile_json" "$temp_output" 2>/dev/null; then
     line_count=$(wc -l < "$temp_output" | tr -d ' ')
     if [ "$line_count" -le 200 ]; then
@@ -545,7 +545,7 @@ echo -e "${BOLD}━━━ Summary ━━━${RST}"
 echo ""
 if [ "$errors" -eq 0 ]; then
   persona_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json")
-  echo -e "${GREEN}${BOLD}All checks passed. Blueprint installed successfully.${RST}"
+  echo -e "${GREEN}${BOLD}All checks passed. Claude Code Forge installed successfully.${RST}"
   echo ""
   echo "  Profile:  ${persona_label}"
   echo "  CLAUDE.md: $(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ') lines"
