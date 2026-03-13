@@ -472,7 +472,7 @@ else
 fi
 
 # Check rules files
-for rule in quality-engineering agent-orchestration commit-and-delivery context-and-memory pull-requests; do
+for rule in quality-engineering agent-orchestration commit-and-delivery context-and-memory pull-requests project-setup; do
   if [ -f "$CLAUDE_DIR/rules/${rule}.md" ]; then
     ok "rules/${rule}.md exists"
   else
