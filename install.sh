@@ -1,20 +1,22 @@
 #!/bin/bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Claude Code Blueprint — Installer
+# Claude Code Blueprint — Installer v2
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Installs the engineering blueprint to ~/.claude/
 #
 # What it does:
-#   1. Backs up existing ~/.claude/CLAUDE.md and settings.json
-#   2. Copies CLAUDE.md, rules files, hooks, and status line
-#   3. Merges settings.json (hooks + status line + plugins)
-#   4. Installs required plugins
-#   5. Runs a health check to verify everything
+#   1. Runs onboarding wizard (or uses --profile flag)
+#   2. Assembles a persona-tuned CLAUDE.md from section files
+#   3. Backs up existing configuration
+#   4. Copies rules files, hooks, and status line
+#   5. Merges settings.json (hooks + status line + plugins)
+#   6. Installs required plugins
+#   7. Runs a health check to verify everything
 #
 # Usage:
 #   chmod +x install.sh && ./install.sh
-#
-# To uninstall:
+#   ./install.sh --profile senior-engineer
+#   ./install.sh --reconfigure
 #   ./install.sh --uninstall
 
 set -euo pipefail
@@ -22,6 +24,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"
+SECTIONS_DIR="$SCRIPT_DIR/templates/sections"
+PROFILES_DIR="$SCRIPT_DIR/templates/profiles"
+
+# Source platform utilities
+source "$SCRIPT_DIR/lib/platform.sh"
 
 # Colors
 RED='\033[31m'
@@ -29,6 +36,7 @@ GREEN='\033[32m'
 YELLOW='\033[33m'
 CYAN='\033[36m'
 BOLD='\033[1m'
+DIM='\033[2m'
 RST='\033[0m'
 
 info()  { printf "${CYAN}[INFO]${RST} %s\n" "$1"; }
@@ -36,56 +44,226 @@ ok()    { printf "${GREEN}[OK]${RST}   %s\n" "$1"; }
 warn()  { printf "${YELLOW}[WARN]${RST} %s\n" "$1"; }
 fail()  { printf "${RED}[FAIL]${RST} %s\n" "$1"; }
 
-# ── Uninstall ────────────────────────────────────────────────
-if [[ "${1:-}" == "--uninstall" ]]; then
-  echo ""
-  echo -e "${BOLD}Uninstalling Claude Code Blueprint${RST}"
-  echo "This will remove blueprint files but preserve your backups."
-  echo ""
-  read -p "Continue? (y/N) " -n 1 -r
-  echo
-  [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+# ── Parse arguments ───────────────────────────────────────────
+PROFILE_ARG=""
+RECONFIGURE=false
 
-  rm -f "$CLAUDE_DIR/CLAUDE.md"
-  rm -rf "$CLAUDE_DIR/rules"
-  rm -rf "$CLAUDE_DIR/hooks"
-  rm -f "$CLAUDE_DIR/statusline-command.sh"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --uninstall)
+      echo ""
+      echo -e "${BOLD}Uninstalling Claude Code Blueprint${RST}"
+      echo "This will remove blueprint files but preserve your backups."
+      echo ""
+      read -p "Continue? (y/N) " -n 1 -r
+      echo
+      [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
 
-  # Restore backups if they exist
-  for f in "$CLAUDE_DIR"/*.backup-*; do
-    if [ -f "$f" ]; then
-      original="${f%%.backup-*}"
-      cp "$f" "$original"
-      ok "Restored $(basename "$original") from backup"
+      rm -f "$CLAUDE_DIR/CLAUDE.md"
+      rm -f "$CLAUDE_DIR/profile.json"
+      rm -rf "$CLAUDE_DIR/rules"
+      rm -rf "$CLAUDE_DIR/hooks"
+      rm -f "$CLAUDE_DIR/statusline-command.sh"
+
+      for f in "$CLAUDE_DIR"/*.backup-*; do
+        if [ -f "$f" ]; then
+          original="${f%%.backup-*}"
+          cp "$f" "$original"
+          ok "Restored $(basename "$original") from backup"
+        fi
+      done
+
+      ok "Blueprint uninstalled"
+      exit 0
+      ;;
+    --profile)
+      PROFILE_ARG="$2"
+      shift 2
+      ;;
+    --reconfigure)
+      RECONFIGURE=true
+      shift
+      ;;
+    *)
+      fail "Unknown option: $1"
+      echo "Usage: ./install.sh [--profile <name>] [--reconfigure] [--uninstall]"
+      exit 1
+      ;;
+  esac
+done
+
+# ── Persona definitions (for wizard display) ──────────────────
+# Order matches profile filenames — wizard number = array index + 1
+PERSONA_KEYS=(
+  product-manager
+  executive
+  designer
+  analyst
+  data-scientist
+  data-engineer
+  junior-dev
+  senior-engineer
+  cto-architect
+  devops-engineer
+  vibe-coder
+  hobbyist
+)
+
+# ── Onboarding wizard ────────────────────────────────────────
+run_wizard() {
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+  echo -e "${BOLD}  Claude Code Blueprint — Setup${RST}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+  echo ""
+  echo "What best describes your role?"
+  echo ""
+
+  local i=1
+  for key in "${PERSONA_KEYS[@]}"; do
+    local profile_file="$PROFILES_DIR/${key}.json"
+    if [ -f "$profile_file" ]; then
+      local label description
+      label=$(jq -r '.label' "$profile_file")
+      description=$(jq -r '.description' "$profile_file")
+      printf "  ${BOLD}%2d.${RST}  %-35s ${DIM}%s${RST}\n" "$i" "$label" "$description"
+    fi
+    ((i++))
+  done
+
+  echo ""
+  while true; do
+    read -p "Your choice [1-${#PERSONA_KEYS[@]}]: " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#PERSONA_KEYS[@]}" ]; then
+      SELECTED_PERSONA="${PERSONA_KEYS[$((choice - 1))]}"
+      break
+    else
+      echo "Please enter a number between 1 and ${#PERSONA_KEYS[@]}"
     fi
   done
 
-  ok "Blueprint uninstalled"
-  exit 0
+  local selected_label
+  selected_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
+  echo ""
+  ok "Selected: ${selected_label}"
+}
+
+# ── Assemble CLAUDE.md from sections ─────────────────────────
+assemble_claude_md() {
+  local profile_file="$1"
+  local output_file="$2"
+
+  local comm auto work
+  comm=$(jq -r '.axes.communication' "$profile_file")
+  auto=$(jq -r '.axes.autonomy' "$profile_file")
+  work=$(jq -r '.axes.workflow' "$profile_file")
+
+  # Read quality array
+  local quals
+  quals=$(jq -r '.quality[]' "$profile_file")
+
+  # Assemble by concatenating section files
+  {
+    cat "$SECTIONS_DIR/base.md"
+    echo ""
+    cat "$SECTIONS_DIR/communication-${comm}.md"
+    echo ""
+    cat "$SECTIONS_DIR/autonomy-${auto}.md"
+    echo ""
+    cat "$SECTIONS_DIR/workflow-${work}.md"
+    echo ""
+    cat "$SECTIONS_DIR/quality-core.md"
+    for q in $quals; do
+      if [ "$q" != "core" ] && [ -f "$SECTIONS_DIR/quality-${q}.md" ]; then
+        echo ""
+        cat "$SECTIONS_DIR/quality-${q}.md"
+      fi
+    done
+  } > "$output_file"
+}
+
+# ── Pre-flight checks ────────────────────────────────────────
+if [ -z "$PROFILE_ARG" ] && [ "$RECONFIGURE" = false ]; then
+  # Check if already configured — skip wizard on fresh install only
+  if [ -f "$CLAUDE_DIR/profile.json" ] && [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
+    existing_persona=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "")
+    if [ -n "$existing_persona" ]; then
+      echo ""
+      echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+      echo -e "${BOLD}  Claude Code Blueprint — Installer${RST}"
+      echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+      echo ""
+      existing_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "$existing_persona")
+      info "Existing profile detected: ${existing_label}"
+      echo ""
+      echo "  1. Keep current profile and update blueprint files"
+      echo "  2. Choose a new profile"
+      echo "  3. Cancel"
+      echo ""
+      read -p "Your choice [1-3]: " update_choice
+      case "$update_choice" in
+        1)
+          SELECTED_PERSONA="$existing_persona"
+          ;;
+        2)
+          run_wizard
+          ;;
+        *)
+          echo "Cancelled."
+          exit 0
+          ;;
+      esac
+    else
+      run_wizard
+    fi
+  else
+    run_wizard
+  fi
+elif [ -n "$PROFILE_ARG" ]; then
+  # --profile flag: validate and use directly
+  if [ ! -f "$PROFILES_DIR/${PROFILE_ARG}.json" ]; then
+    fail "Unknown profile: ${PROFILE_ARG}"
+    echo ""
+    echo "Available profiles:"
+    for key in "${PERSONA_KEYS[@]}"; do
+      echo "  - $key"
+    done
+    exit 1
+  fi
+  SELECTED_PERSONA="$PROFILE_ARG"
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+  echo -e "${BOLD}  Claude Code Blueprint — Installer${RST}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+  echo ""
+  local_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
+  ok "Using profile: ${local_label}"
+else
+  # --reconfigure: always run wizard
+  run_wizard
 fi
 
-# ── Pre-flight checks ───────────────────────────────────────
-echo ""
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-echo -e "${BOLD}  Claude Code Blueprint — Installer${RST}"
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-echo ""
+PROFILE_FILE="$PROFILES_DIR/${SELECTED_PERSONA}.json"
 
 # Check for claude CLI
+echo ""
 if ! command -v claude >/dev/null 2>&1; then
   fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
   exit 1
 fi
 ok "Claude Code CLI found"
 
-# Check for jq (required by hooks and status line)
+# Check for jq
 if ! command -v jq >/dev/null 2>&1; then
   fail "jq not found. Install: brew install jq (macOS) or apt install jq (Linux)"
   exit 1
 fi
 ok "jq found"
 
-# ── Backup existing files ───────────────────────────────────
+# Check platform
+check_platform || exit 1
+
+# ── Backup existing files ────────────────────────────────────
 echo ""
 info "Backing up existing configuration..."
 
@@ -101,19 +279,38 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   ok "Backed up settings.json"
 fi
 
-# ── Install CLAUDE.md ───────────────────────────────────────
-echo ""
-info "Installing CLAUDE.md and rules..."
+if [ -f "$CLAUDE_DIR/profile.json" ]; then
+  cp "$CLAUDE_DIR/profile.json" "$CLAUDE_DIR/profile.json${BACKUP_SUFFIX}"
+  ok "Backed up profile.json"
+fi
 
-cp "$SCRIPT_DIR/templates/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
-ok "Installed CLAUDE.md ($(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ') lines)"
+# ── Assemble and install CLAUDE.md ───────────────────────────
+echo ""
+info "Assembling CLAUDE.md for persona: $(jq -r '.label' "$PROFILE_FILE")..."
+
+assemble_claude_md "$PROFILE_FILE" "$CLAUDE_DIR/CLAUDE.md"
+
+lines=$(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ')
+if [ "$lines" -le 200 ]; then
+  ok "Installed CLAUDE.md ($lines lines, under 200 limit)"
+else
+  warn "CLAUDE.md is $lines lines (target: under 200) — consider trimming sections"
+fi
+
+# Save profile.json for future reference
+cp "$PROFILE_FILE" "$CLAUDE_DIR/profile.json"
+ok "Saved profile.json ($(jq -r '.persona' "$PROFILE_FILE"))"
+
+# ── Install rules files ──────────────────────────────────────
+echo ""
+info "Installing rules..."
 
 for rule_file in "$SCRIPT_DIR/templates/rules/"*.md; do
   cp "$rule_file" "$CLAUDE_DIR/rules/$(basename "$rule_file")"
   ok "Installed rules/$(basename "$rule_file")"
 done
 
-# ── Install hooks ────────────────────────────────────────────
+# ── Install hooks ─────────────────────────────────────────────
 echo ""
 info "Installing hooks..."
 
@@ -123,7 +320,7 @@ for hook_file in "$SCRIPT_DIR/hooks/"*.sh; do
   ok "Installed hooks/$(basename "$hook_file")"
 done
 
-# ── Install scripts ──────────────────────────────────────────
+# ── Install scripts ───────────────────────────────────────────
 echo ""
 info "Installing scripts..."
 
@@ -136,7 +333,7 @@ for script_file in "$SCRIPT_DIR/scripts/"*.sh; do
   fi
 done
 
-# ── Install status line ─────────────────────────────────────
+# ── Install status line ──────────────────────────────────────
 echo ""
 info "Installing status line..."
 
@@ -144,16 +341,13 @@ cp "$SCRIPT_DIR/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
 chmod +x "$CLAUDE_DIR/statusline-command.sh"
 ok "Installed statusline-command.sh"
 
-# ── Merge settings.json ─────────────────────────────────────
+# ── Merge settings.json ──────────────────────────────────────
 echo ""
 info "Configuring settings.json..."
 
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  # Merge: keep existing settings, add/overwrite hooks + statusLine + plugins
   EXISTING="$CLAUDE_DIR/settings.json"
   TEMPLATE="$SCRIPT_DIR/templates/settings.json"
-
-  # Deep merge using jq: template values override existing for hooks/statusLine/plugins
   jq -s '.[0] * .[1]' "$EXISTING" "$TEMPLATE" > "$CLAUDE_DIR/settings.json.tmp"
   mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
   ok "Merged settings.json (preserved existing settings, added blueprint config)"
@@ -162,7 +356,7 @@ else
   ok "Installed settings.json (fresh)"
 fi
 
-# ── Install plugins ──────────────────────────────────────────
+# ── Install plugins ───────────────────────────────────────────
 echo ""
 info "Installing plugins (this may take a moment)..."
 
@@ -199,7 +393,7 @@ for plugin in "${PLUGINS[@]}"; do
 done
 ok "Installed $installed plugins ($failed skipped/failed)"
 
-# ── Health check ─────────────────────────────────────────────
+# ── Health check ──────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}━━━ Health Check ━━━${RST}"
 echo ""
@@ -216,6 +410,14 @@ if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
   fi
 else
   fail "CLAUDE.md missing"; ((errors++))
+fi
+
+# Check profile.json
+if [ -f "$CLAUDE_DIR/profile.json" ]; then
+  persona_name=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "unknown")
+  ok "profile.json exists (persona: $persona_name)"
+else
+  fail "profile.json missing"; ((errors++))
 fi
 
 # Check rules files
@@ -255,7 +457,6 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   else
     fail "settings.json missing status line configuration"; ((errors++))
   fi
-  # Check plugin count
   plugin_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
   if [ "$plugin_count" -ge 15 ]; then
     ok "settings.json has $plugin_count plugins enabled"
@@ -268,7 +469,7 @@ else
   fail "settings.json missing"; ((errors++))
 fi
 
-# ── Hook Smoke Tests ─────────────────────────────────────────
+# ── Hook Smoke Tests ──────────────────────────────────────────
 echo ""
 echo -e "${BOLD}━━━ Hook Smoke Tests ━━━${RST}"
 echo ""
@@ -307,18 +508,54 @@ else
   fail "architect-gate blocked a valid plan file (exit: $gate_ok_exit)"; ((errors++))
 fi
 
-# ── Summary ──────────────────────────────────────────────────
+# ── Assembly Smoke Test ───────────────────────────────────────
+echo ""
+echo -e "${BOLD}━━━ Assembly Smoke Test ━━━${RST}"
+echo ""
+
+assembly_errors=0
+for profile_json in "$PROFILES_DIR"/*.json; do
+  persona_key=$(jq -r '.persona' "$profile_json")
+  temp_output="$(get_temp_dir)/claude-blueprint-test-${persona_key}.md"
+  if assemble_claude_md "$profile_json" "$temp_output" 2>/dev/null; then
+    line_count=$(wc -l < "$temp_output" | tr -d ' ')
+    if [ "$line_count" -le 200 ]; then
+      ok "  ${persona_key}: ${line_count} lines"
+    else
+      warn "  ${persona_key}: ${line_count} lines (over 200 limit)"
+      ((assembly_errors++))
+    fi
+    rm -f "$temp_output"
+  else
+    fail "  ${persona_key}: assembly failed"
+    ((assembly_errors++))
+  fi
+done
+
+if [ "$assembly_errors" -eq 0 ]; then
+  ok "All 12 persona assemblies under 200 lines"
+else
+  warn "$assembly_errors persona(s) had assembly issues"
+  ((errors += assembly_errors))
+fi
+
+# ── Summary ───────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}━━━ Summary ━━━${RST}"
 echo ""
 if [ "$errors" -eq 0 ]; then
+  persona_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json")
   echo -e "${GREEN}${BOLD}All checks passed. Blueprint installed successfully.${RST}"
+  echo ""
+  echo "  Profile:  ${persona_label}"
+  echo "  CLAUDE.md: $(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ') lines"
   echo ""
   echo "Next steps:"
   echo "  1. Open a new Claude Code session: claude"
   echo "  2. Run /memory to verify files are loaded"
   echo "  3. Try a non-trivial task to test the workflow"
   echo ""
+  echo "To change your profile later: ./install.sh --reconfigure"
   echo "To customize for your project, create a project-level CLAUDE.md"
   echo "in your repo root. See examples/project-CLAUDE.md for a template."
 else

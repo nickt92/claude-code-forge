@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persona": "junior-dev",
+  "label": "Junior Developer",
+  "description": "I'm early in my career and learning software engineering",
+  "axes": {
+    "communication": "technical",
+    "autonomy": "moderate",
+    "workflow": "standard",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"]
+}
