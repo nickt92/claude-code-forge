@@ -42,6 +42,13 @@ _install_success_banner() {
   printf "\n${_C_DIM}  forge doctor        Health check\n"
   printf "  forge switch <p>    Switch persona\n"
   printf "  forge install -u    Uninstall${_C_RST}\n"
+
+  # Hint about PATH if ~/.claude/bin isn't on it
+  if [[ ":$PATH:" != *":$HOME/.claude/bin:"* ]]; then
+    printf "\n${_C_YELLOW}!${_C_RST} Add ${_C_BOLD}~/.claude/bin${_C_RST} to your PATH to use ${_C_BOLD}forge${_C_RST} from anywhere:\n"
+    printf "  ${_C_DIM}echo 'export PATH=\"\$HOME/.claude/bin:\$PATH\"' >> ~/.%s${_C_RST}\n" \
+      "$( [[ "$SHELL" == */zsh ]] && echo "zshrc" || echo "bashrc" )"
+  fi
 }
 
 _install_fail_banner() {
@@ -279,6 +286,10 @@ cmd_install() {
         echo
         [[ ! $REPLY =~ ^[Yy]$ ]] && return 0
 
+        # Read plugin group before uninstall destroys the manifest
+        local plugin_group_for_uninstall
+        plugin_group_for_uninstall=$(jq -r '.plugin_group // "full"' "$MANIFEST_FILE" 2>/dev/null || echo "full")
+
         uninstall_forge
 
         # Offer plugin uninstall
@@ -286,10 +297,8 @@ cmd_install() {
         read -p "Also uninstall forge plugins? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]] && command -v claude >/dev/null 2>&1; then
-          local plugin_group
-          plugin_group=$(jq -r '.plugin_group // "full"' "$MANIFEST_FILE" 2>/dev/null || echo "full")
           local plugin_list
-          plugin_list=$(resolve_plugin_list "$plugin_group")
+          plugin_list=$(resolve_plugin_list "$plugin_group_for_uninstall")
           while IFS= read -r plugin; do
             [ -n "$plugin" ] || continue
             claude plugins remove "$plugin" </dev/null 2>/dev/null || true

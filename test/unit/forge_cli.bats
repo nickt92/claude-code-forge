@@ -39,7 +39,7 @@ teardown() {
 @test "forge help prints usage info" {
   run "$SCRIPT_DIR/forge" help
   assert_success
-  assert_output --partial "Commands:"
+  assert_output --partial "Setup"
   assert_output --partial "install"
   assert_output --partial "switch"
   assert_output --partial "doctor"
@@ -48,13 +48,13 @@ teardown() {
 @test "forge --help prints usage info" {
   run "$SCRIPT_DIR/forge" --help
   assert_success
-  assert_output --partial "Commands:"
+  assert_output --partial "Setup"
 }
 
 @test "forge with no args shows help" {
   run "$SCRIPT_DIR/forge"
   assert_success
-  assert_output --partial "Commands:"
+  assert_output --partial "Setup"
 }
 
 # ── Unknown command ──────────────────────────────────────────

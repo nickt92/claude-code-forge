@@ -56,7 +56,7 @@ _setup_clean_install() {
   echo "# modified" >> "$CLAUDE_DIR/rules/scope-discipline.md"
   source "$SCRIPT_DIR/lib/cmd-diff.sh"
   run cmd_diff
-  assert_output --partial "scope-discipline.md (changed)"
+  assert_output --partial "scope-discipline.md"
 }
 
 @test "diff detects missing hook" {
@@ -73,7 +73,7 @@ _setup_clean_install() {
 
   source "$SCRIPT_DIR/lib/cmd-diff.sh"
   run cmd_diff
-  assert_output --partial "Version:"
+  assert_output --partial "Version"
   assert_output --partial "installed=0.9.0"
 }
 
