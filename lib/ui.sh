@@ -113,15 +113,22 @@ spin() {
   local msg="$1"
   shift
 
+  local errfile
+  errfile=$(mktemp)
+
   if [ "$_UI_IS_TTY" = true ] && ! _ui_quiet; then
     _spin_loop "$msg" &
     _UI_SPINNER_PID=$!
-    # Run command, capture exit code
+    # Run command, capture exit code + stderr
     local rc=0
-    "$@" >/dev/null 2>&1 || rc=$?
+    "$@" >/dev/null 2>"$errfile" || rc=$?
     _spin_cleanup
     # Clear spinner line
     printf "\r\033[K"
+    if [ "$rc" -ne 0 ]; then
+      debug "Command failed (rc=$rc): $(cat "$errfile")"
+    fi
+    rm -f "$errfile"
     return $rc
   else
     # Non-TTY fallback
@@ -129,7 +136,7 @@ spin() {
       printf "  %s... " "$msg"
     fi
     local rc=0
-    "$@" >/dev/null 2>&1 || rc=$?
+    "$@" >/dev/null 2>"$errfile" || rc=$?
     if ! _ui_quiet; then
       if [ "$rc" -eq 0 ]; then
         printf "done\n"
@@ -137,6 +144,10 @@ spin() {
         printf "failed\n"
       fi
     fi
+    if [ "$rc" -ne 0 ]; then
+      debug "Command failed (rc=$rc): $(cat "$errfile")"
+    fi
+    rm -f "$errfile"
     return $rc
   fi
 }
@@ -146,6 +157,9 @@ spin() {
 #   progress_start 18 "Installing plugins"
 #   progress_tick    # call N times
 #   progress_done "18 plugins installed"
+#
+# NOTE: Single-instance only — nested progress_start calls will
+# corrupt the outer counter. Use sequentially, not nested.
 _UI_PROGRESS_TOTAL=0
 _UI_PROGRESS_CURRENT=0
 _UI_PROGRESS_MSG=""
@@ -182,32 +196,3 @@ progress_done() {
   ok "$summary"
 }
 
-# ── Success Banner ───────────────────────────────────────────
-success_banner() {
-  local profile="$1"
-  local lines="$2"
-  _ui_quiet && return 0
-  printf "\n────────────────────────────────────────────\n"
-  printf "🍺  Forge complete!\n"
-  printf "\n"
-  printf "   Profile:   %s\n" "$profile"
-  printf "   CLAUDE.md: %s lines\n" "$lines"
-  printf "\n"
-  printf "🚀  Next steps:\n"
-  printf "   1. Start a session: claude\n"
-  printf "   2. Run /memory to verify\n"
-  printf "   3. Try a non-trivial task\n"
-  printf "\n"
-  printf "   Health check: ./install.sh --check\n"
-  printf "   Reconfigure:  ./install.sh --reconfigure\n"
-  printf "   Uninstall:    ./install.sh --uninstall\n"
-  printf "────────────────────────────────────────────\n"
-}
-
-# ── Fail Banner ──────────────────────────────────────────────
-fail_banner() {
-  local count="$1"
-  printf "\n────────────────────────────────────────────\n"
-  printf "❌  %d check(s) failed. Review errors above.\n" "$count"
-  printf "────────────────────────────────────────────\n"
-}

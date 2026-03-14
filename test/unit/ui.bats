@@ -108,29 +108,6 @@ teardown() {
   assert_output ""
 }
 
-# ── Success/Fail Banners ─────────────────────────────────────
-
-@test "success_banner prints beer and profile" {
-  run success_banner "Senior Engineer" "142"
-  assert_success
-  assert_output --partial "Forge complete!"
-  assert_output --partial "Senior Engineer"
-  assert_output --partial "142 lines"
-  assert_output --partial "Next steps"
-}
-
-@test "success_banner suppressed in quiet mode" {
-  UI_QUIET=true run success_banner "Senior Engineer" "142"
-  assert_success
-  assert_output ""
-}
-
-@test "fail_banner prints error count" {
-  run fail_banner 3
-  assert_success
-  assert_output --partial "3 check(s) failed"
-}
-
 # ── Color Detection ──────────────────────────────────────────
 
 @test "NO_COLOR disables colors" {
