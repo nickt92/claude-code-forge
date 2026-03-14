@@ -54,9 +54,9 @@ chmod +x install.sh
 The installer walks you through a one-step persona selection, then:
 
 1. Assembles a tailored CLAUDE.md from section files (verified under 200 lines)
-2. Backs up your existing `~/.claude/` configuration
-3. Copies rules files, hooks, and status line
-4. Merges settings (preserves your existing config)
+2. Backs up your existing `~/.claude/` configuration automatically
+3. Copies rules files, hooks, scripts, and status line
+4. Merges settings (hooks and plugins added additively — your existing config is preserved)
 5. Installs 18 specialist plugins
 6. Runs health checks and assembly smoke tests
 
@@ -65,15 +65,58 @@ The installer walks you through a one-step persona selection, then:
 ```bash
 ./install.sh --profile senior-engineer    # Skip the wizard
 ./install.sh --reconfigure                # Change your persona later
-./install.sh --uninstall                  # Restore backups
+./install.sh --check                      # Verify installation without re-installing
+./install.sh --uninstall                  # Remove forge files, restore backups
+./install.sh --quiet --profile vibe-coder # Minimal output (CI-friendly)
+./install.sh --debug                      # Verbose trace of each step
+./install.sh --help                       # Show all options
 ```
 
 ### Verify
 
 ```bash
-claude     # Start a new session
-/memory    # Check files are loaded
+claude      # Start a new session
+/memory     # Check files are loaded
 ```
+
+## 📦 What Gets Installed
+
+The forge writes only to `~/.claude/`. Before touching anything, it snapshots your existing configuration to `~/.claude/forge-backup/`. The `--uninstall` flag reads that snapshot and restores exactly what was there before.
+
+```
+~/.claude/
+├── CLAUDE.md                     # Assembled from your persona (replaces existing)
+├── profile.json                  # Your persona config (for hooks to read)
+├── statusline-command.sh         # Premium status line script
+├── settings.json                 # Forge hooks + plugins merged into existing config
+├── rules/
+│   ├── agent-orchestration.md   # 4-phase workflow, specialist routing table
+│   ├── commit-and-delivery.md   # Commit format, dependency policy
+│   ├── context-and-memory.md    # Session resumption, compaction protection
+│   ├── project-setup.md         # Document chain, project onboarding
+│   ├── pull-requests.md         # PR format standards
+│   ├── quality-engineering.md   # Testing pyramid, coverage targets, accessibility
+│   └── scope-discipline.md      # Task classification guard rails
+├── hooks/
+│   ├── session-init.sh          # First-prompt nudge (persona-aware)
+│   ├── architect-gate.sh        # Blocks plan files without architect review
+│   ├── commit-validator.sh      # Blocks AI attribution, warns on bad format
+│   └── backup-transcript.sh     # Saves transcript before context compaction
+├── scripts/
+│   ├── generate-project-claude.sh  # Brownfield onboarding
+│   └── init-project-claude.sh      # Greenfield project setup
+├── lib/
+│   └── ui.sh                    # Shared output library (used by scripts)
+└── forge-backup/
+    ├── manifest.json             # What was backed up and what was installed
+    ├── CLAUDE.md                 # Your original CLAUDE.md (if any)
+    ├── settings.json             # Your original settings.json (if any)
+    └── rules/, hooks/, ...       # Any pre-existing files in these directories
+```
+
+**Settings merge strategy:** Hooks and plugins are added additively — the forge never removes your existing hooks or plugins. The `statusLine` and `alwaysThinkingEnabled` keys are set by the template. All other keys you have in `settings.json` are preserved unchanged.
+
+**Uninstall is clean.** The manifest records exactly which files were installed and which were pre-existing. `--uninstall` restores the pre-existing files, removes forge-only files, and surgically unmerges forge additions from `settings.json` — including any plugins or hooks you added after installation.
 
 ## 🔥 Persona System
 
@@ -109,7 +152,7 @@ The forge uses an **axis-based persona system**. Each role selects values from 4
 
 ### Adding a Persona
 
-Create one JSON file. If existing axis values cover the behavior, zero section changes needed.
+Create one JSON file. If existing axis values cover the behavior, zero section changes are needed.
 
 <details>
 <summary><strong>Example: vibe-coder.json</strong></summary>
@@ -167,45 +210,65 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
-| `session-init.sh` | First prompt per session | Persona-aware classification nudge (adapts to autonomy level) |
+| `session-init.sh` | First prompt per session | Persona-aware classification nudge (language adapts to autonomy level) |
 | `architect-gate.sh` | Write/Edit tools | Blocks plan files without `## Architect Review` section |
 | `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
 
-## 📦 What's Included
+## 🖥 CLI Reference
 
 ```
-claude-code-forge/
-├── install.sh                          # Installer with onboarding wizard
-├── statusline-command.sh               # Premium status line
-├── lib/
-│   ├── platform.sh                     # Cross-platform (macOS, Linux, WSL)
-│   ├── assembly.sh                     # CLAUDE.md assembly from sections
-│   └── settings-merge.sh              # Additive settings merge logic
-├── templates/
-│   ├── profiles/                       # 12 persona JSON configs
-│   ├── sections/                       # 15 axis-value section files
-│   ├── settings.json                   # Hooks + status line + plugins
-│   └── rules/                          # 7 rules files
-├── hooks/                              # 4 enforcement hooks
-├── scripts/
-│   ├── generate-project-claude.sh      # Brownfield project onboarding
-│   └── init-project-claude.sh          # Greenfield project setup
-├── test/
-│   ├── unit/                          # Hook and platform tests
-│   ├── integration/                   # Assembly, merge, install flow
-│   └── validation/                    # Schema and coverage checks
-└── examples/
-    ├── project-CLAUDE.md               # Project-level override template
-    ├── personas/                       # Assembled output examples
-    └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP examples
+Usage:
+  ./install.sh                         Interactive wizard
+  ./install.sh --profile <name>        Non-interactive install
+  ./install.sh --reconfigure           Re-run the persona wizard
+  ./install.sh --uninstall             Remove forge files, restore backups
+  ./install.sh --check                 Run health checks only (no install)
+  ./install.sh --quiet --profile <n>   Minimal output (CI-friendly)
+  ./install.sh --debug --profile <n>   Trace each verification step
+  ./install.sh --help                  Show this help
+
+Available profiles:
+  product-manager, executive, designer, analyst,
+  data-scientist, data-engineer, junior-dev, senior-engineer,
+  cto-architect, devops-engineer, vibe-coder, hobbyist
+
+Environment:
+  NO_COLOR=1     Disable colored output
+  UI_QUIET=true  Same as --quiet
+  UI_DEBUG=true  Same as --debug
 ```
+
+**`--check`** runs health checks against your existing `~/.claude/` installation without modifying anything. Useful after updating the repo to see if you need to re-run the installer.
+
+**`--reconfigure`** always runs the wizard, even if a profile is already installed. Use this to switch personas.
+
+**`--uninstall`** shows a preview of what will be removed and restored before prompting for confirmation. Optionally uninstalls the 18 forge plugins too.
+
+**`--quiet`** suppresses all output except failures and warnings. Designed for scripted or CI environments where you want a clean log.
+
+**`--debug`** prints each verification step to stderr. Useful when a health check fails and the high-level message isn't enough.
+
+## 📊 Status Line
+
+```
+🌿 feat/thing ✦3 ↑2 │ 🧠 Opus │ ▐████░░░░▌ 42% │ 💰 38¢ │ ✏️ +156 −23 │ ⏱️ 12m
+```
+
+| Segment | What It Shows |
+|:--------|:-------------|
+| 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
+| 🧠 | Model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
+| ▐████░░▌ | Context window usage (green <70%, yellow 70-90%, red >90%) |
+| 💰 | Session cost |
+| ✏️ | Lines added/removed |
+| ⏱️ | Session duration |
 
 ## 🏗 Project Onboarding
 
 ### Brownfield (Existing Projects)
 
-The forge includes a generator that analyzes your codebase and produces a project-level CLAUDE.md — not a template with blanks, but a real analysis of your architecture, tech stack, patterns, and pitfalls.
+Analyzes your codebase and generates a project-level CLAUDE.md — not a template with blanks, but a real analysis of your architecture, tech stack, patterns, and pitfalls.
 
 ```bash
 cd /path/to/your-existing-project
@@ -235,22 +298,7 @@ your-project/
 └── ROADMAP.md        # Phased plan with progress tracking
 ```
 
-These are team artifacts committed to git. Claude checks for them at session start (via `rules/project-setup.md`) and offers to help generate them when you describe new work. Templates are in `templates/document-chain/`, and filled-in examples are in `examples/document-chain/`.
-
-## 📊 Status Line
-
-```
-🌿 feat/thing ✦3 ↑2 │ 🧠 Opus │ ▐████░░░░▌ 42% │ 💰 38¢ │ ✏️ +156 −23 │ ⏱️ 12m
-```
-
-| Segment | What It Shows |
-|:--------|:-------------|
-| 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
-| 🧠 | Model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
-| ▐████░░▌ | Context window usage (green <70%, yellow 70-90%, red >90%) |
-| 💰 | Session cost |
-| ✏️ | Lines added/removed |
-| ⏱️ | Session duration |
+These are team artifacts committed to git. Claude checks for them at session start and offers to help generate them when you describe new work. Templates are in `templates/document-chain/` and filled-in examples are in `examples/document-chain/`.
 
 ## 🎛 Customization
 
@@ -262,42 +310,130 @@ Edit `templates/rules/quality-engineering.md`:
 - Add or remove accessibility requirements
 - Adjust performance checklists
 
+Then re-run `./install.sh` to install the updated rules.
+
 </details>
 
 <details>
 <summary><strong>Project-Level Overrides</strong></summary>
 
-Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-level instructions override global for project-specific concerns (tech stack, patterns, conventions).
+Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-level instructions override global for project-specific concerns (tech stack, patterns, conventions). The global `~/.claude/CLAUDE.md` still applies for everything not overridden.
 
 </details>
 
 <details>
 <summary><strong>Adding Custom Agents</strong></summary>
 
-The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table.
-
-</details>
-
-## 🧠 Design Decisions
-
-<details>
-<summary><strong>Why hooks instead of just instructions?</strong></summary>
-
-Instructions tell Claude what to do. Hooks enforce it. The architect-gate hook literally blocks plan file writes that don't include an `## Architect Review` section. Claude can't skip the step even if it wants to.
+The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table. Re-run `./install.sh` to propagate changes.
 
 </details>
 
 <details>
-<summary><strong>Why under 200 lines per CLAUDE.md?</strong></summary>
+<summary><strong>Switching Personas</strong></summary>
 
-Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored. The persona system guarantees every assembled CLAUDE.md stays under the limit (verified at install time).
+```bash
+./install.sh --reconfigure
+```
+
+This re-runs the wizard, re-assembles `~/.claude/CLAUDE.md` from the new profile, and updates `~/.claude/profile.json`. Hooks read `profile.json` at runtime, so the new persona takes effect immediately on the next `claude` session — no restart required.
+
+</details>
+
+## ❓ Troubleshooting
+
+<details>
+<summary><strong>Health check fails after install</strong></summary>
+
+Run `./install.sh --check` to see exactly which checks are failing. Common causes:
+
+- **Missing hooks or rules files** — re-run `./install.sh` to reinstall
+- **Hooks not executable** — the installer sets `chmod +x` on all hooks; if this fails, set manually: `chmod +x ~/.claude/hooks/*.sh`
+- **Plugin count below 15** — the `claude plugins add` command occasionally fails silently on bad network. Re-run `./install.sh` to retry plugin installation
 
 </details>
 
 <details>
-<summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
+<summary><strong>Claude doesn't seem to be following the rules</strong></summary>
 
-15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift.
+Run `/memory` at the start of a Claude session. If `~/.claude/CLAUDE.md` and the rules files are not listed, Claude isn't loading them.
+
+Three things to verify:
+1. `~/.claude/CLAUDE.md` exists and is under 200 lines (`wc -l ~/.claude/CLAUDE.md`)
+2. `~/.claude/rules/` contains the 7 rules files
+3. Claude Code version is 1.0 or newer (`claude --version`)
+
+If the files are loaded but rules aren't followed, check that you're at the start of a fresh session. Long-running sessions accumulate context and can lose instruction adherence — start a new session with `/clear` or open a new terminal.
+
+</details>
+
+<details>
+<summary><strong>The architect-gate hook is blocking my file</strong></summary>
+
+The hook blocks writes to `~/.claude/plans/` that don't include an `## Architect Review` section. This is intentional — the gate enforces that you run the domain architect agent before finalizing a plan.
+
+To pass the gate, add the section to your plan file:
+
+```markdown
+## Architect Review
+- **Reviewer:** backend-development:backend-architect
+- **Verdict:** approved
+- **Key findings:** ...
+- **Adjustments:** none
+```
+
+If you're writing a plan outside `~/.claude/plans/`, the hook doesn't apply.
+
+</details>
+
+<details>
+<summary><strong>commit-validator is blocking my commit</strong></summary>
+
+The validator blocks commits containing AI attribution (`Co-Authored-By: Claude`, `Generated with Claude Code`, etc.). Remove the attribution and commit again.
+
+It also warns (but does not block) on non-conventional commit format. The expected format is:
+
+```
+feat(scope): description
+fix(auth): description
+chore(deps): description
+```
+
+If you see a warning but want to proceed anyway, the commit still goes through — the warning is informational.
+
+</details>
+
+<details>
+<summary><strong>I already have hooks or plugins configured</strong></summary>
+
+The settings merge is additive. The forge appends its hooks to your existing hook arrays and adds its plugins to your existing plugin object. Your hooks and plugins are never removed.
+
+If you're concerned about conflicts, check `~/.claude/forge-backup/manifest.json` — the `installed.settings_additions` field shows exactly what the forge added to your `settings.json`.
+
+</details>
+
+<details>
+<summary><strong>--uninstall didn't restore my original settings.json</strong></summary>
+
+Uninstall reads `~/.claude/forge-backup/manifest.json` to determine what to restore. If the manifest is missing (e.g., it was deleted manually), uninstall falls back to best-effort removal using the known forge file list.
+
+If you had a custom `settings.json` before installing, the original is in `~/.claude/forge-backup/settings.json`. You can restore it manually:
+
+```bash
+cp ~/.claude/forge-backup/settings.json ~/.claude/settings.json
+```
+
+</details>
+
+<details>
+<summary><strong>WSL or Linux: colors or spinner look broken</strong></summary>
+
+The UI library auto-detects TTY and color support. If output looks garbled, disable colors:
+
+```bash
+NO_COLOR=1 ./install.sh --profile senior-engineer
+```
+
+On non-interactive environments (CI, pipes), the spinner and progress counter automatically fall back to plain text output.
 
 </details>
 
@@ -312,21 +448,93 @@ Anthropic recommends it. Our testing showed content at line 200+ was frequently 
 ./test/run_tests.sh validation   # Profile schema, section coverage
 ```
 
+> **Note:** bats-core is included as a git submodule. If the test runner fails to find it, run `git submodule update --init --recursive` first.
+
 | Suite | Tests | What It Covers |
 |:------|------:|:---------------|
-| **Unit tests** | 84 | Commit validation, architect gate, session init, backup, platform, UI library |
-| **Integration tests** | 65 | Assembly pipeline, settings merge, install flow, backup/restore |
-| **Validation tests** | 24 | Profile schemas, section file coverage, settings template integrity |
+| **Unit** | 84 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library |
+| **Integration** | 65 | Assembly pipeline, settings merge/unmerge, install flow, backup and restore |
+| **Validation** | 24 | Profile schema integrity, section file coverage, settings template structure |
 
 All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
+
+## 📁 Repository Structure
+
+```
+claude-code-forge/
+├── install.sh                          # Installer with onboarding wizard
+├── statusline-command.sh               # Premium status line
+├── lib/
+│   ├── ui.sh                           # Output library (colors, spinner, progress)
+│   ├── platform.sh                     # Cross-platform detection (macOS, Linux, WSL)
+│   ├── assembly.sh                     # CLAUDE.md assembly from profile + sections
+│   ├── settings-merge.sh               # Additive settings merge
+│   ├── settings-unmerge.sh             # Surgical settings restore for uninstall
+│   ├── forge-inventory.sh              # Runtime discovery of shipped files
+│   ├── manifest.sh                     # Backup manifest CRUD and validation
+│   └── uninstall.sh                    # Uninstall orchestration
+├── templates/
+│   ├── profiles/                       # 12 persona JSON configs
+│   ├── sections/                       # 15 axis-value section files
+│   ├── settings.json                   # Hooks + status line + plugins template
+│   ├── rules/                          # 7 rules files installed to ~/.claude/rules/
+│   └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP templates
+├── hooks/                              # 4 enforcement hooks
+├── scripts/
+│   ├── generate-project-claude.sh      # Brownfield project onboarding
+│   └── init-project-claude.sh          # Greenfield project setup
+├── test/
+│   ├── unit/                           # 84 tests: hooks and platform
+│   ├── integration/                    # 65 tests: assembly, merge, install flow
+│   ├── validation/                     # 24 tests: schema and coverage checks
+│   ├── helpers/                        # Shared test helper
+│   ├── libs/                           # bats-core, bats-support, bats-assert, bats-file
+│   └── run_tests.sh                    # Test runner
+└── examples/
+    ├── project-CLAUDE.md               # Project-level override template
+    ├── personas/                       # Assembled CLAUDE.md output examples
+    └── document-chain/                 # Filled-in PROJECT/REQUIREMENTS/ROADMAP examples
+```
+
+## 🧠 Design Decisions
+
+<details>
+<summary><strong>Why hooks instead of just instructions?</strong></summary>
+
+Instructions tell Claude what to do. Hooks enforce it. The `architect-gate` hook literally blocks plan file writes that don't include an `## Architect Review` section. Claude can't skip the step even if it wants to. The `commit-validator` hook blocks AI attribution at the moment of commit — not as a reminder to remember later.
+
+</details>
+
+<details>
+<summary><strong>Why under 200 lines per CLAUDE.md?</strong></summary>
+
+Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored in long sessions. The persona system guarantees every assembled CLAUDE.md stays under the limit (the health check verifies all 12 profiles at install time).
+
+</details>
+
+<details>
+<summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
+
+15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift — when you update a section file, every persona that uses it gets the update automatically on the next install.
+
+</details>
+
+<details>
+<summary><strong>Why is the backup manifest-based instead of timestamped copies?</strong></summary>
+
+Timestamped backups accumulate and require manual cleanup. The manifest approach takes a single snapshot on first install and freezes it — re-installs don't overwrite the original backup, so you always have a clean restore point regardless of how many times you update. The manifest also records what the forge added to `settings.json` so uninstall can be surgical rather than destructive.
+
+</details>
 
 ## 🔧 Maintenance
 
 ```bash
-du -sh ~/.claude/backups/                       # Check backup size
-find ~/.claude/backups/ -mtime +30 -delete      # Clean old transcripts
+./install.sh --check                            # Verify current installation
+./install.sh                                    # Re-run to pick up forge updates (idempotent)
+./install.sh --reconfigure                      # Change persona
+du -sh ~/.claude/backups/                       # Check transcript backup size
+find ~/.claude/backups/ -mtime +30 -delete      # Clean old transcripts manually
 claude plugins update                           # Update plugins
-./install.sh                                    # Re-run (idempotent)
 ```
 
 ## Credits
