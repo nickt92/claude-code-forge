@@ -9,9 +9,12 @@ setup() {
   source "$SCRIPT_DIR/lib/ui.sh"
   source "$SCRIPT_DIR/lib/platform.sh"
   source "$SCRIPT_DIR/lib/settings-merge.sh"
+  source "$SCRIPT_DIR/lib/settings-unmerge.sh"
+  source "$SCRIPT_DIR/lib/forge-inventory.sh"
 
   export FORGE_VERSION="0.1.0-test"
-  source "$SCRIPT_DIR/lib/backup.sh"
+  source "$SCRIPT_DIR/lib/manifest.sh"
+  source "$SCRIPT_DIR/lib/uninstall.sh"
 }
 
 teardown() {

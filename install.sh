@@ -33,7 +33,39 @@ source "$SCRIPT_DIR/lib/ui.sh"
 source "$SCRIPT_DIR/lib/platform.sh"
 source "$SCRIPT_DIR/lib/assembly.sh"
 source "$SCRIPT_DIR/lib/settings-merge.sh"
-source "$SCRIPT_DIR/lib/backup.sh"
+source "$SCRIPT_DIR/lib/settings-unmerge.sh"
+source "$SCRIPT_DIR/lib/forge-inventory.sh"
+source "$SCRIPT_DIR/lib/manifest.sh"
+source "$SCRIPT_DIR/lib/uninstall.sh"
+
+# ── Install-specific banners (not in lib/ui.sh — domain-specific) ──
+success_banner() {
+  local profile="$1"
+  local lines="$2"
+  _ui_quiet && return 0
+  printf "\n────────────────────────────────────────────\n"
+  printf "🍺  Forge complete!\n"
+  printf "\n"
+  printf "   Profile:   %s\n" "$profile"
+  printf "   CLAUDE.md: %s lines\n" "$lines"
+  printf "\n"
+  printf "🚀  Next steps:\n"
+  printf "   1. Start a session: claude\n"
+  printf "   2. Run /memory to verify\n"
+  printf "   3. Try a non-trivial task\n"
+  printf "\n"
+  printf "   Health check: ./install.sh --check\n"
+  printf "   Reconfigure:  ./install.sh --reconfigure\n"
+  printf "   Uninstall:    ./install.sh --uninstall\n"
+  printf "────────────────────────────────────────────\n"
+}
+
+fail_banner() {
+  local count="$1"
+  printf "\n────────────────────────────────────────────\n"
+  printf "❌  %d check(s) failed. Review errors above.\n" "$count"
+  printf "────────────────────────────────────────────\n"
+}
 
 # ── Health Check Function ─────────────────────────────────────
 # Callable standalone via --check or at end of install flow.
@@ -59,23 +91,25 @@ run_health_checks() {
     fail "profile.json missing"; ((health_fail++)); ((errors++))
   fi
 
-  # Rules files
-  for rule in quality-engineering agent-orchestration commit-and-delivery context-and-memory pull-requests project-setup scope-discipline; do
+  # Rules files (discovered from source)
+  while IFS= read -r rule; do
+    [ -n "$rule" ] || continue
     if [ -f "$CLAUDE_DIR/rules/${rule}.md" ]; then
       ((health_pass++))
     else
       fail "rules/${rule}.md missing"; ((health_fail++)); ((errors++))
     fi
-  done
+  done < <(forge_shipped_rules)
 
-  # Hooks
-  for hook in session-init architect-gate backup-transcript commit-validator; do
+  # Hooks (discovered from source)
+  while IFS= read -r hook; do
+    [ -n "$hook" ] || continue
     if [ -f "$CLAUDE_DIR/hooks/${hook}.sh" ] && [ -x "$CLAUDE_DIR/hooks/${hook}.sh" ]; then
       ((health_pass++))
     else
       fail "hooks/${hook}.sh missing or not executable"; ((health_fail++)); ((errors++))
     fi
-  done
+  done < <(forge_shipped_hooks)
 
   # Status line
   if [ -f "$CLAUDE_DIR/statusline-command.sh" ] && [ -x "$CLAUDE_DIR/statusline-command.sh" ]; then
@@ -409,7 +443,7 @@ ok "All prerequisites met (claude, jq, $(detect_platform))"
 # ── Backup existing files ────────────────────────────────────
 step "Backing up configuration"
 
-mkdir -p "$CLAUDE_DIR/rules" "$CLAUDE_DIR/hooks" "$CLAUDE_DIR/backups"
+mkdir -p "$CLAUDE_DIR/rules" "$CLAUDE_DIR/hooks"
 
 # Migrate legacy .backup-* files if present
 if has_legacy_backups; then
@@ -538,7 +572,6 @@ if [ "$failed" -eq 0 ]; then
 else
   progress_done "$installed plugins installed ($failed skipped)"
 fi
-
 # Reset terminal state — claude CLI (Node.js) may dirty the tty on failure
 stty sane < /dev/tty 2>/dev/null || true
 
