@@ -1,0 +1,113 @@
+#!/bin/bash
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# forge — CLI for Claude Code Forge
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Dispatcher that routes subcommands to lib/cmd-*.sh modules.
+#
+# Usage:
+#   forge <subcommand> [args]
+#   forge install [--profile X] [--plugins group] [--quiet]
+#   forge switch <persona>
+#   forge doctor
+#   forge update
+#   forge diff
+#   forge build
+#   forge init [--persona X]
+#   forge version
+#   forge help
+
+set -euo pipefail
+
+# Resolve source directory from this script's real location (follows symlinks)
+_resolve_forge_source() {
+  local source="$0"
+  while [ -L "$source" ]; do
+    local dir
+    dir="$(cd "$(dirname "$source")" && pwd)"
+    source="$(readlink "$source")"
+    # Resolve relative symlinks
+    [[ "$source" != /* ]] && source="$dir/$source"
+  done
+  cd "$(dirname "$source")" && pwd
+}
+
+FORGE_SOURCE_DIR="$(_resolve_forge_source)"
+export FORGE_SOURCE_DIR
+
+# Core env vars used by all modules
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+SECTIONS_DIR="$FORGE_SOURCE_DIR/templates/sections"
+PROFILES_DIR="$FORGE_SOURCE_DIR/templates/profiles"
+export CLAUDE_DIR SECTIONS_DIR PROFILES_DIR
+
+# Source UI first (needed by all commands)
+source "$FORGE_SOURCE_DIR/lib/ui.sh"
+
+# ── Subcommand dispatch ──────────────────────────────────────
+
+cmd_version() {
+  source "$FORGE_SOURCE_DIR/lib/manifest.sh"
+  echo "forge $FORGE_VERSION"
+}
+
+cmd_help() {
+  printf "\n${_C_BOLD}forge${_C_RST} — Claude Code Forge CLI\n"
+  printf "\n${_C_BOLD}Usage:${_C_RST}\n"
+  printf "  forge ${_C_BOLD}<command>${_C_RST} [options]\n"
+  printf "\n${_C_BOLD}Commands:${_C_RST}\n"
+  printf "  ${_C_BOLD}install${_C_RST}     Install or reinstall forge to ~/.claude/\n"
+  printf "  ${_C_BOLD}switch${_C_RST}      Switch to a different persona\n"
+  printf "  ${_C_BOLD}doctor${_C_RST}      Run diagnostic health checks\n"
+  printf "  ${_C_BOLD}update${_C_RST}      Update forge from source repository\n"
+  printf "  ${_C_BOLD}diff${_C_RST}        Show differences between source and installed\n"
+  printf "  ${_C_BOLD}build${_C_RST}       Create a custom persona profile\n"
+  printf "  ${_C_BOLD}init${_C_RST}        Initialize per-project forge config\n"
+  printf "  ${_C_BOLD}version${_C_RST}     Show forge version\n"
+  printf "  ${_C_BOLD}help${_C_RST}        Show this help\n"
+  printf "\nRun ${_C_DIM}forge <command> --help${_C_RST} for command-specific options.\n"
+}
+
+# Auto-discover available commands from lib/cmd-*.sh files
+_forge_available_commands() {
+  for f in "$FORGE_SOURCE_DIR/lib/cmd-"*.sh; do
+    [ -f "$f" ] || continue
+    local name
+    name="$(basename "$f" .sh)"
+    echo "${name#cmd-}"
+  done
+}
+
+# Main dispatch
+main() {
+  local subcmd="${1:-help}"
+  shift 2>/dev/null || true
+
+  case "$subcmd" in
+    version|--version|-v)
+      cmd_version
+      return
+      ;;
+    help|--help|-h)
+      cmd_help
+      return
+      ;;
+  esac
+
+  local cmd_file="$FORGE_SOURCE_DIR/lib/cmd-${subcmd}.sh"
+  if [ ! -f "$cmd_file" ]; then
+    fail "Unknown command: $subcmd"
+    echo ""
+    echo "Available commands:"
+    while IFS= read -r cmd; do
+      echo "  $cmd"
+    done < <(_forge_available_commands)
+    echo "  version"
+    echo "  help"
+    exit 1
+  fi
+
+  source "$cmd_file"
+  "cmd_${subcmd}" "$@"
+}
+
+main "$@"

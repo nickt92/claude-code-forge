@@ -17,8 +17,8 @@
 #
 # All internal helpers are prefixed _manifest_.
 
-FORGE_VERSION="${FORGE_VERSION:-1.0.0}"
-MANIFEST_VERSION=1
+FORGE_VERSION="${FORGE_VERSION:-1.1.0}"
+MANIFEST_VERSION=2
 BACKUP_DIR="${CLAUDE_DIR}/forge-backup"
 MANIFEST_FILE="${BACKUP_DIR}/manifest.json"
 
@@ -96,6 +96,35 @@ _manifest_capture_settings_diff() {
   '
 }
 
+# ── Migration ────────────────────────────────────────────────
+
+# Migrate a v1 manifest to v2. Idempotent — no-op if already v2.
+manifest_migrate_v1_to_v2() {
+  if [ ! -f "$MANIFEST_FILE" ]; then
+    return 0
+  fi
+
+  local version
+  version=$(jq -r '.manifest_version // 0' "$MANIFEST_FILE" 2>/dev/null)
+
+  if [ "$version" -ge 2 ] 2>/dev/null; then
+    return 0
+  fi
+
+  if [ "$version" -ne 1 ] 2>/dev/null; then
+    return 1
+  fi
+
+  local tmp_manifest="${MANIFEST_FILE}.tmp"
+  jq '. +
+    {
+      manifest_version: 2,
+      source_dir: (.source_dir // null),
+      plugin_group: (.plugin_group // null)
+    }' "$MANIFEST_FILE" > "$tmp_manifest"
+  mv "$tmp_manifest" "$MANIFEST_FILE"
+}
+
 # ── Public API ───────────────────────────────────────────────
 
 # Snapshot pre-existing state before first install.
@@ -150,6 +179,8 @@ snapshot_pre_install_state() {
       forge_version: $fv,
       install_timestamp: $ts,
       persona: null,
+      source_dir: null,
+      plugin_group: null,
       migrated_from_legacy: false,
       pre_existing: {
         files: $pf,
@@ -166,8 +197,11 @@ snapshot_pre_install_state() {
 
 # Record what forge installed. Called after install completes.
 # Rewrites the installed section entirely (file set may change between versions).
+# Args: persona [source_dir] [plugin_group]
 update_manifest_installed() {
   local persona="${1:-}"
+  local source_dir="${2:-}"
+  local plugin_group="${3:-}"
 
   if [ ! -f "$MANIFEST_FILE" ]; then
     fail "No manifest found — cannot record installation"
@@ -200,8 +234,13 @@ update_manifest_installed() {
     settings_additions=$(_manifest_capture_settings_diff "$CLAUDE_DIR/settings.json" "$backup_settings")
   fi
 
-  # Update manifest — rewrite installed section, update persona + version
+  # Update manifest — rewrite installed section, update persona + version + v2 fields
   local tmp_manifest="${MANIFEST_FILE}.tmp"
+  local sd_arg="null"
+  [ -n "$source_dir" ] && sd_arg="\"$source_dir\""
+  local pg_arg="null"
+  [ -n "$plugin_group" ] && pg_arg="\"$plugin_group\""
+
   jq \
     --arg persona "$persona" \
     --arg fv "$FORGE_VERSION" \
@@ -209,9 +248,13 @@ update_manifest_installed() {
     --argjson files "$installed_files" \
     --argjson dirs "$installed_dirs" \
     --argjson sa "$settings_additions" \
+    --argjson sd "$sd_arg" \
+    --argjson pg "$pg_arg" \
     '.persona = $persona |
      .forge_version = $fv |
      .install_timestamp = $ts |
+     .source_dir = $sd |
+     .plugin_group = $pg |
      .installed = {
        files: $files,
        directories: $dirs,
@@ -291,8 +334,8 @@ validate_manifest() {
     return 1
   fi
 
-  if [ "$version" -ne "$MANIFEST_VERSION" ] 2>/dev/null; then
-    fail "Unsupported manifest version: $version (expected: $MANIFEST_VERSION)"
+  if [ "$version" -lt 1 ] 2>/dev/null || [ "$version" -gt "$MANIFEST_VERSION" ] 2>/dev/null; then
+    fail "Unsupported manifest version: $version (expected: 1-$MANIFEST_VERSION)"
     return 1
   fi
 

@@ -9,5 +9,6 @@
     "workflow": "standard",
     "depth": "practical"
   },
-  "quality": ["core"]
+  "quality": ["core"],
+  "default_plugin_group": "standard"
 }
