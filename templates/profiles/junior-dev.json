@@ -9,5 +9,6 @@
     "workflow": "standard",
     "depth": "engineering"
   },
-  "quality": ["core", "engineering"]
+  "quality": ["core", "engineering"],
+  "default_plugin_group": "full"
 }

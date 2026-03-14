@@ -54,6 +54,72 @@ teardown_sandbox() {
 
 # ── Helpers ──────────────────────────────────────────────────
 
+# Create a v2 manifest in the sandbox
+create_test_manifest_v2() {
+  local persona="${1:-senior-engineer}"
+  local source_dir="${2:-$SCRIPT_DIR}"
+  local plugin_group="${3:-full}"
+  mkdir -p "$CLAUDE_DIR/forge-backup"
+  cat > "$CLAUDE_DIR/forge-backup/manifest.json" <<EOF
+{
+  "manifest_version": 2,
+  "forge_version": "1.1.0",
+  "install_timestamp": "2026-01-01T00:00:00Z",
+  "persona": "${persona}",
+  "source_dir": "${source_dir}",
+  "plugin_group": "${plugin_group}",
+  "migrated_from_legacy": false,
+  "pre_existing": {
+    "files": {},
+    "directories": {}
+  },
+  "installed": {
+    "files": ["CLAUDE.md", "profile.json", "statusline-command.sh"],
+    "directories": {
+      "rules": [],
+      "hooks": [],
+      "scripts": []
+    },
+    "settings_additions": {}
+  }
+}
+EOF
+}
+
+# Create a minimal forge source sandbox for update/diff tests
+create_forge_source_sandbox() {
+  local source_dir="$TEST_SANDBOX/forge-source"
+  mkdir -p "$source_dir"/{lib,templates/{sections,profiles,rules},hooks,scripts}
+
+  # Copy essential source files
+  cp "$SCRIPT_DIR/lib/ui.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/assembly.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/manifest.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/forge-inventory.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/plugins.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/platform.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/settings-merge.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/settings-unmerge.sh" "$source_dir/lib/"
+  cp "$SCRIPT_DIR/lib/uninstall.sh" "$source_dir/lib/"
+  for f in "$SCRIPT_DIR/lib/cmd-"*.sh; do
+    [ -f "$f" ] && cp "$f" "$source_dir/lib/"
+  done
+  cp "$SCRIPT_DIR/forge" "$source_dir/"
+  chmod +x "$source_dir/forge"
+  cp "$SCRIPT_DIR/statusline-command.sh" "$source_dir/"
+  cp -r "$SCRIPT_DIR/templates/sections/"* "$source_dir/templates/sections/"
+  cp -r "$SCRIPT_DIR/templates/profiles/"* "$source_dir/templates/profiles/"
+  cp -r "$SCRIPT_DIR/templates/rules/"* "$source_dir/templates/rules/"
+  cp "$SCRIPT_DIR/templates/plugin-groups.json" "$source_dir/templates/"
+  cp "$SCRIPT_DIR/templates/settings.json" "$source_dir/templates/"
+  cp -r "$SCRIPT_DIR/hooks/"* "$source_dir/hooks/"
+  for f in "$SCRIPT_DIR/scripts/"*.sh; do
+    [ -f "$f" ] && cp "$f" "$source_dir/scripts/"
+  done
+
+  echo "$source_dir"
+}
+
 # Create a minimal profile.json in the sandbox
 create_test_profile() {
   local persona="${1:-senior-engineer}"
