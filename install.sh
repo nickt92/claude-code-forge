@@ -18,33 +18,197 @@
 #   ./install.sh --profile senior-engineer
 #   ./install.sh --reconfigure
 #   ./install.sh --uninstall
+#   ./install.sh --quiet --profile senior-engineer
+#   ./install.sh --help
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
-BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"
 SECTIONS_DIR="$SCRIPT_DIR/templates/sections"
 PROFILES_DIR="$SCRIPT_DIR/templates/profiles"
 
 # Source libraries
+source "$SCRIPT_DIR/lib/ui.sh"
 source "$SCRIPT_DIR/lib/platform.sh"
 source "$SCRIPT_DIR/lib/assembly.sh"
 source "$SCRIPT_DIR/lib/settings-merge.sh"
+source "$SCRIPT_DIR/lib/settings-unmerge.sh"
+source "$SCRIPT_DIR/lib/forge-inventory.sh"
+source "$SCRIPT_DIR/lib/manifest.sh"
+source "$SCRIPT_DIR/lib/uninstall.sh"
 
-# Colors
-RED='\033[31m'
-GREEN='\033[32m'
-YELLOW='\033[33m'
-CYAN='\033[36m'
-BOLD='\033[1m'
-DIM='\033[2m'
-RST='\033[0m'
+# ── Install-specific banners (not in lib/ui.sh — domain-specific) ──
+success_banner() {
+  local profile="$1"
+  local lines="$2"
+  _ui_quiet && return 0
+  printf "\n────────────────────────────────────────────\n"
+  printf "🍺  Forge complete!\n"
+  printf "\n"
+  printf "   Profile:   %s\n" "$profile"
+  printf "   CLAUDE.md: %s lines\n" "$lines"
+  printf "\n"
+  printf "🚀  Next steps:\n"
+  printf "   1. Start a session: claude\n"
+  printf "   2. Run /memory to verify\n"
+  printf "   3. Try a non-trivial task\n"
+  printf "\n"
+  printf "   Health check: ./install.sh --check\n"
+  printf "   Reconfigure:  ./install.sh --reconfigure\n"
+  printf "   Uninstall:    ./install.sh --uninstall\n"
+  printf "────────────────────────────────────────────\n"
+}
 
-info()  { printf "${CYAN}[INFO]${RST} %s\n" "$1"; }
-ok()    { printf "${GREEN}[OK]${RST}   %s\n" "$1"; }
-warn()  { printf "${YELLOW}[WARN]${RST} %s\n" "$1"; }
-fail()  { printf "${RED}[FAIL]${RST} %s\n" "$1"; }
+fail_banner() {
+  local count="$1"
+  printf "\n────────────────────────────────────────────\n"
+  printf "❌  %d check(s) failed. Review errors above.\n" "$count"
+  printf "────────────────────────────────────────────\n"
+}
+
+# ── Health Check Function ─────────────────────────────────────
+# Callable standalone via --check or at end of install flow.
+run_health_checks() {
+  step "Verifying installation"
+
+  local errors=0
+  local health_pass=0
+  local health_fail=0
+  debug "starting health checks"
+
+  # CLAUDE.md
+  if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
+    ((health_pass++))
+  else
+    fail "CLAUDE.md missing"; ((health_fail++)); ((errors++))
+  fi
+
+  # profile.json
+  if [ -f "$CLAUDE_DIR/profile.json" ]; then
+    ((health_pass++))
+  else
+    fail "profile.json missing"; ((health_fail++)); ((errors++))
+  fi
+
+  # Rules files (discovered from source)
+  while IFS= read -r rule; do
+    [ -n "$rule" ] || continue
+    if [ -f "$CLAUDE_DIR/rules/${rule}.md" ]; then
+      ((health_pass++))
+    else
+      fail "rules/${rule}.md missing"; ((health_fail++)); ((errors++))
+    fi
+  done < <(forge_shipped_rules)
+
+  # Hooks (discovered from source)
+  while IFS= read -r hook; do
+    [ -n "$hook" ] || continue
+    if [ -f "$CLAUDE_DIR/hooks/${hook}.sh" ] && [ -x "$CLAUDE_DIR/hooks/${hook}.sh" ]; then
+      ((health_pass++))
+    else
+      fail "hooks/${hook}.sh missing or not executable"; ((health_fail++)); ((errors++))
+    fi
+  done < <(forge_shipped_hooks)
+
+  # Status line
+  if [ -f "$CLAUDE_DIR/statusline-command.sh" ] && [ -x "$CLAUDE_DIR/statusline-command.sh" ]; then
+    ((health_pass++))
+  else
+    fail "statusline-command.sh missing or not executable"; ((health_fail++)); ((errors++))
+  fi
+
+  # Settings checks
+  if [ -f "$CLAUDE_DIR/settings.json" ]; then
+    if jq -e '.hooks' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
+      ((health_pass++))
+    else
+      fail "settings.json missing hooks configuration"; ((health_fail++)); ((errors++))
+    fi
+    if jq -e '.statusLine' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
+      ((health_pass++))
+    else
+      fail "settings.json missing status line configuration"; ((health_fail++)); ((errors++))
+    fi
+    local plugin_count
+    plugin_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
+    if [ "$plugin_count" -ge 15 ]; then
+      ((health_pass++))
+    elif [ "$plugin_count" -gt 0 ]; then
+      warn "Only $plugin_count plugins enabled (expected 18)"; ((health_fail++))
+    else
+      fail "No plugins enabled in settings.json"; ((health_fail++)); ((errors++))
+    fi
+  else
+    fail "settings.json missing"; ((health_fail++)); ((errors++))
+  fi
+
+  debug "health checks complete (pass=$health_pass fail=$health_fail)"
+
+  # Assembly smoke test — count silently, print only failures
+  debug "starting assembly smoke tests"
+  local assembly_pass=0
+  local assembly_fail=0
+  local persona_key temp_output line_count
+  for profile_json in "$PROFILES_DIR"/*.json; do
+    persona_key=$(jq -r '.persona' "$profile_json")
+    temp_output="$(get_temp_dir)/claude-forge-test-${persona_key}.md"
+    if assemble_claude_md "$profile_json" "$temp_output" 2>/dev/null; then
+      line_count=$(wc -l < "$temp_output" | tr -d ' ')
+      if [ "$line_count" -le 200 ]; then
+        ((assembly_pass++))
+      else
+        warn "${persona_key}: ${line_count} lines (over 200 limit)"
+        ((assembly_fail++))
+      fi
+      rm -f "$temp_output"
+    else
+      fail "${persona_key}: assembly failed"
+      ((assembly_fail++)); ((errors++))
+    fi
+  done
+
+  local total_checks=$(( health_pass + health_fail + assembly_pass + assembly_fail ))
+  local total_pass=$(( health_pass + assembly_pass ))
+
+  if [ "$errors" -eq 0 ] && [ "$health_fail" -eq 0 ] && [ "$assembly_fail" -eq 0 ]; then
+    ok "All checks passed (${health_pass} health, ${assembly_pass} assemblies)"
+  else
+    if [ "$health_fail" -gt 0 ] || [ "$assembly_fail" -gt 0 ]; then
+      ok "${total_pass}/${total_checks} checks passed"
+    fi
+  fi
+
+  return "$errors"
+}
+
+# ── Help text ────────────────────────────────────────────────
+show_help() {
+  cat <<'EOF'
+Claude Code Forge — Installer
+
+Usage:
+  ./install.sh                         Interactive wizard
+  ./install.sh --profile <name>        Non-interactive install
+  ./install.sh --reconfigure           Re-run the persona wizard
+  ./install.sh --uninstall             Remove forge files (restores backups)
+  ./install.sh --check                  Run health checks only (no install)
+  ./install.sh --quiet --profile <n>   Minimal output (CI-friendly)
+  ./install.sh --debug --profile <n>   Trace each verification step
+  ./install.sh --help                  Show this help
+
+Available profiles:
+  product-manager, executive, designer, analyst,
+  data-scientist, data-engineer, junior-dev, senior-engineer,
+  cto-architect, devops-engineer, vibe-coder, hobbyist
+
+Environment:
+  NO_COLOR=1     Disable colored output
+  UI_QUIET=true  Same as --quiet
+  UI_DEBUG=true  Same as --debug
+EOF
+  exit 0
+}
 
 # ── Parse arguments ───────────────────────────────────────────
 PROFILE_ARG=""
@@ -52,30 +216,66 @@ RECONFIGURE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --help|-h)
+      show_help
+      ;;
+    --quiet|-q)
+      export UI_QUIET=true
+      shift
+      ;;
+    --debug)
+      export UI_DEBUG=true
+      shift
+      ;;
+    --check)
+      RUN_CHECK_ONLY=true
+      shift
+      ;;
     --uninstall)
+      # Require jq for manifest-based uninstall
+      if ! command -v jq >/dev/null 2>&1; then
+        fail "jq is required for uninstall. Install: brew install jq (macOS) or apt install jq (Linux)"
+        exit 1
+      fi
+
+      banner "Claude Code Forge — Uninstall"
       echo ""
-      echo -e "${BOLD}Uninstalling Claude Code Forge${RST}"
-      echo "This will remove forge files but preserve your backups."
-      echo ""
+      show_uninstall_preview
       read -p "Continue? (y/N) " -n 1 -r
       echo
       [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
 
-      rm -f "$CLAUDE_DIR/CLAUDE.md"
-      rm -f "$CLAUDE_DIR/profile.json"
-      rm -rf "$CLAUDE_DIR/rules"
-      rm -rf "$CLAUDE_DIR/hooks"
-      rm -f "$CLAUDE_DIR/statusline-command.sh"
+      uninstall_forge
 
-      for f in "$CLAUDE_DIR"/*.backup-*; do
-        if [ -f "$f" ]; then
-          original="${f%%.backup-*}"
-          cp "$f" "$original"
-          ok "Restored $(basename "$original") from backup"
-        fi
-      done
+      # Offer plugin uninstall
+      echo ""
+      read -p "Also uninstall forge plugins? (y/N) " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]] && command -v claude >/dev/null 2>&1; then
+        for plugin in \
+          "wshobson/claude-code-workflows:backend-development" \
+          "wshobson/claude-code-workflows:documentation-generation" \
+          "wshobson/claude-code-workflows:debugging-toolkit" \
+          "wshobson/claude-code-workflows:frontend-mobile-development" \
+          "wshobson/claude-code-workflows:full-stack-orchestration" \
+          "wshobson/claude-code-workflows:tdd-workflows" \
+          "wshobson/claude-code-workflows:code-refactoring" \
+          "wshobson/claude-code-workflows:dependency-management" \
+          "wshobson/claude-code-workflows:error-debugging" \
+          "wshobson/claude-code-workflows:javascript-typescript" \
+          "wshobson/claude-code-workflows:cicd-automation" \
+          "wshobson/claude-code-workflows:cloud-infrastructure" \
+          "wshobson/claude-code-workflows:hr-legal-compliance" \
+          "wshobson/claude-code-workflows:database-design" \
+          "wshobson/claude-code-workflows:startup-business-analyst" \
+          "wshobson/claude-code-workflows:comprehensive-review" \
+          "anthropics/claude-code-plugins:context7" \
+          "anthropics/claude-code-plugins:frontend-design"; do
+          claude plugins remove "$plugin" </dev/null 2>/dev/null || true
+        done
+        ok "Plugins removed"
+      fi
 
-      ok "Claude Code Forge uninstalled"
       exit 0
       ;;
     --profile)
@@ -93,11 +293,21 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       fail "Unknown option: $1"
-      echo "Usage: ./install.sh [--profile <name>] [--reconfigure] [--uninstall]"
+      echo "Usage: ./install.sh [--profile <name>] [--reconfigure] [--uninstall] [--quiet] [--help]"
       exit 1
       ;;
   esac
 done
+
+# ── Check-only mode (runs health checks without installing) ──
+if [ "${RUN_CHECK_ONLY:-}" = true ]; then
+  banner "Claude Code Forge — Health Check"
+  if [ -f "$CLAUDE_DIR/profile.json" ]; then
+    info "Profile: $(jq -r '.label' "$CLAUDE_DIR/profile.json" 2>/dev/null)"
+  fi
+  run_health_checks
+  exit $?
+fi
 
 # ── Persona definitions (for wizard display) ──────────────────
 # Order matches profile filenames — wizard number = array index + 1
@@ -118,10 +328,7 @@ PERSONA_KEYS=(
 
 # ── Onboarding wizard ────────────────────────────────────────
 run_wizard() {
-  echo ""
-  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-  echo -e "${BOLD}  Claude Code Forge — Setup${RST}"
-  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+  banner "Claude Code Forge — Setup"
   echo ""
   echo "What best describes your role?"
   echo ""
@@ -133,7 +340,7 @@ run_wizard() {
       local label description
       label=$(jq -r '.label' "$profile_file")
       description=$(jq -r '.description' "$profile_file")
-      printf "  ${BOLD}%2d.${RST}  %-35s ${DIM}%s${RST}\n" "$i" "$label" "$description"
+      printf "  ${_C_BOLD}%2d.${_C_RST}  %-35s ${_C_DIM}%s${_C_RST}\n" "$i" "$label" "$description"
     fi
     ((i++))
   done
@@ -161,10 +368,7 @@ if [ -z "$PROFILE_ARG" ] && [ "$RECONFIGURE" = false ]; then
   if [ -f "$CLAUDE_DIR/profile.json" ] && [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
     existing_persona=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "")
     if [ -n "$existing_persona" ]; then
-      echo ""
-      echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-      echo -e "${BOLD}  Claude Code Forge — Installer${RST}"
-      echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
+      banner "Claude Code Forge — Installer"
       echo ""
       existing_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "$existing_persona")
       info "Existing profile detected: ${existing_label}"
@@ -204,13 +408,9 @@ elif [ -n "$PROFILE_ARG" ]; then
     exit 1
   fi
   SELECTED_PERSONA="$PROFILE_ARG"
-  echo ""
-  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-  echo -e "${BOLD}  Claude Code Forge — Installer${RST}"
-  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-  echo ""
   local_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
-  ok "Using profile: ${local_label}"
+  banner "Claude Code Forge — Installer"
+  info "Profile: ${local_label}"
 else
   # --reconfigure: always run wizard
   run_wizard
@@ -218,105 +418,94 @@ fi
 
 PROFILE_FILE="$PROFILES_DIR/${SELECTED_PERSONA}.json"
 
-# Check for claude CLI
-echo ""
+# ── Prerequisites ─────────────────────────────────────────────
+step "Checking prerequisites"
+
+prereq_ok=true
 if ! command -v claude >/dev/null 2>&1; then
   fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
-  exit 1
+  prereq_ok=false
 fi
-ok "Claude Code CLI found"
-
-# Check for jq
 if ! command -v jq >/dev/null 2>&1; then
   fail "jq not found. Install: brew install jq (macOS) or apt install jq (Linux)"
+  prereq_ok=false
+fi
+if ! check_platform 2>/dev/null; then
+  fail "Unsupported platform"
+  prereq_ok=false
+fi
+
+if [ "$prereq_ok" = false ]; then
   exit 1
 fi
-ok "jq found"
-
-# Check platform
-check_platform || exit 1
+ok "All prerequisites met (claude, jq, $(detect_platform))"
 
 # ── Backup existing files ────────────────────────────────────
-echo ""
-info "Backing up existing configuration..."
+step "Backing up configuration"
 
-mkdir -p "$CLAUDE_DIR/rules" "$CLAUDE_DIR/hooks" "$CLAUDE_DIR/backups"
+mkdir -p "$CLAUDE_DIR/rules" "$CLAUDE_DIR/hooks"
 
-if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
-  cp "$CLAUDE_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md${BACKUP_SUFFIX}"
-  ok "Backed up CLAUDE.md"
+# Migrate legacy .backup-* files if present
+if has_legacy_backups; then
+  migrate_legacy_backups
 fi
 
-if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  cp "$CLAUDE_DIR/settings.json" "$CLAUDE_DIR/settings.json${BACKUP_SUFFIX}"
-  ok "Backed up settings.json"
-fi
-
-if [ -f "$CLAUDE_DIR/profile.json" ]; then
-  cp "$CLAUDE_DIR/profile.json" "$CLAUDE_DIR/profile.json${BACKUP_SUFFIX}"
-  ok "Backed up profile.json"
-fi
+# Snapshot pre-existing state (no-op on re-install)
+snapshot_pre_install_state
+ok "Backup complete (forge-backup/manifest.json)"
 
 # ── Assemble and install CLAUDE.md ───────────────────────────
-echo ""
-info "Assembling CLAUDE.md for persona: $(jq -r '.label' "$PROFILE_FILE")..."
+step "Assembling CLAUDE.md"
 
 assemble_claude_md "$PROFILE_FILE" "$CLAUDE_DIR/CLAUDE.md"
 
 lines=$(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ')
 if [ "$lines" -le 200 ]; then
-  ok "Installed CLAUDE.md ($lines lines, under 200 limit)"
+  ok "CLAUDE.md assembled ($lines lines)"
 else
   warn "CLAUDE.md is $lines lines (target: under 200) — consider trimming sections"
 fi
 
 # Save profile.json for future reference
 cp "$PROFILE_FILE" "$CLAUDE_DIR/profile.json"
-ok "Saved profile.json ($(jq -r '.persona' "$PROFILE_FILE"))"
 
-# ── Install rules files ──────────────────────────────────────
-echo ""
-info "Installing rules..."
+# ── Install forge files ──────────────────────────────────────
+step "Installing forge files"
 
+rule_count=0
 for rule_file in "$SCRIPT_DIR/templates/rules/"*.md; do
   cp "$rule_file" "$CLAUDE_DIR/rules/$(basename "$rule_file")"
-  ok "Installed rules/$(basename "$rule_file")"
+  ((rule_count++))
 done
 
-# ── Install hooks ─────────────────────────────────────────────
-echo ""
-info "Installing hooks..."
-
+hook_count=0
 for hook_file in "$SCRIPT_DIR/hooks/"*.sh; do
   cp "$hook_file" "$CLAUDE_DIR/hooks/$(basename "$hook_file")"
   chmod +x "$CLAUDE_DIR/hooks/$(basename "$hook_file")"
-  ok "Installed hooks/$(basename "$hook_file")"
+  ((hook_count++))
 done
 
-# ── Install scripts ───────────────────────────────────────────
-echo ""
-info "Installing scripts..."
-
+script_count=0
 mkdir -p "$CLAUDE_DIR/scripts"
 for script_file in "$SCRIPT_DIR/scripts/"*.sh; do
   if [ -f "$script_file" ]; then
     cp "$script_file" "$CLAUDE_DIR/scripts/$(basename "$script_file")"
     chmod +x "$CLAUDE_DIR/scripts/$(basename "$script_file")"
-    ok "Installed scripts/$(basename "$script_file")"
+    ((script_count++))
   fi
 done
 
-# ── Install status line ──────────────────────────────────────
-echo ""
-info "Installing status line..."
-
 cp "$SCRIPT_DIR/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
 chmod +x "$CLAUDE_DIR/statusline-command.sh"
-ok "Installed statusline-command.sh"
+
+# Install ui.sh to ~/.claude/lib/
+mkdir -p "$CLAUDE_DIR/lib"
+cp "$SCRIPT_DIR/lib/ui.sh" "$CLAUDE_DIR/lib/ui.sh"
+
+ok "${rule_count} rules, ${hook_count} hooks, ${script_count} scripts, statusline installed"
 
 # ── Merge settings.json ──────────────────────────────────────
-echo ""
-info "Configuring settings.json..."
+step "Configuring settings"
 
 if [ -f "$CLAUDE_DIR/settings.json" ]; then
   EXISTING="$CLAUDE_DIR/settings.json"
@@ -326,22 +515,23 @@ if [ -f "$CLAUDE_DIR/settings.json" ]; then
   if jq -e '.hooks.UserPromptSubmit[]? | select(.hooks[]?.command | contains("prompt-classifier"))' "$EXISTING" >/dev/null 2>&1; then
     jq '(.hooks.UserPromptSubmit // []) |= map(select(.hooks[]?.command | contains("prompt-classifier") | not))' "$EXISTING" > "$EXISTING.migrated"
     mv "$EXISTING.migrated" "$EXISTING"
-    info "Migrated: prompt-classifier.sh → session-init.sh"
   fi
   rm -f "$CLAUDE_DIR/hooks/prompt-classifier.sh"
 
   # Additive merge: combine hooks arrays, merge plugins objects, preserve user settings
   merge_settings "$EXISTING" "$TEMPLATE" "$CLAUDE_DIR/settings.json.tmp"
   mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
-  ok "Merged settings.json (preserved existing hooks + plugins, added forge config)"
+  ok "Settings merged (preserved existing config)"
 else
   cp "$SCRIPT_DIR/templates/settings.json" "$CLAUDE_DIR/settings.json"
-  ok "Installed settings.json (fresh)"
+  ok "Settings installed (fresh)"
 fi
 
+# ── Update manifest with installed files ──────────────────────
+update_manifest_installed "$(jq -r '.persona' "$PROFILE_FILE")"
+
 # ── Install plugins ───────────────────────────────────────────
-echo ""
-info "Installing plugins (this may take a moment)..."
+step "Installing plugins"
 
 PLUGINS=(
   "wshobson/claude-code-workflows:backend-development"
@@ -366,233 +556,35 @@ PLUGINS=(
 
 installed=0
 failed=0
+debug "installing ${#PLUGINS[@]} plugins"
+progress_start "${#PLUGINS[@]}" "Installing plugins"
 for plugin in "${PLUGINS[@]}"; do
-  if claude plugins add "$plugin" 2>/dev/null; then
+  if claude plugins add "$plugin" </dev/null 2>/dev/null; then
     ((installed++))
   else
-    warn "Failed to install: $plugin (may already be installed)"
     ((failed++))
   fi
-done
-ok "Installed $installed plugins ($failed skipped/failed)"
-
-# ── Health check ──────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}━━━ Health Check ━━━${RST}"
-echo ""
-
-errors=0
-
-# Check CLAUDE.md
-if [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
-  lines=$(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ')
-  if [ "$lines" -le 200 ]; then
-    ok "CLAUDE.md exists ($lines lines, under 200 limit)"
-  else
-    warn "CLAUDE.md is $lines lines (recommended: under 200)"
-  fi
-else
-  fail "CLAUDE.md missing"; ((errors++))
-fi
-
-# Check profile.json
-if [ -f "$CLAUDE_DIR/profile.json" ]; then
-  persona_name=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null || echo "unknown")
-  ok "profile.json exists (persona: $persona_name)"
-else
-  fail "profile.json missing"; ((errors++))
-fi
-
-# Check rules files
-for rule in quality-engineering agent-orchestration commit-and-delivery context-and-memory pull-requests project-setup; do
-  if [ -f "$CLAUDE_DIR/rules/${rule}.md" ]; then
-    ok "rules/${rule}.md exists"
-  else
-    fail "rules/${rule}.md missing"; ((errors++))
-  fi
+  progress_tick
 done
 
-# Check hooks
-for hook in session-init architect-gate backup-transcript commit-validator; do
-  if [ -f "$CLAUDE_DIR/hooks/${hook}.sh" ] && [ -x "$CLAUDE_DIR/hooks/${hook}.sh" ]; then
-    ok "hooks/${hook}.sh exists and executable"
-  else
-    fail "hooks/${hook}.sh missing or not executable"; ((errors++))
-  fi
-done
-
-# Check status line
-if [ -f "$CLAUDE_DIR/statusline-command.sh" ] && [ -x "$CLAUDE_DIR/statusline-command.sh" ]; then
-  ok "statusline-command.sh exists and executable"
+if [ "$failed" -eq 0 ]; then
+  progress_done "$installed plugins installed"
 else
-  fail "statusline-command.sh missing or not executable"; ((errors++))
+  progress_done "$installed plugins installed ($failed skipped)"
 fi
+# Reset terminal state — claude CLI (Node.js) may dirty the tty on failure
+stty sane < /dev/tty 2>/dev/null || true
 
-# Check settings.json has hooks
-if [ -f "$CLAUDE_DIR/settings.json" ]; then
-  if jq -e '.hooks' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
-    ok "settings.json has hooks configured"
-  else
-    fail "settings.json missing hooks configuration"; ((errors++))
-  fi
-  if jq -e '.statusLine' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
-    ok "settings.json has status line configured"
-  else
-    fail "settings.json missing status line configuration"; ((errors++))
-  fi
-  plugin_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
-  if [ "$plugin_count" -ge 15 ]; then
-    ok "settings.json has $plugin_count plugins enabled"
-  elif [ "$plugin_count" -gt 0 ]; then
-    warn "Only $plugin_count plugins enabled (expected 18). Run: claude plugins update"
-  else
-    fail "No plugins enabled in settings.json"; ((errors++))
-  fi
-else
-  fail "settings.json missing"; ((errors++))
-fi
-
-# ── Hook Smoke Tests ──────────────────────────────────────────
-echo ""
-echo -e "${BOLD}━━━ Hook Smoke Tests ━━━${RST}"
-echo ""
-
-# Test session-init: should produce hookSpecificOutput on first run
-# (clear markers to ensure fresh state)
-rm -f /tmp/claude-code-prompted-* 2>/dev/null
-init_output=$(echo '{"prompt":"Build a login page"}' | bash "$CLAUDE_DIR/hooks/session-init.sh" 2>/dev/null)
-if echo "$init_output" | jq -e '.hookSpecificOutput' >/dev/null 2>&1; then
-  ok "session-init produces classification nudge"
-else
-  fail "session-init did not produce hookSpecificOutput"; ((errors++))
-fi
-
-# Test session-init: should NOT fire twice (PPID one-shot)
-init_second=$(echo '{"prompt":"Another prompt"}' | bash "$CLAUDE_DIR/hooks/session-init.sh" 2>/dev/null)
-if [ -z "$init_second" ]; then
-  ok "session-init fires once per session (PPID one-shot)"
-else
-  warn "session-init fired on second prompt (should be one-shot)"
-fi
-rm -f /tmp/claude-code-prompted-* 2>/dev/null
-
-# Test commit-validator: use temp files for reliable exit code capture
-SMOKE_TMP="$(get_temp_dir)/claude-forge-smoke"
-
-# Test commit-validator: should BLOCK AI attribution
-echo '{"tool_input":{"command":"git commit -m \"Co-Authored-By: Claude\""}}' > "$SMOKE_TMP"
-bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" >/dev/null 2>&1
-validator_block_exit=$?
-if [ "$validator_block_exit" -eq 2 ]; then
-  ok "commit-validator blocks AI attribution"
-else
-  fail "commit-validator did not block AI attribution (exit: $validator_block_exit)"; ((errors++))
-fi
-
-# Test commit-validator: should WARN on bad format (exit 0)
-echo '{"tool_input":{"command":"git commit -m \"fixed stuff\""}}' > "$SMOKE_TMP"
-validator_warn=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
-validator_warn_exit=$?
-if [ "$validator_warn_exit" -eq 0 ]; then
-  if echo "$validator_warn" | jq -e '.hookSpecificOutput' >/dev/null 2>&1; then
-    ok "commit-validator warns on non-conventional format"
-  else
-    warn "commit-validator allowed bad format without warning"
-  fi
-else
-  fail "commit-validator blocked non-conventional format (should warn only)"; ((errors++))
-fi
-
-# Test commit-validator: should pass valid commits clean
-echo '{"tool_input":{"command":"git commit -m \"feat(auth): add login\""}}' > "$SMOKE_TMP"
-validator_pass=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
-validator_pass_exit=$?
-if [ "$validator_pass_exit" -eq 0 ] && [ -z "$validator_pass" ]; then
-  ok "commit-validator passes valid conventional commits"
-else
-  fail "commit-validator rejected a valid commit"; ((errors++))
-fi
-
-# Test commit-validator: should pass non-git commands
-echo '{"tool_input":{"command":"ls -la"}}' > "$SMOKE_TMP"
-validator_skip=$(bash "$CLAUDE_DIR/hooks/commit-validator.sh" < "$SMOKE_TMP" 2>/dev/null)
-validator_skip_exit=$?
-if [ "$validator_skip_exit" -eq 0 ] && [ -z "$validator_skip" ]; then
-  ok "commit-validator ignores non-git commands"
-else
-  fail "commit-validator acted on a non-git command"; ((errors++))
-fi
-rm -f "$SMOKE_TMP"
-
-# Test architect-gate: should block plan file without Architect Review
-gate_output=$(printf '{"tool_input":{"file_path":"/tmp/.claude/plans/test.md","content":"# Plan\\nJust a plan"}}' | bash "$CLAUDE_DIR/hooks/architect-gate.sh" 2>&1)
-gate_exit=$?
-if [ "$gate_exit" -eq 2 ]; then
-  ok "architect-gate blocks plan files without Architect Review"
-else
-  fail "architect-gate did not block incomplete plan file (exit: $gate_exit)"; ((errors++))
-fi
-
-# Test architect-gate: should allow plan file WITH Architect Review
-gate_ok_output=$(printf '{"tool_input":{"file_path":"/tmp/.claude/plans/test.md","content":"# Plan\\n## Architect Review\\nApproved"}}' | bash "$CLAUDE_DIR/hooks/architect-gate.sh" 2>&1)
-gate_ok_exit=$?
-if [ "$gate_ok_exit" -eq 0 ]; then
-  ok "architect-gate allows plan files with Architect Review"
-else
-  fail "architect-gate blocked a valid plan file (exit: $gate_ok_exit)"; ((errors++))
-fi
-
-# ── Assembly Smoke Test ───────────────────────────────────────
-echo ""
-echo -e "${BOLD}━━━ Assembly Smoke Test ━━━${RST}"
-echo ""
-
-assembly_errors=0
-for profile_json in "$PROFILES_DIR"/*.json; do
-  persona_key=$(jq -r '.persona' "$profile_json")
-  temp_output="$(get_temp_dir)/claude-forge-test-${persona_key}.md"
-  if assemble_claude_md "$profile_json" "$temp_output" 2>/dev/null; then
-    line_count=$(wc -l < "$temp_output" | tr -d ' ')
-    if [ "$line_count" -le 200 ]; then
-      ok "  ${persona_key}: ${line_count} lines"
-    else
-      warn "  ${persona_key}: ${line_count} lines (over 200 limit)"
-      ((assembly_errors++))
-    fi
-    rm -f "$temp_output"
-  else
-    fail "  ${persona_key}: assembly failed"
-    ((assembly_errors++))
-  fi
-done
-
-if [ "$assembly_errors" -eq 0 ]; then
-  ok "All 12 persona assemblies under 200 lines"
-else
-  warn "$assembly_errors persona(s) had assembly issues"
-  ((errors += assembly_errors))
-fi
+# ── Verify installation (end of install flow) ────────────────
+run_health_checks
+check_errors=$?
 
 # ── Summary ───────────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}━━━ Summary ━━━${RST}"
-echo ""
-if [ "$errors" -eq 0 ]; then
+if [ "$check_errors" -eq 0 ]; then
   persona_label=$(jq -r '.label' "$CLAUDE_DIR/profile.json")
-  echo -e "${GREEN}${BOLD}All checks passed. Claude Code Forge installed successfully.${RST}"
-  echo ""
-  echo "  Profile:  ${persona_label}"
-  echo "  CLAUDE.md: $(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ') lines"
-  echo ""
-  echo "Next steps:"
-  echo "  1. Open a new Claude Code session: claude"
-  echo "  2. Run /memory to verify files are loaded"
-  echo "  3. Try a non-trivial task to test the workflow"
-  echo ""
-  echo "To change your profile later: ./install.sh --reconfigure"
-  echo "To customize for your project, create a project-level CLAUDE.md"
-  echo "in your repo root. See examples/project-CLAUDE.md for a template."
+  md_lines=$(wc -l < "$CLAUDE_DIR/CLAUDE.md" | tr -d ' ')
+  success_banner "$persona_label" "$md_lines"
 else
-  echo -e "${RED}${BOLD}$errors check(s) failed. Review errors above.${RST}"
+  fail_banner "$check_errors"
   exit 1
 fi

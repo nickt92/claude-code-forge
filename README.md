@@ -18,7 +18,7 @@ Whether you're a CTO, a product manager, or someone building their first app wit
 
 <div align="center">
 
-**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **6 Rules Files** · **121 Tests** · **Premium Status Line**
+**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **7 Rules Files** · **173 Tests** · **Premium Status Line**
 
 </div>
 
@@ -186,7 +186,7 @@ claude-code-forge/
 │   ├── profiles/                       # 12 persona JSON configs
 │   ├── sections/                       # 15 axis-value section files
 │   ├── settings.json                   # Hooks + status line + plugins
-│   └── rules/                          # 6 rules files
+│   └── rules/                          # 7 rules files
 ├── hooks/                              # 4 enforcement hooks
 ├── scripts/
 │   ├── generate-project-claude.sh      # Brownfield project onboarding
@@ -303,7 +303,7 @@ Anthropic recommends it. Our testing showed content at line 200+ was frequently 
 
 ## 🧪 Testing
 
-121 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+173 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
@@ -314,8 +314,8 @@ Anthropic recommends it. Our testing showed content at line 200+ was frequently 
 
 | Suite | Tests | What It Covers |
 |:------|------:|:---------------|
-| **Hook unit tests** | 63 | Commit validation, architect gate, session init, backup, platform |
-| **Integration tests** | 34 | Assembly pipeline, settings merge, end-to-end install flow |
+| **Unit tests** | 84 | Commit validation, architect gate, session init, backup, platform, UI library |
+| **Integration tests** | 65 | Assembly pipeline, settings merge, install flow, backup/restore |
 | **Validation tests** | 24 | Profile schemas, section file coverage, settings template integrity |
 
 All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
