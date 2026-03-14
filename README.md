@@ -1,8 +1,11 @@
 <div align="center">
 
-# Claude Code Forge
+# 🔨 Claude Code Forge 🔨
 
-**Forge Claude Code into an engineering-governed development environment — adapted to who you are.**
+### Stop prompting. Start engineering.
+
+Claude Code is powerful out of the box. But left unconfigured, it hallucinates structure,<br>
+ignores long instructions, and treats every user the same. The forge fixes that.
 
 [![Tests](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml/badge.svg)](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -10,29 +13,23 @@
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#-persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-Whether you're a CTO, a product manager, or someone building their first app with AI — the forge gives you the same quality standards with communication tuned to your role.
+**One installer** · **Pick your persona** · **Get an engineering-grade environment in 30 seconds**
+
+**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **7 Rules Files** · **173 Tests**
 
 </div>
 
----
+## The Problem
 
-<div align="center">
-
-**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **7 Rules Files** · **173 Tests** · **Premium Status Line**
-
-</div>
-
-## Why This Exists
-
-Claude Code reads instructions but doesn't always follow them. Through empirical testing, we discovered:
+Claude Code reads instructions — but doesn't always follow them. Through empirical testing:
 
 > **Long files lose adherence.** Content buried at line 200+ gets ignored. The forge assembles focused CLAUDE.md files under 200 lines — every time.
 
-> **Passive language is treated as optional.** "Consider accessibility" is a suggestion. "Apply to ALL frontend work" is a command.
+> **Passive language is treated as optional.** "Consider accessibility" is a suggestion. "Apply to ALL frontend work" is a command. The forge uses imperative, tested phrasing throughout.
 
-> **Knowing the rules ≠ following them.** Hooks create forcing functions that block non-compliant behavior at write time.
+> **Knowing the rules ≠ following them.** Hooks create forcing functions that block non-compliant behavior at write time — not just at read time.
 
-> **One size doesn't fit all.** A product manager doesn't need tier classifications and agent names. A senior engineer does. Same quality, different communication.
+> **One size doesn't fit all.** A product manager doesn't need tier classifications and agent names. A senior engineer does. Same quality standards, different communication.
 
 ## ⚡ Quick Start
 
