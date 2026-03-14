@@ -257,12 +257,12 @@ Environment:
 
 | Segment | What It Shows |
 |:--------|:-------------|
-| 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
-| 🧠 | Model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
-| ▐████░░▌ | Context window usage (green <70%, yellow 70-90%, red >90%) |
-| 💰 | Session cost |
-| ✏️ | Lines added/removed |
-| ⏱️ | Session duration |
+| **Branch** 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
+| **Model** 🧠 | Active model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
+| **Context** | Context window usage bar (green <70%, yellow 70-90%, red >90%) |
+| **Cost** 💰 | Session cost |
+| **Changes** ✏️ | Lines added/removed |
+| **Time** ⏱️ | Session duration |
 
 ## 🏗 Project Onboarding
 
@@ -543,7 +543,7 @@ Built through iterative testing and refinement with Claude Code itself — patte
 
 ### Agent Plugins
 
-**[claude-code-workflows](https://github.com/wshobson/claude-code-workflows)** by [Will Hobson](https://github.com/wshobson) — 16 plugins providing 30+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
+**[agents](https://github.com/wshobson/agents)** by [Seth Hobson](https://github.com/wshobson) — 72 plugins providing 112+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
 
 **[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
 - `context7` — real-time library documentation lookup
