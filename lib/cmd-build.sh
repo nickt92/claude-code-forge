@@ -11,7 +11,7 @@
 cmd_build() {
   source "$FORGE_SOURCE_DIR/lib/assembly.sh"
 
-  if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     printf "\n${_C_BOLD}forge build${_C_RST} — Create a custom persona profile\n"
     printf "\n${_C_BOLD}Usage:${_C_RST}\n"
     printf "  forge build\n"

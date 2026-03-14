@@ -11,7 +11,7 @@
 cmd_update() {
   source "$FORGE_SOURCE_DIR/lib/manifest.sh"
 
-  if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     printf "\n${_C_BOLD}forge update${_C_RST} — Update forge from source repository\n"
     printf "\n${_C_BOLD}Usage:${_C_RST}\n"
     printf "  forge update\n"

@@ -51,20 +51,44 @@ cmd_version() {
 }
 
 cmd_help() {
-  printf "\n${_C_BOLD}forge${_C_RST} — Claude Code Forge CLI\n"
-  printf "\n${_C_BOLD}Usage:${_C_RST}\n"
-  printf "  forge ${_C_BOLD}<command>${_C_RST} [options]\n"
-  printf "\n${_C_BOLD}Commands:${_C_RST}\n"
+  source "$FORGE_SOURCE_DIR/lib/manifest.sh"
+
+  printf "\n"
+  printf "${_C_BOLD}forge${_C_RST} ${_C_DIM}v%s${_C_RST} — persona-driven configuration for Claude Code\n" "$FORGE_VERSION"
+  printf "\n"
+  printf "${_C_BOLD}Usage:${_C_RST}  forge ${_C_DIM}<command>${_C_RST} [options]\n"
+
+  printf "\n${_C_BOLD}Setup${_C_RST}\n"
   printf "  ${_C_BOLD}install${_C_RST}     Install or reinstall forge to ~/.claude/\n"
-  printf "  ${_C_BOLD}switch${_C_RST}      Switch to a different persona\n"
-  printf "  ${_C_BOLD}doctor${_C_RST}      Run diagnostic health checks\n"
-  printf "  ${_C_BOLD}update${_C_RST}      Update forge from source repository\n"
-  printf "  ${_C_BOLD}diff${_C_RST}        Show differences between source and installed\n"
   printf "  ${_C_BOLD}build${_C_RST}       Create a custom persona profile\n"
   printf "  ${_C_BOLD}init${_C_RST}        Initialize per-project forge config\n"
+
+  printf "\n${_C_BOLD}Management${_C_RST}\n"
+  printf "  ${_C_BOLD}switch${_C_RST}      Switch to a different persona\n"
+  printf "  ${_C_BOLD}update${_C_RST}      Update forge from source repository\n"
+
+  printf "\n${_C_BOLD}Diagnostics${_C_RST}\n"
+  printf "  ${_C_BOLD}doctor${_C_RST}      Run diagnostic health checks\n"
+  printf "  ${_C_BOLD}diff${_C_RST}        Show differences between source and installed\n"
+
+  printf "\n${_C_BOLD}Info${_C_RST}\n"
   printf "  ${_C_BOLD}version${_C_RST}     Show forge version\n"
   printf "  ${_C_BOLD}help${_C_RST}        Show this help\n"
-  printf "\nRun ${_C_DIM}forge <command> --help${_C_RST} for command-specific options.\n"
+
+  # Show current status if installed
+  if [ -f "$CLAUDE_DIR/profile.json" ] 2>/dev/null; then
+    local persona label plugin_group
+    persona=$(jq -r '.persona // "unknown"' "$CLAUDE_DIR/profile.json" 2>/dev/null)
+    label=$(jq -r '.label // .persona // "unknown"' "$CLAUDE_DIR/profile.json" 2>/dev/null)
+    if [ -f "${MANIFEST_FILE:-$CLAUDE_DIR/forge-manifest.json}" ]; then
+      plugin_group=$(jq -r '.plugin_group // "full"' "${MANIFEST_FILE:-$CLAUDE_DIR/forge-manifest.json}" 2>/dev/null)
+    else
+      plugin_group="unknown"
+    fi
+    printf "\n${_C_DIM}Active: %s (%s plugins)${_C_RST}\n" "$label" "$plugin_group"
+  fi
+
+  printf "\n${_C_DIM}Run forge <command> --help for command-specific options.${_C_RST}\n"
 }
 
 # Auto-discover available commands from lib/cmd-*.sh files

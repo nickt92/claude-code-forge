@@ -14,7 +14,7 @@ cmd_diff() {
   source "$FORGE_SOURCE_DIR/lib/platform.sh"
   source "$FORGE_SOURCE_DIR/lib/manifest.sh"
 
-  if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     printf "\n${_C_BOLD}forge diff${_C_RST} — Show differences between source and installed files\n"
     printf "\n${_C_BOLD}Usage:${_C_RST}\n"
     printf "  forge diff\n"
