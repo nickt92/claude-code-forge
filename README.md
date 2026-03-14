@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔨 Claude Code Forge 🔨
+# Claude Code Forge
 
 ### Stop prompting. Start engineering.
 
@@ -13,9 +13,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#-persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**One installer** · **Pick your persona** · **Get an engineering-grade environment in 30 seconds**
-
-**12 Personas** · **18 Specialist Agents** · **4 Enforcement Hooks** · **7 Rules Files** · **173 Tests**
+**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **4 Enforcement Hooks** · **7 Rules Files** · **244 Tests**
 
 </div>
 
@@ -31,7 +29,7 @@ Claude Code reads instructions — but doesn't always follow them. Through empir
 
 > **One size doesn't fit all.** A product manager doesn't need tier classifications and agent names. A senior engineer does. Same quality standards, different communication.
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -48,44 +46,190 @@ chmod +x install.sh
 ./install.sh
 ```
 
-The installer walks you through a one-step persona selection, then:
+The installer walks you through persona selection, then:
 
 1. Assembles a tailored CLAUDE.md from section files (verified under 200 lines)
 2. Backs up your existing `~/.claude/` configuration automatically
 3. Copies rules files, hooks, scripts, and status line
-4. Merges settings (hooks and plugins added additively — your existing config is preserved)
-5. Installs 18 specialist plugins
+4. Merges settings additively — your existing hooks and plugins are preserved
+5. Installs specialist plugins for your chosen plugin group
 6. Runs health checks and assembly smoke tests
-
-### Scripted Install
-
-```bash
-./install.sh --profile senior-engineer    # Skip the wizard
-./install.sh --reconfigure                # Change your persona later
-./install.sh --check                      # Verify installation without re-installing
-./install.sh --uninstall                  # Remove forge files, restore backups
-./install.sh --quiet --profile vibe-coder # Minimal output (CI-friendly)
-./install.sh --debug                      # Verbose trace of each step
-./install.sh --help                       # Show all options
-```
+7. Symlinks the `forge` CLI to `~/.claude/bin/forge`
 
 ### Verify
 
 ```bash
-claude      # Start a new session
-/memory     # Check files are loaded
+forge doctor        # Health check
+claude              # Start a new session
+/memory             # Confirm files are loaded
 ```
 
-## 📦 What Gets Installed
+### PATH Setup (optional but recommended)
 
-The forge writes only to `~/.claude/`. Before touching anything, it snapshots your existing configuration to `~/.claude/forge-backup/`. The `--uninstall` flag reads that snapshot and restores exactly what was there before.
+Add `~/.claude/bin` to your PATH so `forge` is available anywhere:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/.claude/bin:$PATH"
+```
+
+## forge CLI
+
+v1.1.0 introduces the `forge` CLI — a full command dispatcher that replaces ad-hoc installer flags with dedicated, documented subcommands. `install.sh` still works as before; it is now a thin wrapper that calls `forge install "$@"`.
+
+```
+forge <command> [options]
+
+Setup
+  install     Install or reinstall forge to ~/.claude/
+  build       Create a custom persona profile
+  init        Initialize per-project forge config
+
+Management
+  switch      Switch to a different persona
+  update      Update forge from source repository
+
+Diagnostics
+  doctor      Run diagnostic health checks
+  diff        Show differences between source and installed
+
+Info
+  version     Show forge version
+  help        Show this help
+```
+
+Run `forge <command> --help` for command-specific options.
+
+### forge install
+
+Full install or reinstall. Runs the persona wizard when called interactively; accepts flags for scripted use.
+
+```bash
+forge install                              # Interactive wizard
+forge install --profile senior-engineer   # Non-interactive
+forge install --plugins minimal           # Override plugin group
+forge install --reconfigure               # Re-run persona wizard
+forge install --uninstall                 # Remove forge, restore backups
+forge install --check                     # Health checks only (no changes)
+forge install --quiet --profile vibe-coder  # Minimal output (CI-friendly)
+forge install --debug                     # Verbose trace
+
+# install.sh delegates to forge install — same flags work:
+./install.sh --profile senior-engineer
+```
+
+**`--check`** runs health checks against the existing `~/.claude/` installation without modifying anything. Useful after pulling repo changes to see what's out of date.
+
+**`--reconfigure`** always runs the wizard, even if a profile is already installed.
+
+**`--uninstall`** shows a preview before prompting for confirmation. Optionally removes plugins too.
+
+**`--plugins <group>`** overrides the persona's default plugin group. See [Plugin Groups](#plugin-groups) below.
+
+### forge switch
+
+Switch persona without a full reinstall. Reassembles `~/.claude/CLAUDE.md` and updates `profile.json` in seconds. Hooks read `profile.json` at runtime — the new persona takes effect on the next `claude` session.
+
+```bash
+forge switch senior-engineer
+forge switch vibe-coder
+forge switch custom-my-team    # Custom personas from forge build
+forge switch                   # List available personas
+```
+
+### forge doctor
+
+Diagnostic health checks across 7 categories. Shows pass/warn/fail per check with actionable messages.
+
+```bash
+forge doctor
+```
+
+Categories checked:
+
+| Category | What It Checks |
+|:---------|:---------------|
+| **Manifest** | Validity, version match, schema version |
+| **File Integrity** | Rules, hooks, scripts, lib, statusline present and unmodified |
+| **Hook Configuration** | All 4 hooks wired in settings.json |
+| **CLAUDE.md** | Matches current profile (content diff against live assembly) |
+| **Plugins** | Count matches expected for installed plugin group |
+| **CLI** | forge symlink valid and executable |
+
+### forge update
+
+Fetches from origin, fast-forward merges, then reinstalls with your current persona and plugin group. Fails safely on diverged history or uncommitted changes in the source repo.
+
+```bash
+forge update
+```
+
+### forge diff
+
+Compares source tree against installed `~/.claude/` files. Shows added, changed, and removed files by category (Rules, Hooks, Scripts, Root Files, Lib Files, CLAUDE.md). Use this to preview what `forge update` will change.
+
+```bash
+forge diff
+```
+
+### forge build
+
+Interactive wizard to create a custom persona profile. Walks through the 4 behavioral axes, quality standards, and plugin group selection. Saves the profile to `templates/profiles/custom-<name>.json` and optionally switches to it immediately.
+
+```bash
+forge build
+```
+
+Custom profiles are usable immediately with `forge switch` and `forge install --profile`.
+
+### forge init
+
+Per-project configuration. Creates a `.claude/` directory in the current working directory with an assembled CLAUDE.md and rules files. Does **not** modify `~/.claude/` or install hooks (hooks are global).
+
+```bash
+forge init                           # Uses current global persona
+forge init --persona senior-engineer # Specify a persona
+```
+
+Useful for monorepos or projects where you want project-level Claude instructions committed alongside the code.
+
+## Plugin Groups
+
+v1.1.0 introduces tiered plugin groups. Each persona has a default group; you can override it with `--plugins` at install time.
+
+| Group | Plugins | Default for |
+|:------|--------:|:------------|
+| **full** | 18 | senior-engineer, cto-architect, devops-engineer, data-engineer, data-scientist |
+| **standard** | 16 | analyst, junior-dev, designer (drops HR/legal and startup plugins) |
+| **minimal** | 6 | vibe-coder, hobbyist, executive, product-manager |
+
+**full** includes every plugin in the workflow suite plus both Anthropic plugins.
+
+**standard** drops `hr-legal-compliance` and `startup-business-analyst` — not useful for most day-to-day engineering work.
+
+**minimal** includes only the essential six: `debugging-toolkit`, `comprehensive-review`, `error-debugging`, `code-refactoring`, `context7`, and `frontend-design`.
+
+Override at install time:
+
+```bash
+forge install --profile senior-engineer --plugins standard
+forge install --profile vibe-coder --plugins full
+```
+
+The installed group is recorded in the manifest. `forge doctor` and `forge update` use it to validate and reinstall the correct set.
+
+## What Gets Installed
+
+The forge writes only to `~/.claude/`. Before touching anything, it snapshots your existing configuration to `~/.claude/forge-backup/`. `forge install --uninstall` reads that snapshot and restores exactly what was there before.
 
 ```
 ~/.claude/
 ├── CLAUDE.md                     # Assembled from your persona (replaces existing)
-├── profile.json                  # Your persona config (for hooks to read)
-├── statusline-command.sh         # Premium status line script
+├── profile.json                  # Your persona config (hooks read this at runtime)
+├── statusline-command.sh         # Status line script
 ├── settings.json                 # Forge hooks + plugins merged into existing config
+├── bin/
+│   └── forge -> <source>/forge   # Symlink — always current, no copy to go stale
 ├── rules/
 │   ├── agent-orchestration.md   # 4-phase workflow, specialist routing table
 │   ├── commit-and-delivery.md   # Commit format, dependency policy
@@ -100,10 +244,10 @@ The forge writes only to `~/.claude/`. Before touching anything, it snapshots yo
 │   ├── commit-validator.sh      # Blocks AI attribution, warns on bad format
 │   └── backup-transcript.sh     # Saves transcript before context compaction
 ├── scripts/
-│   ├── generate-project-claude.sh  # Brownfield onboarding
+│   ├── generate-project-claude.sh  # Brownfield project onboarding
 │   └── init-project-claude.sh      # Greenfield project setup
 ├── lib/
-│   └── ui.sh                    # Shared output library (used by scripts)
+│   └── ui.sh                    # Shared output library (used by scripts and forge)
 └── forge-backup/
     ├── manifest.json             # What was backed up and what was installed
     ├── CLAUDE.md                 # Your original CLAUDE.md (if any)
@@ -111,13 +255,15 @@ The forge writes only to `~/.claude/`. Before touching anything, it snapshots yo
     └── rules/, hooks/, ...       # Any pre-existing files in these directories
 ```
 
-**Settings merge strategy:** Hooks and plugins are added additively — the forge never removes your existing hooks or plugins. The `statusLine` and `alwaysThinkingEnabled` keys are set by the template. All other keys you have in `settings.json` are preserved unchanged.
+**The forge symlink** — `~/.claude/bin/forge` points directly to the source tree. When you pull new changes, `forge` is immediately updated without reinstalling. `forge diff` and `forge update` use this to compare installed files against the current source.
 
-**Uninstall is clean.** The manifest records exactly which files were installed and which were pre-existing. `--uninstall` restores the pre-existing files, removes forge-only files, and surgically unmerges forge additions from `settings.json` — including any plugins or hooks you added after installation.
+**Settings merge strategy** — Hooks and plugins are added additively. The forge never removes your existing hooks or plugins. `statusLine` and `alwaysThinkingEnabled` are set by the template. All other keys in your `settings.json` are preserved unchanged.
 
-## 🔥 Persona System
+**Uninstall is clean.** The manifest records exactly which files were installed and which were pre-existing. `forge install --uninstall` restores pre-existing files, removes forge-only files, and surgically unmerges forge additions from `settings.json` — including any plugins or hooks you added after installation.
 
-The forge uses an **axis-based persona system**. Each role selects values from 4 behavioral axes — the installer reads the selection and assembles a tailored CLAUDE.md from reusable section files.
+## Persona System
+
+The forge uses an **axis-based persona system**. Each persona selects values from 4 behavioral axes. The installer reads the selection and assembles a tailored CLAUDE.md from reusable section files — 15 section files serve any number of personas without content drift.
 
 ### The 4 Axes
 
@@ -128,49 +274,40 @@ The forge uses an **axis-based persona system**. Each role selects values from 4
 | **Workflow** | `simplified` · `standard` · `advanced` | Internal ceremony visibility |
 | **Depth** | `conceptual` · `practical` · `engineering` | Code-level detail in explanations |
 
-### 12 Launch Personas
+### 12 Personas
 
-| # | Persona | Comm | Auto | Workflow | Depth | Quality |
-|:-:|:--------|:----:|:----:|:--------:|:-----:|:-------:|
-| 1 | **Product Manager** | plain | guided | simplified | conceptual | core |
-| 2 | **Executive / Business Lead** | plain | guided | simplified | conceptual | core |
-| 3 | **Designer (UI/UX)** | plain | guided | simplified | practical | core |
-| 4 | **Data Analyst** | technical | moderate | standard | practical | core |
-| 5 | **Data Scientist** | technical | moderate | standard | engineering | core + eng |
-| 6 | **Data Engineer** | technical | moderate | advanced | engineering | core + eng |
-| 7 | **Junior Developer** | technical | moderate | standard | engineering | core + eng |
-| 8 | **Senior Engineer** | expert | high | advanced | engineering | core + eng |
-| 9 | **CTO / Architect** | expert | high | advanced | engineering | core + eng |
-| 10 | **DevOps / Platform** | expert | high | advanced | engineering | core + eng |
-| 11 | **Vibe Coder** | plain | guided | simplified | conceptual | core |
-| 12 | **Hobbyist** | plain | moderate | simplified | practical | core |
+Every persona enforces the same quality standards — the same architect reviews, security audits, and testing gates run regardless of which persona you pick. What changes is how Claude **talks to you**: the jargon level, how much it explains its process, and whether it surfaces internal workflow details or keeps them behind the scenes.
 
-> **Note:** Some personas share identical axis configurations (e.g., Senior Engineer / CTO / DevOps all produce the same assembled CLAUDE.md). The distinct labels exist for wizard UX — pick the one that best describes you. The real behavioral differences come from the axis values, not the persona name.
+> **Important:** The forge controls Claude's *instructions*, not the Claude Code client. You'll still see the same tool calls, permission prompts, and file diffs regardless of persona — that's the Claude Code runtime UI and can't be changed. What changes is how Claude explains and narrates its work in its text responses.
 
-### Adding a Persona
+**Non-technical** — plain language, step-by-step guidance, internal workflow translated into everyday terms
 
-Create one JSON file. If existing axis values cover the behavior, zero section changes are needed.
+| Persona | How Claude communicates |
+|:--------|:-----------------------|
+| **Product Manager** | Business language, decisions framed as trade-offs |
+| **Executive** | High-level summaries, strategic framing |
+| **Vibe Coder** | Casual, minimal jargon, just shows results |
 
-<details>
-<summary><strong>Example: vibe-coder.json</strong></summary>
+**Technical** — domain terminology, balanced guidance, workflow visible but not verbose
 
-```json
-{
-  "schema_version": 1,
-  "persona": "vibe-coder",
-  "label": "Vibe Coder",
-  "description": "I don't code but I want to build things with AI",
-  "axes": {
-    "communication": "plain",
-    "autonomy": "guided",
-    "workflow": "simplified",
-    "depth": "conceptual"
-  },
-  "quality": ["core"]
-}
-```
+| Persona | How Claude communicates |
+|:--------|:-----------------------|
+| **Designer (UI/UX)** | Design-aware language, accessibility context |
+| **Data Analyst** | Data terminology, explains analytical reasoning |
+| **Data Scientist** | Statistical/ML vocabulary, engineering detail |
+| **Junior Developer** | Technical but explanatory, more "why" behind decisions |
+| **Hobbyist** | Approachable, explains patterns as they come up |
 
-</details>
+**Engineering** — expert shorthand, high autonomy, full workflow and agent orchestration visible
+
+| Persona | How Claude communicates |
+|:--------|:-----------------------|
+| **Senior Engineer** | Peer-level, terse, leads with recommendations |
+| **CTO / Architect** | Architectural framing, trade-off analysis |
+| **DevOps / Platform** | Infra-native terminology, operational context |
+| **Data Engineer** | Pipeline/systems vocabulary, engineering depth |
+
+> Personas sharing identical axis values produce the same CLAUDE.md — the label is for wizard UX. Pick the one that fits. Or run `forge build` to create your own.
 
 ### The Key Insight: Interpretation Directive
 
@@ -184,7 +321,35 @@ For non-technical personas, the workflow section includes an **interpretation di
 
 Quality is identical. Jargon is not.
 
-## 🔄 The 4-Phase Workflow
+### Adding a Persona
+
+Create one JSON file in `templates/profiles/`. If existing axis values cover the behavior, zero section changes are needed.
+
+<details>
+<summary><strong>Example: custom persona JSON</strong></summary>
+
+```json
+{
+  "schema_version": 1,
+  "persona": "custom-ml-engineer",
+  "label": "ML Engineer (Custom)",
+  "description": "Custom persona built with forge build",
+  "axes": {
+    "communication": "expert",
+    "autonomy": "high",
+    "workflow": "advanced",
+    "depth": "engineering"
+  },
+  "quality": ["core", "engineering"],
+  "default_plugin_group": "full"
+}
+```
+
+</details>
+
+Or use `forge build` for an interactive wizard that generates the JSON and validates it.
+
+## The 4-Phase Workflow
 
 Every task follows a structured workflow, with rigor proportional to complexity:
 
@@ -203,7 +368,7 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 | **Moderate** | Multi-file, well-understood domain | Implement, domain architect + code review |
 | **Significant** | New service, auth, architecture | Plan mode → architect review → approval → implement |
 
-### 🛡 Enforcement Hooks
+### Enforcement Hooks
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
@@ -212,41 +377,7 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 | `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
 
-## 🖥 CLI Reference
-
-```
-Usage:
-  ./install.sh                         Interactive wizard
-  ./install.sh --profile <name>        Non-interactive install
-  ./install.sh --reconfigure           Re-run the persona wizard
-  ./install.sh --uninstall             Remove forge files, restore backups
-  ./install.sh --check                 Run health checks only (no install)
-  ./install.sh --quiet --profile <n>   Minimal output (CI-friendly)
-  ./install.sh --debug --profile <n>   Trace each verification step
-  ./install.sh --help                  Show this help
-
-Available profiles:
-  product-manager, executive, designer, analyst,
-  data-scientist, data-engineer, junior-dev, senior-engineer,
-  cto-architect, devops-engineer, vibe-coder, hobbyist
-
-Environment:
-  NO_COLOR=1     Disable colored output
-  UI_QUIET=true  Same as --quiet
-  UI_DEBUG=true  Same as --debug
-```
-
-**`--check`** runs health checks against your existing `~/.claude/` installation without modifying anything. Useful after updating the repo to see if you need to re-run the installer.
-
-**`--reconfigure`** always runs the wizard, even if a profile is already installed. Use this to switch personas.
-
-**`--uninstall`** shows a preview of what will be removed and restored before prompting for confirmation. Optionally uninstalls the 18 forge plugins too.
-
-**`--quiet`** suppresses all output except failures and warnings. Designed for scripted or CI environments where you want a clean log.
-
-**`--debug`** prints each verification step to stderr. Useful when a health check fails and the high-level message isn't enough.
-
-## 📊 Status Line
+## Status Line
 
 ```
 🌿 feat/thing ✦3 ↑2 │ 🧠 Opus │ ▐████░░░░▌ 42% │ 💰 38¢ │ ✏️ +156 −23 │ ⏱️ 12m
@@ -254,14 +385,14 @@ Environment:
 
 | Segment | What It Shows |
 |:--------|:-------------|
-| **Branch** 🌿/🔗 | Git branch, dirty count, ahead/behind, stashes |
-| **Model** 🧠 | Active model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
+| **Branch** | Git branch, dirty count, ahead/behind, stashes |
+| **Model** | Active model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
 | **Context** | Context window usage bar (green <70%, yellow 70-90%, red >90%) |
-| **Cost** 💰 | Session cost |
-| **Changes** ✏️ | Lines added/removed |
-| **Time** ⏱️ | Session duration |
+| **Cost** | Session cost |
+| **Changes** | Lines added/removed |
+| **Time** | Session duration |
 
-## 🏗 Project Onboarding
+## Project Onboarding
 
 ### Brownfield (Existing Projects)
 
@@ -281,7 +412,17 @@ mkdir my-new-project && cd my-new-project && git init
 ~/.claude/scripts/init-project-claude.sh
 ```
 
-For a simpler starting point, `examples/project-CLAUDE.md` provides a template you can fill in manually.
+### Per-Project with `forge init`
+
+For projects where you want Claude instructions version-controlled alongside the code:
+
+```bash
+cd /path/to/project
+forge init                             # Uses your current global persona
+forge init --persona senior-engineer  # Or specify one explicitly
+```
+
+This creates `.claude/CLAUDE.md` and `.claude/rules/` in your project directory. Hooks and plugins remain global — only the instructions and rules are project-scoped.
 
 ### Document Chain (Optional)
 
@@ -297,7 +438,7 @@ your-project/
 
 These are team artifacts committed to git. Claude checks for them at session start and offers to help generate them when you describe new work. Templates are in `templates/document-chain/` and filled-in examples are in `examples/document-chain/`.
 
-## 🎛 Customization
+## Customization
 
 <details>
 <summary><strong>Adjusting Quality Standards</strong></summary>
@@ -307,7 +448,7 @@ Edit `templates/rules/quality-engineering.md`:
 - Add or remove accessibility requirements
 - Adjust performance checklists
 
-Then re-run `./install.sh` to install the updated rules.
+Then run `forge install` to install the updated rules.
 
 </details>
 
@@ -321,31 +462,37 @@ Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-l
 <details>
 <summary><strong>Adding Custom Agents</strong></summary>
 
-The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table. Re-run `./install.sh` to propagate changes.
+The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table. Run `forge install` to propagate changes.
 
 </details>
 
 <details>
-<summary><strong>Switching Personas</strong></summary>
+<summary><strong>Building a Custom Persona</strong></summary>
 
 ```bash
-./install.sh --reconfigure
+forge build
 ```
 
-This re-runs the wizard, re-assembles `~/.claude/CLAUDE.md` from the new profile, and updates `~/.claude/profile.json`. Hooks read `profile.json` at runtime, so the new persona takes effect immediately on the next `claude` session — no restart required.
+This walks you through the 4 axes, quality settings, and plugin group selection, then saves a `custom-<name>.json` profile. Switch to it immediately or install it later:
+
+```bash
+forge switch custom-my-team
+forge install --profile custom-my-team
+```
 
 </details>
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 <details>
 <summary><strong>Health check fails after install</strong></summary>
 
-Run `./install.sh --check` to see exactly which checks are failing. Common causes:
+Run `forge doctor` to see exactly which checks are failing. Common causes:
 
-- **Missing hooks or rules files** — re-run `./install.sh` to reinstall
+- **Missing hooks or rules files** — run `forge install` to reinstall
 - **Hooks not executable** — the installer sets `chmod +x` on all hooks; if this fails, set manually: `chmod +x ~/.claude/hooks/*.sh`
-- **Plugin count below 15** — the `claude plugins add` command occasionally fails silently on bad network. Re-run `./install.sh` to retry plugin installation
+- **Plugin count below expected** — the `claude plugins add` command occasionally fails silently on a bad network. Run `forge install` to retry plugin installation
+- **Version mismatch** — if `forge doctor` shows installed ≠ source, run `forge update` or `forge install` to sync
 
 </details>
 
@@ -360,6 +507,25 @@ Three things to verify:
 3. Claude Code version is 1.0 or newer (`claude --version`)
 
 If the files are loaded but rules aren't followed, check that you're at the start of a fresh session. Long-running sessions accumulate context and can lose instruction adherence — start a new session with `/clear` or open a new terminal.
+
+</details>
+
+<details>
+<summary><strong>forge: command not found</strong></summary>
+
+The forge symlink is installed at `~/.claude/bin/forge`. Add that directory to your PATH:
+
+```bash
+export PATH="$HOME/.claude/bin:$PATH"
+```
+
+Or call it directly:
+
+```bash
+~/.claude/bin/forge doctor
+```
+
+You can also run `forge` from the source directory directly — the `forge` script at the root of the repo works standalone.
 
 </details>
 
@@ -395,7 +561,7 @@ fix(auth): description
 chore(deps): description
 ```
 
-If you see a warning but want to proceed anyway, the commit still goes through — the warning is informational.
+If you see a warning but want to proceed, the commit still goes through — the warning is informational.
 
 </details>
 
@@ -427,40 +593,41 @@ cp ~/.claude/forge-backup/settings.json ~/.claude/settings.json
 The UI library auto-detects TTY and color support. If output looks garbled, disable colors:
 
 ```bash
-NO_COLOR=1 ./install.sh --profile senior-engineer
+NO_COLOR=1 forge install --profile senior-engineer
 ```
 
 On non-interactive environments (CI, pipes), the spinner and progress counter automatically fall back to plain text output.
 
 </details>
 
-## 🧪 Testing
+## Testing
 
-173 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+244 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
-./test/run_tests.sh unit         # Hook unit tests only
-./test/run_tests.sh integration  # Assembly, merge, install flow
+./test/run_tests.sh unit         # Hook and CLI unit tests
+./test/run_tests.sh integration  # Assembly, merge, install flow, new subcommands
 ./test/run_tests.sh validation   # Profile schema, section coverage
 ```
 
 > **Note:** bats-core is included as a git submodule. If the test runner fails to find it, run `git submodule update --init --recursive` first.
 
-| Suite | Tests | What It Covers |
+| Suite | Files | What It Covers |
 |:------|------:|:---------------|
-| **Unit** | 84 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library |
-| **Integration** | 65 | Assembly pipeline, settings merge/unmerge, install flow, backup and restore |
-| **Validation** | 24 | Profile schema integrity, section file coverage, settings template structure |
+| **Unit** | 9 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library, plugins, manifest v2, forge CLI dispatcher |
+| **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup and restore, switch, doctor, diff, update, build, init |
+| **Validation** | 3 | Profile schema integrity, section file coverage, settings template structure |
 
 All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 claude-code-forge/
-├── install.sh                          # Installer with onboarding wizard
-├── statusline-command.sh               # Premium status line
+├── forge                               # CLI dispatcher (symlinked to ~/.claude/bin/forge)
+├── install.sh                          # Thin wrapper — delegates to forge install
+├── statusline-command.sh               # Status line script
 ├── lib/
 │   ├── ui.sh                           # Output library (colors, spinner, progress)
 │   ├── platform.sh                     # Cross-platform detection (macOS, Linux, WSL)
@@ -468,12 +635,21 @@ claude-code-forge/
 │   ├── settings-merge.sh               # Additive settings merge
 │   ├── settings-unmerge.sh             # Surgical settings restore for uninstall
 │   ├── forge-inventory.sh              # Runtime discovery of shipped files
-│   ├── manifest.sh                     # Backup manifest CRUD and validation
-│   └── uninstall.sh                    # Uninstall orchestration
+│   ├── manifest.sh                     # Backup manifest CRUD, validation, migration
+│   ├── uninstall.sh                    # Uninstall orchestration
+│   ├── plugins.sh                      # Plugin group resolution and installation
+│   ├── cmd-install.sh                  # forge install
+│   ├── cmd-switch.sh                   # forge switch
+│   ├── cmd-doctor.sh                   # forge doctor
+│   ├── cmd-update.sh                   # forge update
+│   ├── cmd-diff.sh                     # forge diff
+│   ├── cmd-build.sh                    # forge build
+│   └── cmd-init.sh                     # forge init
 ├── templates/
 │   ├── profiles/                       # 12 persona JSON configs
 │   ├── sections/                       # 15 axis-value section files
 │   ├── settings.json                   # Hooks + status line + plugins template
+│   ├── plugin-groups.json              # full / standard / minimal plugin lists
 │   ├── rules/                          # 7 rules files installed to ~/.claude/rules/
 │   └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP templates
 ├── hooks/                              # 4 enforcement hooks
@@ -481,9 +657,9 @@ claude-code-forge/
 │   ├── generate-project-claude.sh      # Brownfield project onboarding
 │   └── init-project-claude.sh          # Greenfield project setup
 ├── test/
-│   ├── unit/                           # 84 tests: hooks and platform
-│   ├── integration/                    # 65 tests: assembly, merge, install flow
-│   ├── validation/                     # 24 tests: schema and coverage checks
+│   ├── unit/                           # Hook, plugin, manifest, CLI tests
+│   ├── integration/                    # Assembly, merge, install, subcommand tests
+│   ├── validation/                     # Schema and coverage checks
 │   ├── helpers/                        # Shared test helper
 │   ├── libs/                           # bats-core, bats-support, bats-assert, bats-file
 │   └── run_tests.sh                    # Test runner
@@ -493,7 +669,30 @@ claude-code-forge/
     └── document-chain/                 # Filled-in PROJECT/REQUIREMENTS/ROADMAP examples
 ```
 
-## 🧠 Design Decisions
+## Design Decisions
+
+<details>
+<summary><strong>Why a forge CLI instead of just install.sh flags?</strong></summary>
+
+`install.sh` flags worked for a single command, but as operations multiplied (switch persona, run doctor, compare files, update, build custom personas), a flat flag namespace became unmanageable. The `forge` CLI groups related operations, provides consistent `--help` per subcommand, and is extensible — adding a new command is one `lib/cmd-<name>.sh` file.
+
+`install.sh` is kept as a compatibility wrapper so existing documentation, scripts, and muscle memory continue to work.
+
+</details>
+
+<details>
+<summary><strong>Why a symlink instead of copying the forge binary?</strong></summary>
+
+A symlink to the source tree means `forge` is always the current version after a `git pull`, without requiring a reinstall to pick up CLI changes. `forge diff` detects when installed *files* differ from source, but the CLI itself is always current. The tradeoff is that the source repo must remain at the same path — relocating it requires a `forge install` to refresh the symlink.
+
+</details>
+
+<details>
+<summary><strong>Why plugin groups instead of all-or-nothing?</strong></summary>
+
+18 plugins is the right set for an engineering persona. It's excessive for a vibe coder who just wants to build things without managing HR compliance agents. Tiered groups let each persona install what it actually needs, keep `claude plugins` clean, and reduce the chance of irrelevant agents surfacing in completions.
+
+</details>
 
 <details>
 <summary><strong>Why hooks instead of just instructions?</strong></summary>
@@ -505,33 +704,35 @@ Instructions tell Claude what to do. Hooks enforce it. The `architect-gate` hook
 <details>
 <summary><strong>Why under 200 lines per CLAUDE.md?</strong></summary>
 
-Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored in long sessions. The persona system guarantees every assembled CLAUDE.md stays under the limit (the health check verifies all 12 profiles at install time).
+Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored in long sessions. The persona system guarantees every assembled CLAUDE.md stays under the limit — the health check verifies all profiles at install time.
 
 </details>
 
 <details>
 <summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
 
-15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. The combinatorial approach scales without content drift — when you update a section file, every persona that uses it gets the update automatically on the next install.
+15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. When you update a section file, every persona that uses it gets the update automatically on the next install.
 
 </details>
 
 <details>
 <summary><strong>Why is the backup manifest-based instead of timestamped copies?</strong></summary>
 
-Timestamped backups accumulate and require manual cleanup. The manifest approach takes a single snapshot on first install and freezes it — re-installs don't overwrite the original backup, so you always have a clean restore point regardless of how many times you update. The manifest also records what the forge added to `settings.json` so uninstall can be surgical rather than destructive.
+Timestamped backups accumulate and require manual cleanup. The manifest takes a single snapshot on first install and freezes it — reinstalls don't overwrite the original backup, so you always have a clean restore point regardless of how many times you update. The manifest also records what the forge added to `settings.json` so uninstall can be surgical rather than destructive.
 
 </details>
 
-## 🔧 Maintenance
+## Maintenance
 
 ```bash
-./install.sh --check                            # Verify current installation
-./install.sh                                    # Re-run to pick up forge updates (idempotent)
-./install.sh --reconfigure                      # Change persona
-du -sh ~/.claude/backups/                       # Check transcript backup size
-find ~/.claude/backups/ -mtime +30 -delete      # Clean old transcripts manually
-claude plugins update                           # Update plugins
+forge doctor                              # Check current installation health
+forge diff                                # Preview what forge update would change
+forge update                              # Pull latest and reinstall
+forge switch <persona>                    # Change persona without full reinstall
+forge install --check                     # Health checks only
+du -sh ~/.claude/backups/                 # Check transcript backup size
+find ~/.claude/backups/ -mtime +30 -delete  # Clean old transcripts
+claude plugins update                     # Update plugins independently
 ```
 
 ## Credits
