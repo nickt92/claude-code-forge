@@ -8,9 +8,16 @@
 setup() {
   load '../helpers/test_helper'
   setup_sandbox
+  source "$SCRIPT_DIR/lib/ui.sh"
   source "$SCRIPT_DIR/lib/assembly.sh"
   source "$SCRIPT_DIR/lib/settings-merge.sh"
+  source "$SCRIPT_DIR/lib/settings-unmerge.sh"
+  source "$SCRIPT_DIR/lib/forge-inventory.sh"
   source "$SCRIPT_DIR/lib/platform.sh"
+
+  export FORGE_VERSION="0.1.0-test"
+  source "$SCRIPT_DIR/lib/manifest.sh"
+  source "$SCRIPT_DIR/lib/uninstall.sh"
 }
 
 teardown() {
@@ -27,10 +34,8 @@ simulate_install() {
 
   mkdir -p "$CLAUDE_DIR"/{rules,hooks,scripts,backups,plans}
 
-  # Backup existing
-  [ -f "$CLAUDE_DIR/CLAUDE.md" ] && cp "$CLAUDE_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md.backup"
-  [ -f "$CLAUDE_DIR/settings.json" ] && cp "$CLAUDE_DIR/settings.json" "$CLAUDE_DIR/settings.json.backup"
-  [ -f "$CLAUDE_DIR/profile.json" ] && cp "$CLAUDE_DIR/profile.json" "$CLAUDE_DIR/profile.json.backup"
+  # Manifest-based backup (no-op on re-install)
+  snapshot_pre_install_state
 
   # Assemble CLAUDE.md
   assemble_claude_md "$profile_file" "$CLAUDE_DIR/CLAUDE.md"
@@ -59,6 +64,10 @@ simulate_install() {
   cp "$SCRIPT_DIR/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
   chmod +x "$CLAUDE_DIR/statusline-command.sh"
 
+  # Copy lib files
+  mkdir -p "$CLAUDE_DIR/lib"
+  cp "$SCRIPT_DIR/lib/ui.sh" "$CLAUDE_DIR/lib/ui.sh"
+
   # Settings merge
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     merge_settings "$CLAUDE_DIR/settings.json" "$SCRIPT_DIR/templates/settings.json" "$CLAUDE_DIR/settings.json.tmp"
@@ -66,6 +75,9 @@ simulate_install() {
   else
     cp "$SCRIPT_DIR/templates/settings.json" "$CLAUDE_DIR/settings.json"
   fi
+
+  # Update manifest with installed files
+  update_manifest_installed "$(jq -r '.persona' "$profile_file")"
 }
 
 # ── Core Install ─────────────────────────────────────────────
@@ -83,7 +95,7 @@ simulate_install() {
 
 @test "install copies all rules files" {
   simulate_install "senior-engineer"
-  local expected_rules=(agent-orchestration commit-and-delivery context-and-memory project-setup pull-requests quality-engineering)
+  local expected_rules=(agent-orchestration commit-and-delivery context-and-memory project-setup pull-requests quality-engineering scope-discipline)
   for rule in "${expected_rules[@]}"; do
     assert [ -f "$CLAUDE_DIR/rules/${rule}.md" ]
   done
@@ -119,22 +131,32 @@ simulate_install() {
 
 # ── Backup Logic ─────────────────────────────────────────────
 
-@test "install backs up existing CLAUDE.md" {
+@test "install backs up existing CLAUDE.md to forge-backup/" {
   echo "original content" > "$CLAUDE_DIR/CLAUDE.md"
   simulate_install "senior-engineer"
 
-  assert [ -f "$CLAUDE_DIR/CLAUDE.md.backup" ]
-  run cat "$CLAUDE_DIR/CLAUDE.md.backup"
+  assert [ -f "$CLAUDE_DIR/forge-backup/CLAUDE.md" ]
+  run cat "$CLAUDE_DIR/forge-backup/CLAUDE.md"
   assert_output "original content"
 }
 
-@test "install backs up existing settings.json" {
+@test "install backs up existing settings.json to forge-backup/" {
   echo '{"custom":"setting"}' > "$CLAUDE_DIR/settings.json"
   simulate_install "senior-engineer"
 
-  assert [ -f "$CLAUDE_DIR/settings.json.backup" ]
-  run jq -r '.custom' "$CLAUDE_DIR/settings.json.backup"
+  assert [ -f "$CLAUDE_DIR/forge-backup/settings.json" ]
+  run jq -r '.custom' "$CLAUDE_DIR/forge-backup/settings.json"
   assert_output "setting"
+}
+
+@test "install creates manifest.json in forge-backup/" {
+  simulate_install "senior-engineer"
+
+  assert [ -f "$CLAUDE_DIR/forge-backup/manifest.json" ]
+  run jq -r '.manifest_version' "$CLAUDE_DIR/forge-backup/manifest.json"
+  assert_output "1"
+  run jq -r '.persona' "$CLAUDE_DIR/forge-backup/manifest.json"
+  assert_output "senior-engineer"
 }
 
 # ── Idempotency ──────────────────────────────────────────────

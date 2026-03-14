@@ -68,11 +68,11 @@ check_platform() {
       return 0
       ;;
     wsl)
-      printf "${YELLOW:-}[WARN]${RST:-} Running under WSL — this should work but is not fully tested.\n"
+      printf "${_C_YELLOW:-}[WARN]${_C_RST:-} Running under WSL — this should work but is not fully tested.\n"
       return 0
       ;;
     *)
-      printf "${RED:-}[FAIL]${RST:-} Unsupported platform: %s. This installer supports macOS and Linux.\n" "$(uname -s)"
+      printf "${_C_RED:-}[FAIL]${_C_RST:-} Unsupported platform: %s. This installer supports macOS and Linux.\n" "$(uname -s)"
       return 1
       ;;
   esac
