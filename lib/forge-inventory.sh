@@ -21,6 +21,16 @@ FORGE_SOURCE_DIR="${FORGE_SOURCE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &
 FORGE_ROOT_FILES=(CLAUDE.md profile.json statusline-command.sh)
 FORGE_LIB_FILES=(ui.sh)
 
+# Discover lib/cmd-*.sh command modules
+forge_shipped_commands() {
+  for f in "$FORGE_SOURCE_DIR/lib/cmd-"*.sh; do
+    [ -f "$f" ] || continue
+    local name
+    name="$(basename "$f" .sh)"
+    echo "${name#cmd-}"
+  done
+}
+
 forge_shipped_rules() {
   for f in "$FORGE_SOURCE_DIR/templates/rules/"*.md; do
     [ -f "$f" ] && basename "$f" .md

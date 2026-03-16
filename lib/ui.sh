@@ -2,7 +2,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # UI Library — Homebrew-inspired output for Claude Code Forge
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Centralized colors, emojis, spinners, and progress counters.
+# Centralized colors, symbols, spinners, and progress counters.
 # Designed for clean, grouped output (~35 lines for a full install).
 #
 # Usage:
@@ -50,39 +50,60 @@ debug() {
 
 # ── Public API ───────────────────────────────────────────────
 
-# App header with hammer emoji
+# App header — brew-style bold arrow
 banner() {
   _ui_quiet && return 0
-  local title="$1"
-  printf "\n%s %s\n" "🔨" "${_C_BOLD}${title}${_C_RST}"
+  printf "\n${_C_BOLD}==> %s${_C_RST}\n" "$1"
 }
 
 # Section header: ==> message
 step() {
   _ui_quiet && return 0
-  printf "\n${_C_BOLD}==>${_C_RST} ${_C_BOLD}%s${_C_RST}\n" "$1"
+  printf "\n${_C_BOLD}==> %s${_C_RST}\n" "$1"
 }
 
-# Success: ✅  message
+# Success: green check + message
 ok() {
   _ui_quiet && return 0
-  printf "✅  %s\n" "$1"
+  printf "${_C_GREEN}✓${_C_RST} %s\n" "$1"
 }
 
-# Warning: ⚠️  message (always prints, even in quiet)
+# Warning: yellow bang + message (always prints, even in quiet)
 warn() {
-  printf "⚠️  %s\n" "$1"
+  printf "${_C_YELLOW}!${_C_RST} %s\n" "$1"
 }
 
-# Error: ❌  message (always prints, even in quiet)
+# Error: red cross + message (always prints, even in quiet)
 fail() {
-  printf "❌  %s\n" "$1"
+  printf "${_C_RED}✗${_C_RST} %s\n" "$1"
 }
 
-# Dim secondary text
+# Dim secondary text, indented
 info() {
   _ui_quiet && return 0
-  printf "   ${_C_DIM}%s${_C_RST}\n" "$1"
+  printf "  ${_C_DIM}%s${_C_RST}\n" "$1"
+}
+
+# Key-value detail line (for summaries)
+kv() {
+  _ui_quiet && return 0
+  printf "  %-12s %s\n" "${1}:" "$2"
+}
+
+# Diff-style line indicators
+diff_added() {
+  _ui_quiet && return 0
+  printf "  ${_C_GREEN}+${_C_RST} %s\n" "$1"
+}
+
+diff_removed() {
+  _ui_quiet && return 0
+  printf "  ${_C_RED}-${_C_RST} %s\n" "$1"
+}
+
+diff_changed() {
+  _ui_quiet && return 0
+  printf "  ${_C_YELLOW}~${_C_RST} %s\n" "$1"
 }
 
 # ── Spinner ──────────────────────────────────────────────────
@@ -195,4 +216,3 @@ progress_done() {
   fi
   ok "$summary"
 }
-

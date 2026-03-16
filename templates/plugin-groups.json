@@ -1,0 +1,48 @@
+{
+  "full": [
+    "wshobson/claude-code-workflows:backend-development",
+    "wshobson/claude-code-workflows:documentation-generation",
+    "wshobson/claude-code-workflows:debugging-toolkit",
+    "wshobson/claude-code-workflows:frontend-mobile-development",
+    "wshobson/claude-code-workflows:full-stack-orchestration",
+    "wshobson/claude-code-workflows:tdd-workflows",
+    "wshobson/claude-code-workflows:code-refactoring",
+    "wshobson/claude-code-workflows:dependency-management",
+    "wshobson/claude-code-workflows:error-debugging",
+    "wshobson/claude-code-workflows:javascript-typescript",
+    "wshobson/claude-code-workflows:cicd-automation",
+    "wshobson/claude-code-workflows:cloud-infrastructure",
+    "wshobson/claude-code-workflows:hr-legal-compliance",
+    "wshobson/claude-code-workflows:database-design",
+    "wshobson/claude-code-workflows:startup-business-analyst",
+    "wshobson/claude-code-workflows:comprehensive-review",
+    "anthropics/claude-code-plugins:context7",
+    "anthropics/claude-code-plugins:frontend-design"
+  ],
+  "standard": [
+    "wshobson/claude-code-workflows:backend-development",
+    "wshobson/claude-code-workflows:documentation-generation",
+    "wshobson/claude-code-workflows:debugging-toolkit",
+    "wshobson/claude-code-workflows:frontend-mobile-development",
+    "wshobson/claude-code-workflows:full-stack-orchestration",
+    "wshobson/claude-code-workflows:tdd-workflows",
+    "wshobson/claude-code-workflows:code-refactoring",
+    "wshobson/claude-code-workflows:dependency-management",
+    "wshobson/claude-code-workflows:error-debugging",
+    "wshobson/claude-code-workflows:javascript-typescript",
+    "wshobson/claude-code-workflows:cicd-automation",
+    "wshobson/claude-code-workflows:cloud-infrastructure",
+    "wshobson/claude-code-workflows:database-design",
+    "wshobson/claude-code-workflows:comprehensive-review",
+    "anthropics/claude-code-plugins:context7",
+    "anthropics/claude-code-plugins:frontend-design"
+  ],
+  "minimal": [
+    "wshobson/claude-code-workflows:debugging-toolkit",
+    "wshobson/claude-code-workflows:comprehensive-review",
+    "wshobson/claude-code-workflows:error-debugging",
+    "wshobson/claude-code-workflows:code-refactoring",
+    "anthropics/claude-code-plugins:context7",
+    "anthropics/claude-code-plugins:frontend-design"
+  ]
+}

@@ -32,7 +32,7 @@ teardown() {
 @test "snapshot records manifest_version and forge_version" {
   snapshot_pre_install_state
   run jq -r '.manifest_version' "$MANIFEST_FILE"
-  assert_output "1"
+  assert_output "2"
   run jq -r '.forge_version' "$MANIFEST_FILE"
   assert_output "0.1.0-test"
 }
