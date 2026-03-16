@@ -76,15 +76,39 @@ run_hook() {
 # ── Slack Tokens ──────────────────────────────────────────────
 
 @test "detects Slack bot token" {
-  run run_hook 'SLACK_TOKEN=xoxb-123456-789012-abcdef'
+  run run_hook 'SLACK_TOKEN=xoxb-1234567890-abcdefghij'
   assert_success
   assert_output --partial "Slack token"
 }
 
 @test "detects Slack user token" {
-  run run_hook 'token=xoxp-user-token-here'
+  run run_hook 'token=xoxp-1234567890-abcdefghij'
   assert_success
   assert_output --partial "Slack token"
+}
+
+@test "no false positive on short Slack prefix" {
+  run run_hook 'xoxb-short'
+  assert_success
+  assert_output ''
+}
+
+@test "no false positive on 9-char Slack suffix (below threshold)" {
+  run run_hook 'xoxb-123456789'
+  assert_success
+  assert_output ''
+}
+
+@test "detects Slack token at exact 10-char boundary" {
+  run run_hook 'xoxb-1234567890'
+  assert_success
+  assert_output --partial "Slack token"
+}
+
+@test "no false positive on Slack regex pattern string" {
+  run run_hook 'grep -qE xox[bpras]- is a pattern'
+  assert_success
+  assert_output ''
 }
 
 # ── NPM Tokens ───────────────────────────────────────────────
@@ -144,9 +168,45 @@ run_hook() {
 }
 
 @test "no false positive on short env values" {
-  run run_hook 'KEY=short'
+  run run_hook 'API_KEY=short'
   assert_success
   assert_output ''
+}
+
+@test "no false positive on bare KEY= assignment" {
+  run run_hook 'KEY=abcdefghijklmnop1234'
+  assert_success
+  assert_output ''
+}
+
+@test "no false positive on bare TOKEN= assignment" {
+  run run_hook 'TOKEN=abcdefghijklmnop1234'
+  assert_success
+  assert_output ''
+}
+
+@test "no false positive on bare PASSWORD= assignment" {
+  run run_hook 'PASSWORD=abcdefghijklmnop1234'
+  assert_success
+  assert_output ''
+}
+
+@test "no false positive on bare SECRET= assignment" {
+  run run_hook 'SECRET=abcdefghijklmnop1234'
+  assert_success
+  assert_output ''
+}
+
+@test "no false positive on 15-char env value (below threshold)" {
+  run run_hook 'API_KEY=abcdefghijklmno'
+  assert_success
+  assert_output ''
+}
+
+@test "detects prefixed SECRET at minimum length" {
+  run run_hook 'MY_SECRET=abcdefghijklmnop'
+  assert_success
+  assert_output --partial "env secret"
 }
 
 # ── No Secret (Clean Passthrough) ─────────────────────────────
@@ -215,7 +275,7 @@ run_hook() {
 }
 
 @test "detects multiple secret types in one response" {
-  run run_hook 'AKIAIOSFODNN7EXAMPLE1 and xoxb-token-here'
+  run run_hook 'AKIAIOSFODNN7EXAMPLE1 and xoxb-1234567890-abcdefghij'
   assert_success
   assert_output --partial "AWS access key"
   assert_output --partial "Slack token"

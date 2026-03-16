@@ -148,6 +148,44 @@ teardown() {
   assert_output --partial "failed"
 }
 
+# ── Bar Chart ────────────────────────────────────────────────
+
+@test "bar() renders proportional bar with label and count" {
+  run bar "aws_key" 5 10
+  assert_success
+  assert_output --partial "aws_key"
+  assert_output --partial "5"
+  # Non-TTY uses # and .
+  assert_output --partial "#####....."
+}
+
+@test "bar() handles zero value" {
+  run bar "empty" 0 10
+  assert_success
+  assert_output --partial ".........."
+  assert_output --partial "0"
+}
+
+@test "bar() handles value equal to total (full bar)" {
+  run bar "full" 10 10
+  assert_success
+  assert_output --partial "##########"
+  assert_output --partial "10"
+}
+
+@test "bar() uses non-TTY fallback characters" {
+  # In test runner (non-TTY), should use # and .
+  run bash -c 'source "'"$SCRIPT_DIR"'/lib/ui.sh"; bar "test" 3 10'
+  assert_success
+  assert_output --partial "###......."
+}
+
+@test "bar() suppressed in quiet mode" {
+  UI_QUIET=true run bar "hidden" 5 10
+  assert_success
+  assert_output ""
+}
+
 # ── Test Override Pattern ────────────────────────────────────
 
 @test "functions can be overridden after source" {

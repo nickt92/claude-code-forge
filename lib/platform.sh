@@ -71,6 +71,20 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygw
   jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 fi
 
+# Convert bytes to human-readable format (KB/MB/GB)
+format_bytes() {
+  local bytes="$1"
+  if [ "$bytes" -ge 1073741824 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f GB\", $bytes/1073741824}"
+  elif [ "$bytes" -ge 1048576 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f MB\", $bytes/1048576}"
+  elif [ "$bytes" -ge 1024 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f KB\", $bytes/1024}"
+  else
+    printf "%d bytes" "$bytes"
+  fi
+}
+
 # Check if platform is supported and warn if not
 check_platform() {
   local platform

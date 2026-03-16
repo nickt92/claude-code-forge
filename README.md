@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **380+ Tests**
+**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **451 Tests**
 
 </div>
 
@@ -632,7 +632,7 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-380+ automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+419 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS, Ubuntu, and Windows).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
@@ -708,13 +708,13 @@ Timestamped backups accumulate and require manual cleanup. The manifest takes a 
 
 ```bash
 forge status                              # Current persona, version, hooks at a glance
+forge stats                               # Installation overview, security events, backup metrics
 forge doctor                              # Check current installation health
 forge diff                                # Preview what forge update would change
 forge update                              # Pull latest and reinstall
 forge switch <persona>                    # Change persona without full reinstall
+forge export                              # Package installation into portable tar.gz
 forge install --check                     # Health checks only
-du -sh ~/.claude/backups/                 # Check transcript backup size
-find ~/.claude/backups/ -mtime +30 -delete  # Clean old transcripts
 claude plugins update                     # Update plugins independently
 ```
 

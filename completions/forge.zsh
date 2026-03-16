@@ -9,9 +9,11 @@ _forge() {
     'build:Create a custom persona profile'
     'diff:Show differences between source and installed'
     'doctor:Run diagnostic health checks'
+    'export:Package forge installation into portable archive'
     'help:Show help'
     'init:Initialize per-project forge config'
     'install:Install or reinstall forge'
+    'stats:Show installation statistics'
     'status:Show current installation status'
     'switch:Switch to a different persona'
     'update:Update forge from source repository'
@@ -40,6 +42,18 @@ _forge() {
             '--check[Health checks only]' \
             '--quiet[Minimal output]' \
             '--dry-run[Show what would be installed]' \
+            '--help[Show help]'
+          ;;
+        stats)
+          _arguments \
+            '--security[Show security events only]' \
+            '--sessions[Show session backups only]' \
+            '--help[Show help]'
+          ;;
+        export)
+          _arguments \
+            {-o,--output}'[Output path]:path:_files -g "*.tar.gz"' \
+            '--no-custom-profiles[Exclude custom personas]' \
             '--help[Show help]'
           ;;
         init)

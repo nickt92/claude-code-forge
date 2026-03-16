@@ -54,8 +54,8 @@ if echo "$TOOL_RESPONSE" | grep -qE 'sk-[A-Za-z0-9_-]{20,}'; then
   DETECTED="${DETECTED}API key (sk-), "
 fi
 
-# Slack tokens
-if echo "$TOOL_RESPONSE" | grep -qE 'xox[bpras]-'; then
+# Slack tokens (require 10+ chars after prefix to avoid self-matching on regex strings)
+if echo "$TOOL_RESPONSE" | grep -qE 'xox[bpras]-[a-zA-Z0-9_/-]{10,}'; then
   DETECTED="${DETECTED}Slack token, "
 fi
 
@@ -74,8 +74,8 @@ if echo "$TOOL_RESPONSE" | grep -qE '\-{5}BEGIN.*PRIVATE KEY\-{5}'; then
   DETECTED="${DETECTED}private key, "
 fi
 
-# Generic env-style secrets
-if echo "$TOOL_RESPONSE" | grep -qE '[A-Z_]*(KEY|SECRET|TOKEN|PASSWORD)=[^[:space:]]{16,}'; then
+# Generic env-style secrets (require 1+ prefix chars to avoid bare keyword matches)
+if echo "$TOOL_RESPONSE" | grep -qE '[A-Z_]+(KEY|SECRET|TOKEN|PASSWORD)=[^[:space:]]{16,}'; then
   DETECTED="${DETECTED}env secret, "
 fi
 

@@ -65,6 +65,56 @@ run_hook() {
   assert_failure 2
 }
 
+@test "blocks rm --recursive --force /" {
+  run run_hook 'rm --recursive --force /'
+  assert_failure 2
+  assert_output --partial "Destructive deletion"
+}
+
+@test "blocks rm --force --recursive ~" {
+  run run_hook 'rm --force --recursive ~'
+  assert_failure 2
+  assert_output --partial "Destructive deletion"
+}
+
+@test "blocks rm --recursive -f /" {
+  run run_hook 'rm --recursive -f /'
+  assert_failure 2
+  assert_output --partial "Destructive deletion"
+}
+
+@test "blocks rm -r --force /*" {
+  run run_hook 'rm -r --force /*'
+  assert_failure 2
+  assert_output --partial "Destructive deletion"
+}
+
+@test "blocks rm --force --recursive ." {
+  run run_hook 'rm --force --recursive .'
+  assert_failure 2
+  assert_output --partial "Destructive deletion"
+}
+
+@test "allows rm --recursive on critical path without force" {
+  run run_hook 'rm --recursive /'
+  assert_success
+}
+
+@test "allows rm --force on critical path without recursive" {
+  run run_hook 'rm --force /'
+  assert_success
+}
+
+@test "allows rm --force on specific file" {
+  run run_hook 'rm --force temp.txt'
+  assert_success
+}
+
+@test "allows rm --recursive on safe directory" {
+  run run_hook 'rm --recursive build/'
+  assert_success
+}
+
 @test "allows targeted rm -rf build/" {
   run run_hook 'rm -rf build/'
   assert_success
@@ -210,6 +260,12 @@ run_hook() {
 
 @test "blocks chmod -R 777 /usr" {
   run run_hook 'chmod -R 777 /usr/local'
+  assert_failure 2
+  assert_output --partial "Privilege escalation"
+}
+
+@test "blocks chmod --recursive 777 /usr" {
+  run run_hook 'chmod --recursive 777 /usr/local'
   assert_failure 2
   assert_output --partial "Privilege escalation"
 }

@@ -9,7 +9,7 @@ _forge() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="build diff doctor help init install status switch update version"
+  commands="build diff doctor export help init install stats status switch update version"
 
   case "$prev" in
     forge)
@@ -83,6 +83,14 @@ _forge() {
       ;;
     --plugins)
       COMPREPLY=($(compgen -W "full standard minimal" -- "$cur"))
+      return 0
+      ;;
+    stats)
+      COMPREPLY=($(compgen -W "--security --sessions --help" -- "$cur"))
+      return 0
+      ;;
+    export)
+      COMPREPLY=($(compgen -W "-o --output --no-custom-profiles --help" -- "$cur"))
       return 0
       ;;
     init)
