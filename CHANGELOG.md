@@ -7,32 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Tightened secret-filter patterns to reduce false positives on regex strings and bare keyword assignments
-- Decomposed command-guard rm detection to support long-form GNU flags (`--recursive`, `--force`)
-- Added `--recursive` detection to chmod 777 guard
-- Split `cmd-install.sh` into three focused modules (orchestrator, wizard, health checks)
-
-### Added
-- ShellCheck linting job in CI
-- CHANGELOG.md
-
 ## [1.2.0] - 2025-05-15
 
 ### Added
+- `forge stats` subcommand — installation overview, security event distribution, session backup metrics
+- `forge export` subcommand — package forge installation into portable tar.gz archive
+- `bar()` UI primitive for proportional distribution charts
+- `format_bytes()` shared utility in platform module
 - Document chain scaffolding (`forge init --docs`, `--skip-docs`) with layered discovery
 - Windows (Git Bash) support with `\r` stripping for jq output
 - Parallel plugin installation for faster setup
 - `--dry-run` flag for `forge install`
 - Custom profile saving to user space
-- Bash and zsh shell completions
+- Bash and zsh shell completions (including `stats` and `export`)
 - `forge status` subcommand
 - `forge-update-check` hook for version advisory
 - `db-guard` hook for destructive SQL prevention
 - `secret-filter` hook for credential detection
 - `command-guard` hook for dangerous bash commands
+- ShellCheck linting job in CI
+- CHANGELOG.md
 
 ### Changed
+- Tightened secret-filter patterns to reduce false positives on regex strings and bare keyword assignments
+- Decomposed command-guard rm detection to support long-form GNU flags (`--recursive`, `--force`)
+- Added `--recursive` detection to chmod 777 guard
+- Split `cmd-install.sh` into three focused modules (orchestrator, wizard, health checks)
 - Test suites run in parallel (70s → 35s)
 - Upgraded `actions/checkout` to v5 for Node.js 22+
 
