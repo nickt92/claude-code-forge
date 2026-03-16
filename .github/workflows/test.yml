@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck -x -S error -e SC2034 -e SC1091 forge lib/*.sh hooks/*.sh scripts/*.sh completions/forge.bash
+
   test:
     strategy:
       matrix:
