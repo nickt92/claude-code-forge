@@ -40,7 +40,7 @@ fi
 [[ "$FILE_PATH" == *".lock" ]] && exit 0
 [[ "$FILE_PATH" == *"node_modules"* ]] && exit 0
 
-MARKER="/tmp/claude-code-classified-${PPID}"
+MARKER="${TMPDIR:-/tmp}/claude-code-classified-${PPID}"
 if [ ! -f "$MARKER" ]; then
   touch "$MARKER"
   echo "REMINDER: Have you classified this task? Significant tasks require EnterPlanMode and a domain architect review before implementation. If this is trivial/moderate, proceed." >&2

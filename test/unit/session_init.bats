@@ -8,7 +8,7 @@ setup() {
   setup_sandbox
   HOOK="$SCRIPT_DIR/hooks/session-init.sh"
   # Clean any existing markers for this PPID
-  rm -f /tmp/claude-code-prompted-$$
+  rm -f "${TMPDIR:-/tmp}"/claude-code-prompted-$$
 }
 
 teardown() {

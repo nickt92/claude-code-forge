@@ -588,9 +588,16 @@ cmd_install() {
   mkdir -p "$CLAUDE_DIR/lib"
   cp "$FORGE_SOURCE_DIR/lib/ui.sh" "$CLAUDE_DIR/lib/ui.sh"
 
-  # Install forge symlink
+  # Install forge CLI to ~/.claude/bin/
   mkdir -p "$CLAUDE_DIR/bin"
-  ln -sf "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+  if is_windows 2>/dev/null; then
+    # Windows: copy instead of symlink (symlinks require admin/dev mode)
+    cp "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+    # Create .cmd wrapper for cmd.exe / PowerShell
+    printf '@bash "%%~dp0forge" %%*\r\n' > "$CLAUDE_DIR/bin/forge.cmd"
+  else
+    ln -sf "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+  fi
 
   # Install shell completions
   mkdir -p "$CLAUDE_DIR/completions"

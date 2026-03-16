@@ -37,7 +37,7 @@ Claude Code reads instructions — but doesn't always follow them. Through empir
 
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
 - `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
-- macOS or Linux (WSL should work but is not fully tested)
+- macOS, Linux, or Windows (Git Bash — ships with [Git for Windows](https://gitforwindows.org/))
 
 ### Install
 

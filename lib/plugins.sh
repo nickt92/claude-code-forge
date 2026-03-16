@@ -107,7 +107,8 @@ install_plugins() {
     progress_done "$PLUGINS_INSTALLED plugins installed ($PLUGINS_FAILED skipped)"
   fi
   # Reset terminal state — claude CLI (Node.js) may dirty the tty on failure
-  stty sane < /dev/tty 2>/dev/null || true
+  # Skip on Windows (Git Bash) — /dev/tty may not exist
+  [ -c /dev/tty ] && stty sane < /dev/tty 2>/dev/null || true
 }
 
 # Return available plugin group names (newline-separated).

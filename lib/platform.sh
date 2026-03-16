@@ -2,9 +2,8 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Platform Utilities — cross-platform compatibility layer
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Supported: macOS, Linux
+# Supported: macOS, Linux, Windows (Git Bash / MINGW / MSYS2)
 # Should work: Windows via WSL
-# Not supported: Windows native, Git Bash
 
 # Detect platform
 detect_platform() {
@@ -19,8 +18,14 @@ detect_platform() {
         echo "linux"
       fi
       ;;
+    MINGW*|MSYS*)  echo "windows" ;;
     *)       echo "unsupported" ;;
   esac
+}
+
+# Quick boolean check for Windows (Git Bash)
+is_windows() {
+  [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]
 }
 
 # Platform-aware temp directory
@@ -71,8 +76,12 @@ check_platform() {
       printf "${_C_YELLOW:-}[WARN]${_C_RST:-} Running under WSL — this should work but is not fully tested.\n"
       return 0
       ;;
+    windows)
+      printf "${_C_YELLOW:-}[WARN]${_C_RST:-} Running under Git Bash (Windows) — supported with minor limitations.\n"
+      return 0
+      ;;
     *)
-      printf "${_C_RED:-}[FAIL]${_C_RST:-} Unsupported platform: %s. This installer supports macOS and Linux.\n" "$(uname -s)"
+      printf "${_C_RED:-}[FAIL]${_C_RST:-} Unsupported platform: %s. This installer supports macOS, Linux, and Windows (Git Bash).\n" "$(uname -s)"
       return 1
       ;;
   esac

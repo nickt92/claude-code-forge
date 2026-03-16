@@ -10,9 +10,12 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout with submodules
@@ -28,6 +31,10 @@ jobs:
       - name: Install jq (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install jq (Windows)
+        if: runner.os == 'Windows'
+        run: choco install jq -y
 
       - name: Verify jq available
         run: jq --version

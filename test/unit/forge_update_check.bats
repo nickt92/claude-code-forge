@@ -10,7 +10,7 @@ setup() {
   export CLAUDE_DIR="$TEST_SANDBOX/.claude"
 
   # Clean any existing markers for this PPID
-  rm -f /tmp/claude-forge-update-$$
+  rm -f "${TMPDIR:-/tmp}"/claude-forge-update-$$
 
   # Create a forge source sandbox with a known version
   FORGE_SOURCE="$TEST_SANDBOX/forge-source"
@@ -19,7 +19,7 @@ setup() {
 }
 
 teardown() {
-  rm -f /tmp/claude-forge-update-*
+  rm -f "${TMPDIR:-/tmp}"/claude-forge-update-*
   teardown_sandbox
 }
 

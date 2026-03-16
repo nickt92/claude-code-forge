@@ -215,9 +215,13 @@ cmd_doctor() {
       warn "forge symlink target not executable: $link_target"; ((warnings++))
     fi
   elif [ -f "$CLAUDE_DIR/bin/forge" ]; then
-    warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    if is_windows 2>/dev/null; then
+      ok "forge installed (copy)"; ((pass++))
+    else
+      warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    fi
   else
-    info "forge symlink not installed at ~/.claude/bin/forge"
+    info "forge not installed at ~/.claude/bin/forge"
   fi
 
   # ── Summary ────────────────────────────────────────────────

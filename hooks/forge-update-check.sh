@@ -20,11 +20,12 @@
 INPUT=$(cat)
 
 # ── One check per session ─────────────────────────────────────
-MARKER="/tmp/claude-forge-update-${PPID}"
+_TMPDIR="${TMPDIR:-/tmp}"
+MARKER="${_TMPDIR}/claude-forge-update-${PPID}"
 [ -f "$MARKER" ] && exit 0
 
 # Clean up stale markers from old sessions (>24h)
-find /tmp -maxdepth 1 -name "claude-forge-update-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "claude-forge-update-*" -mtime +1 -delete 2>/dev/null || true
 
 touch "$MARKER"
 
