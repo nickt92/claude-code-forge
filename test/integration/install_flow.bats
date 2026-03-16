@@ -203,3 +203,64 @@ simulate_install() {
   run jq -r '.persona' "$CLAUDE_DIR/profile.json"
   assert_output "vibe-coder"
 }
+
+# ── Dry Run ─────────────────────────────────────────────────
+
+@test "install --dry-run shows what would be installed" {
+  export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  source "$SCRIPT_DIR/lib/plugins.sh"
+  source "$SCRIPT_DIR/lib/cmd-install.sh"
+
+  run cmd_install --dry-run --profile senior-engineer
+  assert_success
+  assert_output --partial "Dry Run"
+  assert_output --partial "senior-engineer"
+  assert_output --partial "No files were modified"
+}
+
+@test "install --dry-run does not create files" {
+  export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  source "$SCRIPT_DIR/lib/plugins.sh"
+  source "$SCRIPT_DIR/lib/cmd-install.sh"
+
+  # Ensure no CLAUDE.md exists before
+  assert [ ! -f "$CLAUDE_DIR/CLAUDE.md" ]
+
+  run cmd_install --dry-run --profile senior-engineer
+  assert_success
+
+  # Should still not exist after dry run
+  assert [ ! -f "$CLAUDE_DIR/CLAUDE.md" ]
+  assert [ ! -f "$CLAUDE_DIR/forge-backup/manifest.json" ]
+}
+
+@test "install --dry-run lists rules and hooks" {
+  export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  source "$SCRIPT_DIR/lib/plugins.sh"
+  source "$SCRIPT_DIR/lib/cmd-install.sh"
+
+  run cmd_install --dry-run --profile senior-engineer
+  assert_success
+  assert_output --partial "rules/"
+  assert_output --partial "hooks/"
+}
+
+@test "install --dry-run shows plugin count" {
+  export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  source "$SCRIPT_DIR/lib/plugins.sh"
+  source "$SCRIPT_DIR/lib/cmd-install.sh"
+
+  run cmd_install --dry-run --profile senior-engineer
+  assert_success
+  assert_output --partial "full group"
+}
+
+@test "install --dry-run works with --plugins flag" {
+  export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  source "$SCRIPT_DIR/lib/plugins.sh"
+  source "$SCRIPT_DIR/lib/cmd-install.sh"
+
+  run cmd_install --dry-run --profile vibe-coder --plugins minimal
+  assert_success
+  assert_output --partial "minimal"
+}
