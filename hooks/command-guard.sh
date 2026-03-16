@@ -30,10 +30,25 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 [ -z "$COMMAND" ] && exit 0
 
 # ── Destructive deletion ──────────────────────────────────────
-# Block rm with both -r and -f (combined or separated) targeting critical paths
-if echo "$COMMAND" | grep -qE 'rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-[a-zA-Z]*r\s+-[a-zA-Z]*f|-[a-zA-Z]*f\s+-[a-zA-Z]*r)\s+(/\s*$|/\*|~|"\$HOME"|\$HOME|\.)(\s|$)'; then
-  echo "BLOCKED: Destructive deletion detected. The command attempts to recursively force-delete a critical path (/, ~, \$HOME, or current directory). Use targeted paths instead." >&2
-  exit 2
+# Block rm targeting critical paths when both recursive and force flags are present.
+# Handles short flags (-rf, -fr, -r -f) and long flags (--recursive, --force).
+_rm_targets_critical_path() {
+  echo "$1" | grep -qE '(\s/\s*$|\s/\*|\s~|\s"\$HOME"|\s\$HOME|\s\.)(\s|$)'
+}
+_rm_has_recursive() {
+  echo "$1" | grep -qE '(^|\s)(-[a-zA-Z]*r[a-zA-Z]*\s|--recursive(\s|$))' ||
+  echo "$1" | grep -qE '(^|\s)-[a-zA-Z]*r[a-zA-Z]*$'
+}
+_rm_has_force() {
+  echo "$1" | grep -qE '(^|\s)(-[a-zA-Z]*f[a-zA-Z]*\s|--force(\s|$))' ||
+  echo "$1" | grep -qE '(^|\s)-[a-zA-Z]*f[a-zA-Z]*$'
+}
+if echo "$COMMAND" | grep -qE '^\s*rm\s' ; then
+  rm_args="${COMMAND#*rm}"
+  if _rm_targets_critical_path "$rm_args" && _rm_has_recursive "$rm_args" && _rm_has_force "$rm_args"; then
+    echo "BLOCKED: Destructive deletion detected. The command attempts to recursively force-delete a critical path (/, ~, \$HOME, or current directory). Use targeted paths instead." >&2
+    exit 2
+  fi
 fi
 
 # ── Fork bombs ────────────────────────────────────────────────
@@ -87,8 +102,8 @@ if echo "$COMMAND" | grep -qE 'cat\s+~/\.ssh/\S+\s*\|'; then
 fi
 
 # ── Privilege escalation ──────────────────────────────────────
-# Block chmod 777 or chmod -R 777 on system paths
-if echo "$COMMAND" | grep -qE 'chmod\s+(-R\s+)?777\s+/'; then
+# Block chmod 777 or chmod -R/--recursive 777 on system paths
+if echo "$COMMAND" | grep -qE 'chmod\s+(--recursive\s+|-R\s+)?777\s+/'; then
   echo "BLOCKED: Privilege escalation risk. chmod 777 on system paths creates security vulnerabilities. Use specific permissions (e.g., 755, 644)." >&2
   exit 2
 fi
