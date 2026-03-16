@@ -106,6 +106,34 @@ diff_changed() {
   printf "  ${_C_YELLOW}~${_C_RST} %s\n" "$1"
 }
 
+# ── Bar Chart ────────────────────────────────────────────────
+# Usage: bar "label" value total
+# Renders a proportional 10-char bar with label and count.
+bar() {
+  _ui_quiet && return 0
+  local label="$1" value="$2" total="$3"
+  local bar_width=10
+  local filled=0
+  if [ "$total" -gt 0 ] 2>/dev/null; then
+    filled=$(( value * bar_width / total ))
+    # Ensure at least 1 filled if value > 0
+    [ "$value" -gt 0 ] && [ "$filled" -eq 0 ] && filled=1
+  fi
+  local empty=$(( bar_width - filled ))
+
+  local fill_char='#' empty_char='.'
+  if [ "$_UI_IS_TTY" = true ] && [ "$_UI_USE_COLOR" = true ]; then
+    fill_char='█' empty_char='░'
+  fi
+
+  local bar_str=""
+  local i
+  for (( i = 0; i < filled; i++ )); do bar_str="${bar_str}${fill_char}"; done
+  for (( i = 0; i < empty; i++ )); do bar_str="${bar_str}${empty_char}"; done
+
+  printf "  %-16s %s %d\n" "$label" "$bar_str" "$value"
+}
+
 # ── Spinner ──────────────────────────────────────────────────
 # Usage: spin "message" command args...
 # On TTY: shows braille spinner. On pipe/CI: "message... done"
