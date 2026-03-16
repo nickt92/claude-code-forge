@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **380+ Tests**
+**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **419 Tests**
 
 </div>
 
@@ -632,7 +632,7 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-380+ automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+419 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS, Ubuntu, and Windows).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
