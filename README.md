@@ -203,6 +203,8 @@ Per-project configuration. Creates a `.claude/` directory in the current working
 ```bash
 forge init                           # Uses current global persona
 forge init --persona senior-engineer # Specify a persona
+forge init --docs                    # Scaffold document chain only
+forge init --skip-docs               # Skip document chain prompt
 ```
 
 Useful for monorepos or projects where you want project-level Claude instructions committed alongside the code.
@@ -464,7 +466,7 @@ your-project/
 └── ROADMAP.md        # Phased plan with progress tracking
 ```
 
-These are team artifacts committed to git. Claude checks for them at session start and offers to help generate them when you describe new work. Templates are in `templates/document-chain/` and filled-in examples are in `examples/document-chain/`.
+Run `forge init --docs` to scaffold these from templates, or `forge init --skip-docs` to dismiss. The forge nudges you about them once per project if it detects a non-trivial codebase. Use `forge doctor` to check document chain status.
 
 ## Customization
 
