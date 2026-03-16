@@ -14,6 +14,8 @@ cmd_switch() {
   source "$FORGE_SOURCE_DIR/lib/assembly.sh"
   source "$FORGE_SOURCE_DIR/lib/manifest.sh"
 
+  local USER_PROFILES_DIR="$CLAUDE_DIR/profiles"
+
   if [ $# -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     printf "\n${_C_BOLD}forge switch${_C_RST} — Switch to a different persona\n"
     printf "\n${_C_BOLD}Usage:${_C_RST}\n"
@@ -26,11 +28,26 @@ cmd_switch() {
       label=$(jq -r '.label' "$f")
       printf "  ${_C_BOLD}%-25s${_C_RST} ${_C_DIM}%s${_C_RST}\n" "$key" "$label"
     done
+    # Also list user-space custom profiles
+    if [ -d "$USER_PROFILES_DIR" ]; then
+      for f in "$USER_PROFILES_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        local key label
+        key=$(jq -r '.persona' "$f")
+        label=$(jq -r '.label' "$f")
+        printf "  ${_C_BOLD}%-25s${_C_RST} ${_C_DIM}%s${_C_RST}\n" "$key" "$label"
+      done
+    fi
     return 0
   fi
 
   local persona="$1"
   local profile_file="$PROFILES_DIR/${persona}.json"
+
+  # Check user-space profiles as fallback
+  if [ ! -f "$profile_file" ] && [ -f "$USER_PROFILES_DIR/${persona}.json" ]; then
+    profile_file="$USER_PROFILES_DIR/${persona}.json"
+  fi
 
   if [ ! -f "$profile_file" ]; then
     fail "Unknown persona: $persona"
@@ -40,6 +57,12 @@ cmd_switch() {
       [ -f "$f" ] || continue
       printf "  %s\n" "$(jq -r '.persona' "$f")"
     done
+    if [ -d "$USER_PROFILES_DIR" ]; then
+      for f in "$USER_PROFILES_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        printf "  %s\n" "$(jq -r '.persona' "$f")"
+      done
+    fi
     return 1
   fi
 

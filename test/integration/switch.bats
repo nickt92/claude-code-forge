@@ -80,3 +80,50 @@ teardown() {
   assert_output --partial "Assembled by Claude Code Forge"
   assert_output --partial "analyst"
 }
+
+@test "switch finds custom profile in user space" {
+  # Create a custom profile in user-space profiles dir
+  mkdir -p "$CLAUDE_DIR/profiles"
+  cat > "$CLAUDE_DIR/profiles/custom-user-test.json" <<'EOF'
+{
+  "schema_version": 1,
+  "persona": "custom-user-test",
+  "label": "User Test (Custom)",
+  "description": "Custom persona in user space",
+  "axes": {
+    "communication": "technical",
+    "autonomy": "moderate",
+    "workflow": "standard",
+    "depth": "practical"
+  },
+  "quality": ["core"],
+  "default_plugin_group": "standard"
+}
+EOF
+
+  run cmd_switch "custom-user-test"
+  assert_success
+  assert_output --partial "Switched to"
+
+  run jq -r '.persona' "$CLAUDE_DIR/profile.json"
+  assert_output "custom-user-test"
+}
+
+@test "switch help lists user-space custom profiles" {
+  mkdir -p "$CLAUDE_DIR/profiles"
+  cat > "$CLAUDE_DIR/profiles/custom-listed.json" <<'EOF'
+{
+  "schema_version": 1,
+  "persona": "custom-listed",
+  "label": "Listed (Custom)",
+  "description": "Test listing",
+  "axes": { "communication": "plain", "autonomy": "guided", "workflow": "simplified", "depth": "conceptual" },
+  "quality": ["core"],
+  "default_plugin_group": "minimal"
+}
+EOF
+
+  run cmd_switch --help
+  assert_success
+  assert_output --partial "custom-listed"
+}

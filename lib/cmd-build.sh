@@ -34,7 +34,7 @@ cmd_build() {
       warn "A built-in persona with that name already exists."
       continue
     fi
-    if [ -f "$PROFILES_DIR/custom-${name}.json" ]; then
+    if [ -f "$CLAUDE_DIR/profiles/custom-${name}.json" ] || [ -f "$PROFILES_DIR/custom-${name}.json" ]; then
       read -p "  Custom persona 'custom-${name}' already exists. Overwrite? (y/N) " -n 1 -r
       echo
       [[ ! $REPLY =~ ^[Yy]$ ]] && continue
@@ -133,7 +133,9 @@ cmd_build() {
 
   # ── Generate Profile ───────────────────────────────────────
   local persona_key="custom-${name}"
-  local profile_file="$PROFILES_DIR/${persona_key}.json"
+  local user_profiles_dir="$CLAUDE_DIR/profiles"
+  mkdir -p "$user_profiles_dir"
+  local profile_file="$user_profiles_dir/${persona_key}.json"
   local display_name
   # Title-case the name (replace hyphens with spaces, capitalize words)
   display_name=$(echo "$name" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1')
