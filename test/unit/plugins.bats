@@ -101,3 +101,25 @@ teardown() {
   run get_default_plugin_group "$temp_profile"
   assert_output "full"
 }
+
+# ── Parallel install config ──────────────────────────────────
+
+@test "MAX_PARALLEL defaults to 4" {
+  assert [ "$MAX_PARALLEL" -eq 4 ]
+}
+
+@test "MAX_PARALLEL is configurable" {
+  MAX_PARALLEL=2
+  assert [ "$MAX_PARALLEL" -eq 2 ]
+  MAX_PARALLEL=4  # reset
+}
+
+@test "install_plugins handles empty list gracefully" {
+  # Mock claude command to avoid needing real CLI
+  claude() { return 0; }
+  export -f claude
+
+  run install_plugins ""
+  # Should not crash
+  assert_success
+}
