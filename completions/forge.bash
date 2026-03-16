@@ -86,7 +86,7 @@ _forge() {
       return 0
       ;;
     init)
-      COMPREPLY=($(compgen -W "--persona --help" -- "$cur"))
+      COMPREPLY=($(compgen -W "--persona --docs --skip-docs --help" -- "$cur"))
       return 0
       ;;
     *)

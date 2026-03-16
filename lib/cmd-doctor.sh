@@ -224,6 +224,9 @@ cmd_doctor() {
     info "forge not installed at ~/.claude/bin/forge"
   fi
 
+  # ── Project Context (if in a project with .claude/) ───────
+  _doctor_check_project_context
+
   # ── Summary ────────────────────────────────────────────────
   echo ""
   local total=$((pass + warnings + failures))
@@ -234,5 +237,44 @@ cmd_doctor() {
   else
     printf "${_C_RED}✗${_C_RST} ${_C_RED}%d failure(s)${_C_RST}, ${_C_YELLOW}%d warning(s)${_C_RST} out of %d checks\n" "$failures" "$warnings" "$total"
     return 1
+  fi
+}
+
+# ── Project Context Check ──────────────────────────────────
+# If doctor is run from a directory with .claude/, show document chain status.
+
+_doctor_check_project_context() {
+  local project_claude_dir="$(pwd)/.claude"
+
+  # Only show if we're in a project with .claude/ (forge init was run)
+  [ -d "$project_claude_dir" ] || return 0
+  # Don't show for the global ~/.claude directory itself
+  [ "$(pwd)" = "$HOME" ] && return 0
+
+  step "Project Context"
+
+  if [ -f "$project_claude_dir/CLAUDE.md" ]; then
+    ok "CLAUDE.md present"; ((pass++))
+  else
+    info "No project CLAUDE.md — run 'forge init' to create"
+  fi
+
+  # Document chain status
+  if [ -f "$project_claude_dir/.docchain-skip" ]; then
+    info "Document chain: dismissed (forge init --docs to reconsider)"
+    return 0
+  fi
+
+  local doc_count=0
+  for doc in PROJECT.md REQUIREMENTS.md ROADMAP.md; do
+    if [ -f "$(pwd)/$doc" ]; then
+      ok "$doc"; ((pass++)); ((doc_count++))
+    else
+      info "No $doc (recommended for multi-session work)"
+    fi
+  done
+
+  if [ "$doc_count" -eq 0 ]; then
+    info "Run 'forge init --docs' to scaffold, or --skip-docs to dismiss"
   fi
 }

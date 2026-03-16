@@ -38,7 +38,7 @@ _install_success_banner() {
   printf "\n${_C_BOLD}Next steps:${_C_RST}\n"
   printf "  ${_C_DIM}1.${_C_RST} Start a session: ${_C_BOLD}claude${_C_RST}\n"
   printf "  ${_C_DIM}2.${_C_RST} Run ${_C_BOLD}/memory${_C_RST} to verify\n"
-  printf "  ${_C_DIM}3.${_C_RST} Try a non-trivial task\n"
+  printf "  ${_C_DIM}3.${_C_RST} Init a project: ${_C_BOLD}forge init${_C_RST}\n"
   printf "\n${_C_DIM}  forge doctor        Health check\n"
   printf "  forge switch <p>    Switch persona\n"
   printf "  forge install -u    Uninstall${_C_RST}\n"

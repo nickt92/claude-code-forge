@@ -71,7 +71,25 @@ case "$AUTONOMY" in
     ;;
 esac
 
-jq -n --arg ctx "SYSTEM: ${PERSONA_HINT}${NUDGE} ${BRANCH_REMINDER}" '{
+# Document chain nudge — one-time per project, only for non-trivial projects
+DOC_NUDGE=""
+PROJECT_CLAUDE_DIR="$(pwd)/.claude"
+if [ -d "$PROJECT_CLAUDE_DIR" ] && \
+   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-skip" ] && \
+   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-nudged" ] && \
+   [ ! -f "$(pwd)/PROJECT.md" ] && [ ! -f "$(pwd)/REQUIREMENTS.md" ] && [ ! -f "$(pwd)/ROADMAP.md" ]; then
+  # Heuristic: non-trivial project has a build/manifest file
+  _has_manifest=false
+  for _f in package.json Cargo.toml go.mod pyproject.toml Makefile CMakeLists.txt pom.xml build.gradle Gemfile; do
+    [ -f "$(pwd)/$_f" ] && _has_manifest=true && break
+  done
+  if [ "$_has_manifest" = true ]; then
+    DOC_NUDGE=" For multi-session projects, consider 'forge init --docs' for persistent context files (PROJECT.md, REQUIREMENTS.md, ROADMAP.md)."
+    touch "$PROJECT_CLAUDE_DIR/.docchain-nudged" 2>/dev/null || true
+  fi
+fi
+
+jq -n --arg ctx "SYSTEM: ${PERSONA_HINT}${NUDGE} ${BRANCH_REMINDER}${DOC_NUDGE}" '{
   hookSpecificOutput: {
     hookEventName: "UserPromptSubmit",
     additionalContext: $ctx

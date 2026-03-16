@@ -118,3 +118,58 @@ teardown() {
   assert_success
   assert [ ! -d "$PROJECT_TEST_DIR/.claude/hooks" ]
 }
+
+# ── Document Chain ────────────────────────────────────────────
+
+@test "init --docs scaffolds PROJECT.md REQUIREMENTS.md ROADMAP.md" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  run cmd_init --docs
+  assert_success
+  assert [ -f "$PROJECT_TEST_DIR/PROJECT.md" ]
+  assert [ -f "$PROJECT_TEST_DIR/REQUIREMENTS.md" ]
+  assert [ -f "$PROJECT_TEST_DIR/ROADMAP.md" ]
+}
+
+@test "init --docs skips existing files" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  echo "existing" > "$PROJECT_TEST_DIR/PROJECT.md"
+  run cmd_init --docs
+  assert_success
+  assert_output --partial "already exists"
+  # Original content preserved
+  run cat "$PROJECT_TEST_DIR/PROJECT.md"
+  assert_output "existing"
+}
+
+@test "init --docs removes docchain-skip marker" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  touch "$PROJECT_TEST_DIR/.claude/.docchain-skip"
+  run cmd_init --docs
+  assert_success
+  assert [ ! -f "$PROJECT_TEST_DIR/.claude/.docchain-skip" ]
+}
+
+@test "init --skip-docs creates skip marker" {
+  cd "$PROJECT_TEST_DIR"
+  run cmd_init --persona senior-engineer --skip-docs </dev/null
+  assert_success
+  assert [ -f "$PROJECT_TEST_DIR/.claude/.docchain-skip" ]
+}
+
+@test "init --skip-docs does not prompt for document chain" {
+  cd "$PROJECT_TEST_DIR"
+  run cmd_init --persona senior-engineer --skip-docs </dev/null
+  assert_success
+  refute_output --partial "Document chain"
+}
+
+@test "init --help shows document chain options" {
+  run cmd_init --help
+  assert_success
+  assert_output --partial "--docs"
+  assert_output --partial "--skip-docs"
+  assert_output --partial "PROJECT.md"
+}

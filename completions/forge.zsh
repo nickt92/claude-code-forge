@@ -45,6 +45,8 @@ _forge() {
         init)
           _arguments \
             '--persona[Persona to use]:persona:_forge_personas' \
+            '--docs[Scaffold document chain only]' \
+            '--skip-docs[Skip document chain prompt]' \
             '--help[Show help]'
           ;;
         *)
