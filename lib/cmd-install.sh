@@ -49,6 +49,18 @@ _install_success_banner() {
     printf "  ${_C_DIM}echo 'export PATH=\"\$HOME/.claude/bin:\$PATH\"' >> ~/.%s${_C_RST}\n" \
       "$( [[ "$SHELL" == */zsh ]] && echo "zshrc" || echo "bashrc" )"
   fi
+
+  # Hint about shell completions
+  if [ -d "$CLAUDE_DIR/completions" ]; then
+    local shell_rc
+    if [[ "$SHELL" == */zsh ]]; then
+      shell_rc=".zshrc"
+      printf "\n${_C_DIM}Tab completions: source ~/.claude/completions/forge.zsh${_C_RST}\n"
+    else
+      shell_rc=".bashrc"
+      printf "\n${_C_DIM}Tab completions: source ~/.claude/completions/forge.bash${_C_RST}\n"
+    fi
+  fi
 }
 
 _install_fail_banner() {
@@ -232,6 +244,7 @@ _install_show_help() {
   printf "  forge install ${_C_BOLD}--reconfigure${_C_RST}             ${_C_DIM}Re-run persona wizard${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--uninstall${_C_RST}               ${_C_DIM}Remove forge (restores backups)${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--check${_C_RST}                   ${_C_DIM}Health checks only${_C_RST}\n"
+  printf "  forge install ${_C_BOLD}--dry-run${_C_RST}                 ${_C_DIM}Show what would be installed${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--quiet${_C_RST}                   ${_C_DIM}Minimal output (CI-friendly)${_C_RST}\n"
   printf "\n${_C_BOLD}Profiles:${_C_RST}\n"
   printf "  ${_C_DIM}product-manager, executive, designer, analyst, data-scientist,${_C_RST}\n"
@@ -252,6 +265,7 @@ cmd_install() {
   local PLUGINS_ARG=""
   local RECONFIGURE=false
   local RUN_CHECK_ONLY=false
+  local DRY_RUN=false
   local SELECTED_PERSONA=""
 
   while [[ $# -gt 0 ]]; do
@@ -270,6 +284,10 @@ cmd_install() {
         ;;
       --check)
         RUN_CHECK_ONLY=true
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN=true
         shift
         ;;
       --uninstall)
@@ -379,18 +397,25 @@ cmd_install() {
       _install_run_wizard
     fi
   elif [ -n "$PROFILE_ARG" ]; then
-    if [ ! -f "$PROFILES_DIR/${PROFILE_ARG}.json" ]; then
+    # Check source profiles, then user-space profiles
+    if [ ! -f "$PROFILES_DIR/${PROFILE_ARG}.json" ] && [ ! -f "$CLAUDE_DIR/profiles/${PROFILE_ARG}.json" ]; then
       fail "Unknown profile: ${PROFILE_ARG}"
       echo ""
       echo "Available profiles:"
       for key in "${PERSONA_KEYS[@]}"; do
         echo "  - $key"
       done
-      # Also list custom profiles
+      # Also list custom profiles from source and user space
       for f in "$PROFILES_DIR"/custom-*.json; do
         [ -f "$f" ] || continue
         echo "  - $(jq -r '.persona' "$f")"
       done
+      if [ -d "$CLAUDE_DIR/profiles" ]; then
+        for f in "$CLAUDE_DIR/profiles"/custom-*.json; do
+          [ -f "$f" ] || continue
+          echo "  - $(jq -r '.persona' "$f")"
+        done
+      fi
       return 1
     fi
     SELECTED_PERSONA="$PROFILE_ARG"
@@ -403,11 +428,76 @@ cmd_install() {
   fi
 
   local PROFILE_FILE="$PROFILES_DIR/${SELECTED_PERSONA}.json"
+  # Fall back to user-space profiles for custom personas
+  if [ ! -f "$PROFILE_FILE" ] && [ -f "$CLAUDE_DIR/profiles/${SELECTED_PERSONA}.json" ]; then
+    PROFILE_FILE="$CLAUDE_DIR/profiles/${SELECTED_PERSONA}.json"
+  fi
 
   # Resolve plugin group: CLI flag > profile default > "full"
   local PLUGIN_GROUP="$PLUGINS_ARG"
   if [ -z "$PLUGIN_GROUP" ]; then
     PLUGIN_GROUP=$(get_default_plugin_group "$PROFILE_FILE")
+  fi
+
+  # ── Dry-run mode ──
+  if [ "$DRY_RUN" = true ]; then
+    banner "Claude Code Forge — Dry Run"
+    local persona_label
+    persona_label=$(jq -r '.label' "$PROFILE_FILE")
+    kv "Profile" "$persona_label ($SELECTED_PERSONA)"
+    kv "Plugins" "$PLUGIN_GROUP"
+    kv "Source" "$FORGE_SOURCE_DIR"
+    kv "Target" "$CLAUDE_DIR"
+
+    echo ""
+    step "Files that would be installed"
+
+    info "CLAUDE.md (assembled from profile)"
+    info "profile.json"
+    info "statusline-command.sh"
+    info "lib/ui.sh"
+    info "bin/forge -> $FORGE_SOURCE_DIR/forge"
+
+    local rule_count=0
+    for f in "$FORGE_SOURCE_DIR/templates/rules/"*.md; do
+      [ -f "$f" ] || continue
+      info "rules/$(basename "$f")"
+      ((rule_count++))
+    done
+
+    local hook_count=0
+    for f in "$FORGE_SOURCE_DIR/hooks/"*.sh; do
+      [ -f "$f" ] || continue
+      info "hooks/$(basename "$f")"
+      ((hook_count++))
+    done
+
+    local script_count=0
+    for f in "$FORGE_SOURCE_DIR/scripts/"*.sh; do
+      [ -f "$f" ] || continue
+      info "scripts/$(basename "$f")"
+      ((script_count++))
+    done
+
+    if [ -d "$FORGE_SOURCE_DIR/completions" ]; then
+      for f in "$FORGE_SOURCE_DIR/completions/"*; do
+        [ -f "$f" ] && info "completions/$(basename "$f")"
+      done
+    fi
+
+    echo ""
+    step "Summary"
+    kv "Rules" "$rule_count"
+    kv "Hooks" "$hook_count"
+    kv "Scripts" "$script_count"
+
+    local plugin_count
+    plugin_count=$(resolve_plugin_list "$PLUGIN_GROUP" | grep -c . || echo 0)
+    kv "Plugins" "$plugin_count ($PLUGIN_GROUP group)"
+
+    echo ""
+    info "No files were modified (dry run)"
+    return 0
   fi
 
   # ── Prerequisites ──
@@ -498,9 +588,27 @@ cmd_install() {
   mkdir -p "$CLAUDE_DIR/lib"
   cp "$FORGE_SOURCE_DIR/lib/ui.sh" "$CLAUDE_DIR/lib/ui.sh"
 
-  # Install forge symlink
+  # Install forge CLI to ~/.claude/bin/
   mkdir -p "$CLAUDE_DIR/bin"
-  ln -sf "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+  if is_windows 2>/dev/null; then
+    # Windows: copy instead of symlink (symlinks require admin/dev mode)
+    cp "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+    # Create .cmd wrapper for cmd.exe / PowerShell
+    printf '@bash "%%~dp0forge" %%*\r\n' > "$CLAUDE_DIR/bin/forge.cmd"
+  else
+    ln -sf "$FORGE_SOURCE_DIR/forge" "$CLAUDE_DIR/bin/forge"
+  fi
+
+  # Install shell completions
+  mkdir -p "$CLAUDE_DIR/completions"
+  if [ -d "$FORGE_SOURCE_DIR/completions" ]; then
+    for comp_file in "$FORGE_SOURCE_DIR/completions/"*; do
+      [ -f "$comp_file" ] && cp "$comp_file" "$CLAUDE_DIR/completions/$(basename "$comp_file")"
+    done
+  fi
+
+  # Create user profiles directory
+  mkdir -p "$CLAUDE_DIR/profiles"
 
   ok "${rule_count} rules, ${hook_count} hooks, ${script_count} scripts, statusline installed"
 

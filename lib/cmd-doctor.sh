@@ -139,16 +139,17 @@ cmd_doctor() {
 
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     local hooks_ok=true
-    for hook_cmd in "session-init" "architect-gate" "commit-validator" "backup-transcript"; do
-      if jq -e --arg cmd "$hook_cmd" '
+    while IFS= read -r hook_name; do
+      [ -n "$hook_name" ] || continue
+      if jq -e --arg cmd "$hook_name" '
         [.hooks[][] | .hooks[]?.command // empty] | any(contains($cmd))
       ' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
         ((pass++))
       else
-        warn "Hook not configured: $hook_cmd"; ((warnings++))
+        warn "Hook not configured: $hook_name"; ((warnings++))
         hooks_ok=false
       fi
-    done
+    done < <(forge_shipped_hooks)
     if [ "$hooks_ok" = true ]; then
       ok "All hooks configured"
     fi
@@ -214,9 +215,13 @@ cmd_doctor() {
       warn "forge symlink target not executable: $link_target"; ((warnings++))
     fi
   elif [ -f "$CLAUDE_DIR/bin/forge" ]; then
-    warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    if is_windows 2>/dev/null; then
+      ok "forge installed (copy)"; ((pass++))
+    else
+      warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    fi
   else
-    info "forge symlink not installed at ~/.claude/bin/forge"
+    info "forge not installed at ~/.claude/bin/forge"
   fi
 
   # ── Summary ────────────────────────────────────────────────

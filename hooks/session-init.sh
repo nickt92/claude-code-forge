@@ -19,13 +19,14 @@
 INPUT=$(cat)
 
 # One nudge per session — PPID is tied to the parent shell
-MARKER="/tmp/claude-code-prompted-${PPID}"
+_TMPDIR="${TMPDIR:-/tmp}"
+MARKER="${_TMPDIR}/claude-code-prompted-${PPID}"
 [ -f "$MARKER" ] && exit 0
 
 # New session — clean up stale markers from old sessions (>24h)
 # Also cleans architect-gate classified markers (created by architect-gate.sh)
-find /tmp -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
-find /tmp -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
 
 touch "$MARKER"
 
