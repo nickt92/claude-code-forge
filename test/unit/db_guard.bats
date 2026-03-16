@@ -99,6 +99,11 @@ run_hook() {
   assert_output --partial "DELETE FROM without a WHERE"
 }
 
+@test "blocks DELETE FROM with semicolon but no WHERE" {
+  run run_hook 'psql -c "DELETE FROM users;"'
+  assert_failure 2
+}
+
 @test "blocks delete from without where (case-insensitive)" {
   run run_hook 'mysql -e "delete from orders"'
   assert_failure 2

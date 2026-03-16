@@ -55,6 +55,16 @@ run_hook() {
   assert_failure 2
 }
 
+@test "blocks rm -r -f / (separated flags)" {
+  run run_hook 'rm -r -f /'
+  assert_failure 2
+}
+
+@test "blocks rm -f -r ~ (separated flags reversed)" {
+  run run_hook 'rm -f -r ~'
+  assert_failure 2
+}
+
 @test "allows targeted rm -rf build/" {
   run run_hook 'rm -rf build/'
   assert_success
@@ -158,6 +168,18 @@ run_hook() {
 
 @test "blocks cat .env | (pipe)" {
   run run_hook 'cat .env | grep API_KEY'
+  assert_failure 2
+  assert_output --partial "Secret leakage"
+}
+
+@test "blocks cat .env.local | (pipe)" {
+  run run_hook 'cat .env.local | grep KEY'
+  assert_failure 2
+  assert_output --partial "Secret leakage"
+}
+
+@test "blocks cat .env.production | (pipe)" {
+  run run_hook 'cat .env.production | sort'
   assert_failure 2
   assert_output --partial "Secret leakage"
 }

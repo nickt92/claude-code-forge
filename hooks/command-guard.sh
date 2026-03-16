@@ -27,8 +27,8 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 [ -z "$COMMAND" ] && exit 0
 
 # ── Destructive deletion ──────────────────────────────────────
-# Block rm -rf targeting root, home, or current directory
-if echo "$COMMAND" | grep -qE 'rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|(-[a-zA-Z]*f[a-zA-Z]*r))\s+(/\s*$|/\*|~|"\$HOME"|\$HOME|\.)(\s|$)'; then
+# Block rm with both -r and -f (combined or separated) targeting critical paths
+if echo "$COMMAND" | grep -qE 'rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-[a-zA-Z]*r\s+-[a-zA-Z]*f|-[a-zA-Z]*f\s+-[a-zA-Z]*r)\s+(/\s*$|/\*|~|"\$HOME"|\$HOME|\.)(\s|$)'; then
   echo "BLOCKED: Destructive deletion detected. The command attempts to recursively force-delete a critical path (/, ~, \$HOME, or current directory). Use targeted paths instead." >&2
   exit 2
 fi
@@ -71,8 +71,8 @@ if echo "$COMMAND" | grep -qE '(^|\s)(env|printenv)\s*\|'; then
   exit 2
 fi
 
-# Block cat .env piped
-if echo "$COMMAND" | grep -qE 'cat\s+\.env\s*\|'; then
+# Block cat .env / .env.* piped
+if echo "$COMMAND" | grep -qE 'cat\s+\.env[.a-zA-Z0-9_-]*\s*\|'; then
   echo "BLOCKED: Secret leakage risk. Piping .env contents may expose secrets." >&2
   exit 2
 fi
