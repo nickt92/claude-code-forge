@@ -13,7 +13,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#-persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **4 Enforcement Hooks** · **7 Rules Files** · **244 Tests**
+**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **380+ Tests**
 
 </div>
 
@@ -90,6 +90,7 @@ Management
   update      Update forge from source repository
 
 Diagnostics
+  status      Show current installation status
   doctor      Run diagnostic health checks
   diff        Show differences between source and installed
 
@@ -111,6 +112,7 @@ forge install --plugins minimal           # Override plugin group
 forge install --reconfigure               # Re-run persona wizard
 forge install --uninstall                 # Remove forge, restore backups
 forge install --check                     # Health checks only (no changes)
+forge install --dry-run --profile senior-engineer  # Preview without changes
 forge install --quiet --profile vibe-coder  # Minimal output (CI-friendly)
 forge install --debug                     # Verbose trace
 
@@ -123,6 +125,8 @@ forge install --debug                     # Verbose trace
 **`--reconfigure`** always runs the wizard, even if a profile is already installed.
 
 **`--uninstall`** shows a preview before prompting for confirmation. Optionally removes plugins too.
+
+**`--dry-run`** shows exactly what would be installed — profile, rules, hooks, plugins — without creating or modifying any files.
 
 **`--plugins <group>`** overrides the persona's default plugin group. See [Plugin Groups](#plugin-groups) below.
 
@@ -164,6 +168,14 @@ Fetches from origin, fast-forward merges, then reinstalls with your current pers
 forge update
 ```
 
+### forge status
+
+Shows current installation status at a glance — persona, plugin group, version, hooks, install timestamp, and source directory.
+
+```bash
+forge status
+```
+
 ### forge diff
 
 Compares source tree against installed `~/.claude/` files. Shows added, changed, and removed files by category (Rules, Hooks, Scripts, Root Files, Lib Files, CLAUDE.md). Use this to preview what `forge update` will change.
@@ -174,7 +186,7 @@ forge diff
 
 ### forge build
 
-Interactive wizard to create a custom persona profile. Walks through the 4 behavioral axes, quality standards, and plugin group selection. Saves the profile to `templates/profiles/custom-<name>.json` and optionally switches to it immediately.
+Interactive wizard to create a custom persona profile. Walks through the 4 behavioral axes, quality standards, and plugin group selection. Saves the profile to `~/.claude/profiles/custom-<name>.json` and optionally switches to it immediately.
 
 ```bash
 forge build
@@ -242,10 +254,18 @@ The forge writes only to `~/.claude/`. Before touching anything, it snapshots yo
 │   ├── session-init.sh          # First-prompt nudge (persona-aware)
 │   ├── architect-gate.sh        # Blocks plan files without architect review
 │   ├── commit-validator.sh      # Blocks AI attribution, warns on bad format
-│   └── backup-transcript.sh     # Saves transcript before context compaction
+│   ├── backup-transcript.sh     # Saves transcript before context compaction
+│   ├── command-guard.sh         # Blocks destructive commands
+│   ├── secret-filter.sh         # Detects credentials in commands
+│   ├── db-guard.sh              # Blocks destructive SQL
+│   └── forge-update-check.sh    # Advisory version check
 ├── scripts/
 │   ├── generate-project-claude.sh  # Brownfield project onboarding
 │   └── init-project-claude.sh      # Greenfield project setup
+├── completions/
+│   ├── forge.bash               # Bash tab completion
+│   └── forge.zsh                # Zsh tab completion
+├── profiles/                    # User-space custom personas (from forge build)
 ├── lib/
 │   └── ui.sh                    # Shared output library (used by scripts and forge)
 └── forge-backup/
@@ -368,14 +388,20 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 | **Moderate** | Multi-file, well-understood domain | Implement, domain architect + code review |
 | **Significant** | New service, auth, architecture | Plan mode → architect review → approval → implement |
 
-### Enforcement Hooks
+### Hooks
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
-| `session-init.sh` | First prompt per session | Persona-aware classification nudge (language adapts to autonomy level) |
+| `session-init.sh` | First prompt per session | Persona-aware classification nudge |
 | `architect-gate.sh` | Write/Edit tools | Blocks plan files without `## Architect Review` section |
 | `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
+| `command-guard.sh` | Bash tool | Blocks destructive commands (`rm -rf /`, `docker --privileged`) |
+| `secret-filter.sh` | Bash tool | Detects credentials in commands (AWS keys, tokens) |
+| `db-guard.sh` | Bash tool | Blocks destructive SQL (`DROP TABLE`, `DELETE` without `WHERE`) |
+| `forge-update-check.sh` | First prompt per session | Advisory notice when forge version is outdated |
+
+See [SECURITY.md](SECURITY.md) for the security model and known limitations.
 
 ## Status Line
 
@@ -602,7 +628,7 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-244 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
+380+ automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS + Ubuntu).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
@@ -615,9 +641,9 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 | Suite | Files | What It Covers |
 |:------|------:|:---------------|
-| **Unit** | 9 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library, plugins, manifest v2, forge CLI dispatcher |
+| **Unit** | 10 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library, plugins, manifest v2, forge CLI dispatcher, status |
 | **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup and restore, switch, doctor, diff, update, build, init |
-| **Validation** | 3 | Profile schema integrity, section file coverage, settings template structure |
+| **Validation** | 4 | Profile schema integrity, section file coverage, settings template structure, shell completions |
 
 All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
 
@@ -628,6 +654,10 @@ claude-code-forge/
 ├── forge                               # CLI dispatcher (symlinked to ~/.claude/bin/forge)
 ├── install.sh                          # Thin wrapper — delegates to forge install
 ├── statusline-command.sh               # Status line script
+├── SECURITY.md                         # Security model and hook limitations
+├── completions/
+│   ├── forge.bash                      # Bash tab completion
+│   └── forge.zsh                       # Zsh tab completion
 ├── lib/
 │   ├── ui.sh                           # Output library (colors, spinner, progress)
 │   ├── platform.sh                     # Cross-platform detection (macOS, Linux, WSL)
@@ -639,6 +669,7 @@ claude-code-forge/
 │   ├── uninstall.sh                    # Uninstall orchestration
 │   ├── plugins.sh                      # Plugin group resolution and installation
 │   ├── cmd-install.sh                  # forge install
+│   ├── cmd-status.sh                   # forge status
 │   ├── cmd-switch.sh                   # forge switch
 │   ├── cmd-doctor.sh                   # forge doctor
 │   ├── cmd-update.sh                   # forge update
@@ -652,7 +683,7 @@ claude-code-forge/
 │   ├── plugin-groups.json              # full / standard / minimal plugin lists
 │   ├── rules/                          # 7 rules files installed to ~/.claude/rules/
 │   └── document-chain/                 # PROJECT/REQUIREMENTS/ROADMAP templates
-├── hooks/                              # 4 enforcement hooks
+├── hooks/                              # 8 hooks
 ├── scripts/
 │   ├── generate-project-claude.sh      # Brownfield project onboarding
 │   └── init-project-claude.sh          # Greenfield project setup
