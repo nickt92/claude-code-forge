@@ -64,6 +64,13 @@ resolve_path() {
   fi
 }
 
+# Windows jq compatibility — native Windows jq emits \r\n line endings;
+# bash command substitution preserves the \r, breaking integer comparisons
+# and path construction. This wrapper strips \r while preserving jq's exit code.
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygwin* ]]; then
+  jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+fi
+
 # Check if platform is supported and warn if not
 check_platform() {
   local platform

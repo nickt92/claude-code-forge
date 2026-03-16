@@ -17,6 +17,9 @@
 # Note: set -e intentionally omitted — grep returns 1 on no-match,
 # which is expected control flow in hook scripts.
 
+# Windows jq compat — strip \r from output (see lib/platform.sh)
+[[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+
 INPUT=$(cat)
 
 # ── One check per session ─────────────────────────────────────

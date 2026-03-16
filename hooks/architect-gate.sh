@@ -10,6 +10,9 @@
 #
 # Exit 0 = allow, Exit 2 = block with message
 
+# Windows jq compat — strip \r from output (see lib/platform.sh)
+[[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 

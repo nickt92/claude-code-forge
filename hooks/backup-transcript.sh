@@ -16,6 +16,9 @@ mkdir -p "$BACKUP_DIR"
 # Prune backups older than 30 days
 find "$BACKUP_DIR" -name "*.jsonl" -mtime +30 -delete 2>/dev/null || true
 
+# Windows jq compat — strip \r from output (see lib/platform.sh)
+[[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+
 INPUT=$(cat)
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id')
