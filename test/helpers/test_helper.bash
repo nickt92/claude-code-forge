@@ -49,7 +49,7 @@ teardown_sandbox() {
   fi
 
   # Clean up temp markers that hooks create
-  rm -f /tmp/claude-code-prompted-* /tmp/claude-code-classified-*
+  rm -f /tmp/claude-code-prompted-* /tmp/claude-code-classified-* /tmp/claude-forge-update-*
 }
 
 # ── Helpers ──────────────────────────────────────────────────

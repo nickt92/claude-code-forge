@@ -103,7 +103,7 @@ simulate_install() {
 
 @test "install copies all hooks and makes them executable" {
   simulate_install "senior-engineer"
-  local expected_hooks=(session-init architect-gate commit-validator backup-transcript)
+  local expected_hooks=(session-init architect-gate commit-validator backup-transcript command-guard secret-filter db-guard forge-update-check)
   for hook in "${expected_hooks[@]}"; do
     assert [ -f "$CLAUDE_DIR/hooks/${hook}.sh" ]
     assert [ -x "$CLAUDE_DIR/hooks/${hook}.sh" ]

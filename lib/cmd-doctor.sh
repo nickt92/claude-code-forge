@@ -139,16 +139,17 @@ cmd_doctor() {
 
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     local hooks_ok=true
-    for hook_cmd in "session-init" "architect-gate" "commit-validator" "backup-transcript"; do
-      if jq -e --arg cmd "$hook_cmd" '
+    while IFS= read -r hook_name; do
+      [ -n "$hook_name" ] || continue
+      if jq -e --arg cmd "$hook_name" '
         [.hooks[][] | .hooks[]?.command // empty] | any(contains($cmd))
       ' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
         ((pass++))
       else
-        warn "Hook not configured: $hook_cmd"; ((warnings++))
+        warn "Hook not configured: $hook_name"; ((warnings++))
         hooks_ok=false
       fi
-    done
+    done < <(forge_shipped_hooks)
     if [ "$hooks_ok" = true ]; then
       ok "All hooks configured"
     fi
