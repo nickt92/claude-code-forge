@@ -40,6 +40,8 @@ teardown() {
   local repo="$TEST_SANDBOX/dirty-repo"
   mkdir -p "$repo"
   git -C "$repo" init -q
+  git -C "$repo" config user.email "test@test.com"
+  git -C "$repo" config user.name "Test"
   echo "file" > "$repo/test.txt"
   git -C "$repo" add test.txt
   git -C "$repo" commit -q -m "init"
