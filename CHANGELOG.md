@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgraded `actions/checkout` to v5 for Node.js 22+
 
 ### Fixed
+- Statusline: use absolute git-dir for reliable rebase/merge/cherry-pick state detection
+- Statusline: strip `\r` from jq and git output for Windows/Git Bash compatibility
 - Closed separated-flags and `.env` variant bypasses in command-guard
 - Hardened tests for cross-platform CI
 
