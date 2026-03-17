@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full-bypass behaviour explicitly documented in SECURITY.md
 - Override mechanism, security model, and audit trail format documented
 
-## [1.2.0] - 2025-05-15
+## [1.2.0] - 2026-03-17
 
 ### Added
 - `forge stats` subcommand — installation overview, security event distribution, session backup metrics
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Added SECURITY.md documenting hook limitations and threat model
 
-## [1.1.0] - 2025-04-28
+## [1.1.0] - 2026-03-16
 
 ### Added
 - `forge` CLI with 7 subcommands (`install`, `switch`, `doctor`, `diff`, `init`, `build`, `update`)
@@ -69,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved unbound variable crash in CLI
 - Corrected test assertions and manifest reading order
 
-## [1.0.0] - 2025-04-20
+## [1.0.0] - 2026-03-14
 
 ### Added
 - Initial release with 12 persona profiles across 4 behavioral axes
