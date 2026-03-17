@@ -22,6 +22,7 @@ cmd_dashboard() {
   # ── Parse flags ──────────────────────────────────────────
   local output_path="${CLAUDE_DIR}/dashboard/index.html"
   local do_open=false
+  local json_only=false
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -31,6 +32,9 @@ cmd_dashboard() {
         ;;
       --open)
         do_open=true
+        ;;
+      --json)
+        json_only=true
         ;;
       --help|-h)
         _dashboard_help
@@ -45,7 +49,10 @@ cmd_dashboard() {
     shift
   done
 
-  banner "Dashboard"
+  # Suppress UI output in JSON mode
+  if [ "$json_only" != true ]; then
+    banner "Dashboard"
+  fi
 
   # ── Read scan config ─────────────────────────────────────
   local scan_path scan_depth
@@ -53,7 +60,7 @@ cmd_dashboard() {
   scan_depth=$(_config_get "dashboard.scan_depth" 2>/dev/null) || true
   scan_depth="${scan_depth:-3}"
 
-  if [ -z "$scan_path" ]; then
+  if [ -z "$scan_path" ] && [ "$json_only" != true ]; then
     warn "No scan path configured"
     info "Run: forge config set dashboard.scan_path ~/repos"
     info "Then re-run: forge dashboard"
@@ -62,26 +69,26 @@ cmd_dashboard() {
   fi
 
   # ── Collect data ─────────────────────────────────────────
-  step "Collecting data"
+  [ "$json_only" != true ] && step "Collecting data"
 
   local global_json
   global_json=$(collect_global_config)
-  ok "Global config collected"
+  [ "$json_only" != true ] && ok "Global config collected"
 
   local repos_json='[]'
   if [ -n "$scan_path" ] && [ -d "$scan_path" ]; then
     repos_json=$(collect_repos "$scan_path" "$scan_depth")
     local repo_count
     repo_count=$(echo "$repos_json" | jq 'length')
-    ok "$repo_count repositories found"
+    [ "$json_only" != true ] && ok "$repo_count repositories found"
   fi
 
   # ── Score ────────────────────────────────────────────────
-  step "Computing scores"
+  [ "$json_only" != true ] && step "Computing scores"
 
   local global_score
   global_score=$(score_global "$global_json")
-  ok "Global score: $(echo "$global_score" | jq -r '.total') ($(echo "$global_score" | jq -r '.grade'))"
+  [ "$json_only" != true ] && ok "Global score: $(echo "$global_score" | jq -r '.total') ($(echo "$global_score" | jq -r '.grade'))"
 
   # Score each repo and attach scores to repo JSON
   local scored_repos='[]'
@@ -115,6 +122,12 @@ cmd_dashboard() {
       generated_at: $generated_at
     }')
 
+  # ── JSON-only mode (for forge ui server) ────────────────
+  if [ "$json_only" = true ]; then
+    echo "$dashboard_json"
+    return 0
+  fi
+
   # ── Generate HTML ────────────────────────────────────────
   step "Generating dashboard"
 
@@ -140,6 +153,7 @@ _dashboard_help() {
   printf "  forge dashboard                       Generate dashboard\n"
   printf "  forge dashboard --open                Generate and open in browser\n"
   printf "  forge dashboard --output path.html    Custom output path\n"
+  printf "  forge dashboard --json                Output raw JSON data (no HTML)\n"
   printf "\n${_C_BOLD}Configuration:${_C_RST}\n"
   printf "  forge config set dashboard.scan_path ~/repos   Set scan directory\n"
   printf "  forge config set dashboard.scan_depth 3        Set scan depth\n"

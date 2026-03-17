@@ -18,6 +18,7 @@ _forge() {
     'stats:Show installation statistics'
     'status:Show current installation status'
     'switch:Switch to a different persona'
+    'ui:Interactive web management interface'
     'update:Update forge from source repository'
     'version:Show forge version'
   )
@@ -69,6 +70,13 @@ _forge() {
           _arguments \
             '--open[Open in browser after generating]' \
             {-o,--output}'[Output path]:path:_files -g "*.html"' \
+            '--help[Show help]'
+          ;;
+        ui)
+          _arguments \
+            '1:subcommand:(stop status)' \
+            '--port[Use specific port]:port:' \
+            '--no-open[Start without opening browser]' \
             '--help[Show help]'
           ;;
         config)
