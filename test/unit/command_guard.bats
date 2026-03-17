@@ -368,3 +368,9 @@ rm -rf .'
 dd if=/dev/zero of=/dev/"sda" bs=1M'
   grep -q 'command="dd if=/dev/zero of=/dev/\\"sda\\" bs=1M"' "$log_file"
 }
+
+@test "forge-override with whitespace-only reason is still blocked" {
+  run run_hook '# forge-override:
+rm -rf /'
+  assert_failure 2
+}

@@ -209,3 +209,9 @@ psql -c "DROP TABLE old_orders"
 psql -c "DROP TABLE old_sessions"'
   grep -q '\[+2 lines\]' "$log_file"
 }
+
+@test "forge-override with whitespace-only reason is still blocked" {
+  run run_hook '# forge-override:
+psql -c "DROP TABLE users"'
+  assert_failure 2
+}
