@@ -175,3 +175,37 @@ run_hook() {
   run run_hook 'mongosh --eval "db.users.find({})"'
   assert_success
 }
+
+# ── forge-override ───────────────────────────────────────────
+
+@test "forge-override with reason bypasses DROP TABLE" {
+  run run_hook '# forge-override: dropping test database per user request
+psql -c "DROP TABLE test_users"'
+  assert_success
+}
+
+@test "bare forge-override without reason is still blocked" {
+  run run_hook '# forge-override
+psql -c "DROP TABLE users"'
+  assert_failure 2
+}
+
+@test "forge-override logs to security.log" {
+  local log_file="$HOME/.claude/security.log"
+  : > "$log_file"
+  run_hook '# forge-override: dropping test table for cleanup
+psql -c "DROP TABLE test_users"'
+  grep -q 'OVERRIDE_CONFIRMED' "$log_file"
+  grep -q 'reason="dropping test table for cleanup"' "$log_file"
+  grep -q 'command="psql' "$log_file"
+}
+
+@test "forge-override with multi-line command shows line count in log" {
+  local log_file="$HOME/.claude/security.log"
+  : > "$log_file"
+  run_hook '# forge-override: running migration cleanup
+psql -c "DROP TABLE old_users"
+psql -c "DROP TABLE old_orders"
+psql -c "DROP TABLE old_sessions"'
+  grep -q '\[+2 lines\]' "$log_file"
+}

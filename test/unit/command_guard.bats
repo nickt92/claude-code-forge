@@ -336,3 +336,35 @@ run_hook() {
   run run_hook 'echo "hello" && echo "world"'
   assert_success
 }
+
+# ── forge-override ───────────────────────────────────────────
+
+@test "forge-override with reason bypasses blocked command" {
+  run run_hook '# forge-override: user wants to clean build artifacts
+rm -rf /'
+  assert_success
+}
+
+@test "bare forge-override without reason is still blocked" {
+  run run_hook '# forge-override
+rm -rf /'
+  assert_failure 2
+}
+
+@test "forge-override logs to security.log" {
+  local log_file="$HOME/.claude/security.log"
+  : > "$log_file"
+  run_hook '# forge-override: cleaning project root
+rm -rf .'
+  grep -q 'OVERRIDE_CONFIRMED' "$log_file"
+  grep -q 'reason="cleaning project root"' "$log_file"
+  grep -q 'command="rm -rf ."' "$log_file"
+}
+
+@test "forge-override escapes quotes in logged command" {
+  local log_file="$HOME/.claude/security.log"
+  : > "$log_file"
+  run_hook '# forge-override: need to format disk
+dd if=/dev/zero of=/dev/"sda" bs=1M'
+  grep -q 'command="dd if=/dev/zero of=/dev/\\"sda\\" bs=1M"' "$log_file"
+}
