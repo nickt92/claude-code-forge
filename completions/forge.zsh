@@ -7,6 +7,8 @@ _forge() {
   local -a commands
   commands=(
     'build:Create a custom persona profile'
+    'config:Get/set forge settings'
+    'dashboard:Generate configuration dashboard'
     'diff:Show differences between source and installed'
     'doctor:Run diagnostic health checks'
     'export:Package forge installation into portable archive'
@@ -62,6 +64,17 @@ _forge() {
             '--docs[Scaffold document chain only]' \
             '--skip-docs[Skip document chain prompt]' \
             '--help[Show help]'
+          ;;
+        dashboard)
+          _arguments \
+            '--open[Open in browser after generating]' \
+            {-o,--output}'[Output path]:path:_files -g "*.html"' \
+            '--help[Show help]'
+          ;;
+        config)
+          _arguments \
+            '1:subcommand:(get set list)' \
+            '*::arg:->config_args'
           ;;
         *)
           _arguments '--help[Show help]'
