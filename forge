@@ -68,8 +68,11 @@ cmd_help() {
   printf "  ${_C_BOLD}update${_C_RST}      Update forge from source repository\n"
 
   printf "\n${_C_BOLD}Diagnostics${_C_RST}\n"
+  printf "  ${_C_BOLD}status${_C_RST}      Show current installation status\n"
+  printf "  ${_C_BOLD}stats${_C_RST}       Show installation statistics\n"
   printf "  ${_C_BOLD}doctor${_C_RST}      Run diagnostic health checks\n"
   printf "  ${_C_BOLD}diff${_C_RST}        Show differences between source and installed\n"
+  printf "  ${_C_BOLD}export${_C_RST}      Package installation into portable archive\n"
 
   printf "\n${_C_BOLD}Info${_C_RST}\n"
   printf "  ${_C_BOLD}version${_C_RST}     Show forge version\n"

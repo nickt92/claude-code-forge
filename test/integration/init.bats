@@ -41,7 +41,8 @@ teardown() {
 
 @test "init creates rules in project" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init --persona senior-engineer
+  run cmd_init --persona senior-engineer
+  assert_success
   assert [ -d "$PROJECT_TEST_DIR/.claude/rules" ]
   # Check at least one rule exists
   local rule_count
@@ -51,7 +52,8 @@ teardown() {
 
 @test "init creates .gitignore" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init --persona senior-engineer
+  run cmd_init --persona senior-engineer
+  assert_success
   assert [ -f "$PROJECT_TEST_DIR/.claude/.gitignore" ]
 }
 
@@ -60,7 +62,8 @@ teardown() {
   local before_profile
   before_profile=$(cat "$CLAUDE_DIR/profile.json")
 
-  cmd_init --persona vibe-coder
+  run cmd_init --persona vibe-coder
+  assert_success
 
   local after_profile
   after_profile=$(cat "$CLAUDE_DIR/profile.json")
@@ -69,14 +72,16 @@ teardown() {
 
 @test "init uses specified persona" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init --persona vibe-coder
+  run cmd_init --persona vibe-coder
+  assert_success
   run head -1 "$PROJECT_TEST_DIR/.claude/CLAUDE.md"
   assert_output --partial "vibe-coder"
 }
 
 @test "init uses global persona when none specified" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init
+  run cmd_init
+  assert_success
   run head -1 "$PROJECT_TEST_DIR/.claude/CLAUDE.md"
   assert_output --partial "senior-engineer"
 }
@@ -102,12 +107,69 @@ teardown() {
 
 @test "init does not create profile.json in project" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init --persona senior-engineer
+  run cmd_init --persona senior-engineer
+  assert_success
   assert [ ! -f "$PROJECT_TEST_DIR/.claude/profile.json" ]
 }
 
 @test "init does not create hooks in project" {
   cd "$PROJECT_TEST_DIR"
-  cmd_init --persona senior-engineer
+  run cmd_init --persona senior-engineer
+  assert_success
   assert [ ! -d "$PROJECT_TEST_DIR/.claude/hooks" ]
+}
+
+# ── Document Chain ────────────────────────────────────────────
+
+@test "init --docs scaffolds PROJECT.md REQUIREMENTS.md ROADMAP.md" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  run cmd_init --docs
+  assert_success
+  assert [ -f "$PROJECT_TEST_DIR/PROJECT.md" ]
+  assert [ -f "$PROJECT_TEST_DIR/REQUIREMENTS.md" ]
+  assert [ -f "$PROJECT_TEST_DIR/ROADMAP.md" ]
+}
+
+@test "init --docs skips existing files" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  echo "existing" > "$PROJECT_TEST_DIR/PROJECT.md"
+  run cmd_init --docs
+  assert_success
+  assert_output --partial "already exists"
+  # Original content preserved
+  run cat "$PROJECT_TEST_DIR/PROJECT.md"
+  assert_output "existing"
+}
+
+@test "init --docs removes docchain-skip marker" {
+  cd "$PROJECT_TEST_DIR"
+  mkdir -p "$PROJECT_TEST_DIR/.claude"
+  touch "$PROJECT_TEST_DIR/.claude/.docchain-skip"
+  run cmd_init --docs
+  assert_success
+  assert [ ! -f "$PROJECT_TEST_DIR/.claude/.docchain-skip" ]
+}
+
+@test "init --skip-docs creates skip marker" {
+  cd "$PROJECT_TEST_DIR"
+  run cmd_init --persona senior-engineer --skip-docs </dev/null
+  assert_success
+  assert [ -f "$PROJECT_TEST_DIR/.claude/.docchain-skip" ]
+}
+
+@test "init --skip-docs does not prompt for document chain" {
+  cd "$PROJECT_TEST_DIR"
+  run cmd_init --persona senior-engineer --skip-docs </dev/null
+  assert_success
+  refute_output --partial "Document chain"
+}
+
+@test "init --help shows document chain options" {
+  run cmd_init --help
+  assert_success
+  assert_output --partial "--docs"
+  assert_output --partial "--skip-docs"
+  assert_output --partial "PROJECT.md"
 }

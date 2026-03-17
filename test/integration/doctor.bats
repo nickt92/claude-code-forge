@@ -120,3 +120,68 @@ _setup_healthy_install() {
   run cmd_doctor
   assert_output --partial "forge symlink OK"
 }
+
+# ── Project Context ──────────────────────────────────────────
+
+@test "doctor shows project context when .claude/ exists in cwd" {
+  # Create a project dir with .claude/
+  local project_dir="$TEST_SANDBOX/my-project"
+  mkdir -p "$project_dir/.claude"
+  touch "$project_dir/.claude/CLAUDE.md"
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  cd "$project_dir"
+  run cmd_doctor
+  assert_output --partial "Project Context"
+  assert_output --partial "CLAUDE.md present"
+}
+
+@test "doctor shows missing document chain files" {
+  local project_dir="$TEST_SANDBOX/my-project"
+  mkdir -p "$project_dir/.claude"
+  touch "$project_dir/.claude/CLAUDE.md"
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  cd "$project_dir"
+  run cmd_doctor
+  assert_output --partial "No PROJECT.md"
+  assert_output --partial "No REQUIREMENTS.md"
+  assert_output --partial "No ROADMAP.md"
+}
+
+@test "doctor shows existing document chain files as OK" {
+  local project_dir="$TEST_SANDBOX/my-project"
+  mkdir -p "$project_dir/.claude"
+  touch "$project_dir/.claude/CLAUDE.md"
+  touch "$project_dir/PROJECT.md"
+  touch "$project_dir/ROADMAP.md"
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  cd "$project_dir"
+  run cmd_doctor
+  assert_output --partial "PROJECT.md"
+  assert_output --partial "ROADMAP.md"
+  assert_output --partial "No REQUIREMENTS.md"
+}
+
+@test "doctor respects docchain-skip marker" {
+  local project_dir="$TEST_SANDBOX/my-project"
+  mkdir -p "$project_dir/.claude"
+  touch "$project_dir/.claude/.docchain-skip"
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  cd "$project_dir"
+  run cmd_doctor
+  assert_output --partial "dismissed"
+  refute_output --partial "No PROJECT.md"
+}
+
+@test "doctor skips project context when no .claude/ in cwd" {
+  local project_dir="$TEST_SANDBOX/no-forge-project"
+  mkdir -p "$project_dir"
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  cd "$project_dir"
+  run cmd_doctor
+  refute_output --partial "Project Context"
+}

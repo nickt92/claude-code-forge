@@ -15,6 +15,11 @@ load "${TEST_DIR}/libs/bats-support/load"
 load "${TEST_DIR}/libs/bats-assert/load"
 load "${TEST_DIR}/libs/bats-file/load"
 
+# Windows jq compatibility (see lib/platform.sh for rationale)
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygwin* ]]; then
+  jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+fi
+
 # ── Sandbox setup ────────────────────────────────────────────
 # Creates a temp directory and redirects HOME so tests never
 # modify the real ~/.claude/ directory.
@@ -49,7 +54,8 @@ teardown_sandbox() {
   fi
 
   # Clean up temp markers that hooks create
-  rm -f /tmp/claude-code-prompted-* /tmp/claude-code-classified-*
+  local _tmpdir="${TMPDIR:-/tmp}"
+  rm -f "$_tmpdir"/claude-code-prompted-* "$_tmpdir"/claude-code-classified-* "$_tmpdir"/claude-forge-update-*
 }
 
 # ── Helpers ──────────────────────────────────────────────────

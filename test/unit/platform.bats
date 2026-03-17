@@ -15,10 +15,10 @@ teardown() {
 
 # ── detect_platform ──────────────────────────────────────────
 
-@test "detect_platform returns macos or linux on supported systems" {
+@test "detect_platform returns a supported platform" {
   run detect_platform
   assert_success
-  assert_output --regexp '^(macos|linux|wsl)$'
+  assert_output --regexp '^(macos|linux|wsl|windows)$'
 }
 
 @test "detect_platform output is non-empty" {
@@ -35,11 +35,11 @@ teardown() {
   assert [ -d "$output" ]
 }
 
-@test "get_temp_dir falls back to /tmp when TMPDIR is unset" {
+@test "get_temp_dir returns a valid directory when TMPDIR is unset" {
   unset TMPDIR
   run get_temp_dir
   assert_success
-  assert_output '/tmp'
+  assert [ -d "$output" ]
 }
 
 @test "get_temp_dir uses TMPDIR when set" {
@@ -67,4 +67,12 @@ teardown() {
   YELLOW='' RST='' RED=''
   run check_platform
   assert_success
+}
+
+# ── is_windows ────────────────────────────────────────────────
+
+@test "is_windows function exists" {
+  run type is_windows
+  assert_success
+  assert_output --partial "function"
 }

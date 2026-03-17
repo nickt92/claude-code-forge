@@ -8,7 +8,7 @@ setup() {
   setup_sandbox
   HOOK="$SCRIPT_DIR/hooks/session-init.sh"
   # Clean any existing markers for this PPID
-  rm -f /tmp/claude-code-prompted-$$
+  rm -f "${TMPDIR:-/tmp}"/claude-code-prompted-$$
 }
 
 teardown() {
@@ -106,4 +106,64 @@ SCRIPT
   assert_success
   assert_output --partial "Test Profile"
   assert_output --partial "senior-engineer"
+}
+
+# ── Document Chain Nudge ──────────────────────────────────────
+
+@test "nudges about document chain for non-trivial projects" {
+  create_test_profile "senior-engineer" "high" "advanced"
+  # Create a project with .claude/ and a manifest file (non-trivial heuristic)
+  local project_dir="$TEST_SANDBOX/project"
+  mkdir -p "$project_dir/.claude"
+  echo '{}' > "$project_dir/package.json"
+
+  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
+  assert_success
+  assert_output --partial "forge init --docs"
+}
+
+@test "does not nudge when docchain-skip marker exists" {
+  create_test_profile "senior-engineer" "high" "advanced"
+  local project_dir="$TEST_SANDBOX/project"
+  mkdir -p "$project_dir/.claude"
+  echo '{}' > "$project_dir/package.json"
+  touch "$project_dir/.claude/.docchain-skip"
+
+  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
+  assert_success
+  refute_output --partial "forge init --docs"
+}
+
+@test "does not nudge when PROJECT.md exists" {
+  create_test_profile "senior-engineer" "high" "advanced"
+  local project_dir="$TEST_SANDBOX/project"
+  mkdir -p "$project_dir/.claude"
+  echo '{}' > "$project_dir/package.json"
+  touch "$project_dir/PROJECT.md"
+
+  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
+  assert_success
+  refute_output --partial "forge init --docs"
+}
+
+@test "does not nudge for trivial projects (no manifest file)" {
+  create_test_profile "senior-engineer" "high" "advanced"
+  local project_dir="$TEST_SANDBOX/project"
+  mkdir -p "$project_dir/.claude"
+  # No package.json, Cargo.toml, etc.
+
+  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
+  assert_success
+  refute_output --partial "forge init --docs"
+}
+
+@test "nudge fires only once per project (creates marker)" {
+  create_test_profile "senior-engineer" "high" "advanced"
+  local project_dir="$TEST_SANDBOX/project"
+  mkdir -p "$project_dir/.claude"
+  echo '{}' > "$project_dir/package.json"
+
+  # First run creates the nudge marker
+  bash -c 'cd "$1" && echo "{\"prompt\":\"first\"}" | bash "$2"' _ "$project_dir" "$HOOK" > /dev/null
+  assert [ -f "$project_dir/.claude/.docchain-nudged" ]
 }

@@ -2,9 +2,8 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Platform Utilities — cross-platform compatibility layer
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Supported: macOS, Linux
+# Supported: macOS, Linux, Windows (Git Bash / MINGW / MSYS2)
 # Should work: Windows via WSL
-# Not supported: Windows native, Git Bash
 
 # Detect platform
 detect_platform() {
@@ -19,8 +18,14 @@ detect_platform() {
         echo "linux"
       fi
       ;;
+    MINGW*|MSYS*)  echo "windows" ;;
     *)       echo "unsupported" ;;
   esac
+}
+
+# Quick boolean check for Windows (Git Bash)
+is_windows() {
+  [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]
 }
 
 # Platform-aware temp directory
@@ -59,6 +64,27 @@ resolve_path() {
   fi
 }
 
+# Windows jq compatibility — native Windows jq emits \r\n line endings;
+# bash command substitution preserves the \r, breaking integer comparisons
+# and path construction. This wrapper strips \r while preserving jq's exit code.
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygwin* ]]; then
+  jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+fi
+
+# Convert bytes to human-readable format (KB/MB/GB)
+format_bytes() {
+  local bytes="$1"
+  if [ "$bytes" -ge 1073741824 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f GB\", $bytes/1073741824}"
+  elif [ "$bytes" -ge 1048576 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f MB\", $bytes/1048576}"
+  elif [ "$bytes" -ge 1024 ] 2>/dev/null; then
+    awk "BEGIN{printf \"%.1f KB\", $bytes/1024}"
+  else
+    printf "%d bytes" "$bytes"
+  fi
+}
+
 # Check if platform is supported and warn if not
 check_platform() {
   local platform
@@ -71,8 +97,12 @@ check_platform() {
       printf "${_C_YELLOW:-}[WARN]${_C_RST:-} Running under WSL — this should work but is not fully tested.\n"
       return 0
       ;;
+    windows)
+      printf "${_C_YELLOW:-}[WARN]${_C_RST:-} Running under Git Bash (Windows) — supported with minor limitations.\n"
+      return 0
+      ;;
     *)
-      printf "${_C_RED:-}[FAIL]${_C_RST:-} Unsupported platform: %s. This installer supports macOS and Linux.\n" "$(uname -s)"
+      printf "${_C_RED:-}[FAIL]${_C_RST:-} Unsupported platform: %s. This installer supports macOS, Linux, and Windows (Git Bash).\n" "$(uname -s)"
       return 1
       ;;
   esac

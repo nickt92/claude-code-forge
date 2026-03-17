@@ -139,16 +139,17 @@ cmd_doctor() {
 
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     local hooks_ok=true
-    for hook_cmd in "session-init" "architect-gate" "commit-validator" "backup-transcript"; do
-      if jq -e --arg cmd "$hook_cmd" '
+    while IFS= read -r hook_name; do
+      [ -n "$hook_name" ] || continue
+      if jq -e --arg cmd "$hook_name" '
         [.hooks[][] | .hooks[]?.command // empty] | any(contains($cmd))
       ' "$CLAUDE_DIR/settings.json" >/dev/null 2>&1; then
         ((pass++))
       else
-        warn "Hook not configured: $hook_cmd"; ((warnings++))
+        warn "Hook not configured: $hook_name"; ((warnings++))
         hooks_ok=false
       fi
-    done
+    done < <(forge_shipped_hooks)
     if [ "$hooks_ok" = true ]; then
       ok "All hooks configured"
     fi
@@ -214,10 +215,17 @@ cmd_doctor() {
       warn "forge symlink target not executable: $link_target"; ((warnings++))
     fi
   elif [ -f "$CLAUDE_DIR/bin/forge" ]; then
-    warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    if is_windows 2>/dev/null; then
+      ok "forge installed (copy)"; ((pass++))
+    else
+      warn "forge exists but is not a symlink (may become stale)"; ((warnings++))
+    fi
   else
-    info "forge symlink not installed at ~/.claude/bin/forge"
+    info "forge not installed at ~/.claude/bin/forge"
   fi
+
+  # ── Project Context (if in a project with .claude/) ───────
+  _doctor_check_project_context
 
   # ── Summary ────────────────────────────────────────────────
   echo ""
@@ -229,5 +237,44 @@ cmd_doctor() {
   else
     printf "${_C_RED}✗${_C_RST} ${_C_RED}%d failure(s)${_C_RST}, ${_C_YELLOW}%d warning(s)${_C_RST} out of %d checks\n" "$failures" "$warnings" "$total"
     return 1
+  fi
+}
+
+# ── Project Context Check ──────────────────────────────────
+# If doctor is run from a directory with .claude/, show document chain status.
+
+_doctor_check_project_context() {
+  local project_claude_dir="$(pwd)/.claude"
+
+  # Only show if we're in a project with .claude/ (forge init was run)
+  [ -d "$project_claude_dir" ] || return 0
+  # Don't show for the global ~/.claude directory itself
+  [ "$(pwd)" = "$HOME" ] && return 0
+
+  step "Project Context"
+
+  if [ -f "$project_claude_dir/CLAUDE.md" ]; then
+    ok "CLAUDE.md present"; ((pass++))
+  else
+    info "No project CLAUDE.md — run 'forge init' to create"
+  fi
+
+  # Document chain status
+  if [ -f "$project_claude_dir/.docchain-skip" ]; then
+    info "Document chain: dismissed (forge init --docs to reconsider)"
+    return 0
+  fi
+
+  local doc_count=0
+  for doc in PROJECT.md REQUIREMENTS.md ROADMAP.md; do
+    if [ -f "$(pwd)/$doc" ]; then
+      ok "$doc"; ((pass++)); ((doc_count++))
+    else
+      info "No $doc (recommended for multi-session work)"
+    fi
+  done
+
+  if [ "$doc_count" -eq 0 ]; then
+    info "Run 'forge init --docs' to scaffold, or --skip-docs to dismiss"
   fi
 }

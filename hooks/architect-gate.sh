@@ -10,6 +10,9 @@
 #
 # Exit 0 = allow, Exit 2 = block with message
 
+# Windows jq compat — strip \r from output (see lib/platform.sh)
+[[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
@@ -40,7 +43,7 @@ fi
 [[ "$FILE_PATH" == *".lock" ]] && exit 0
 [[ "$FILE_PATH" == *"node_modules"* ]] && exit 0
 
-MARKER="/tmp/claude-code-classified-${PPID}"
+MARKER="${TMPDIR:-/tmp}/claude-code-classified-${PPID}"
 if [ ! -f "$MARKER" ]; then
   touch "$MARKER"
   echo "REMINDER: Have you classified this task? Significant tasks require EnterPlanMode and a domain architect review before implementation. If this is trivial/moderate, proceed." >&2

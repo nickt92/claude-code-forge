@@ -16,16 +16,20 @@
 # Note: set -e intentionally omitted — grep/jq returns non-zero on no-match,
 # which is expected control flow in hook scripts.
 
+# Windows jq compat — strip \r from output (see lib/platform.sh)
+[[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
+
 INPUT=$(cat)
 
 # One nudge per session — PPID is tied to the parent shell
-MARKER="/tmp/claude-code-prompted-${PPID}"
+_TMPDIR="${TMPDIR:-/tmp}"
+MARKER="${_TMPDIR}/claude-code-prompted-${PPID}"
 [ -f "$MARKER" ] && exit 0
 
 # New session — clean up stale markers from old sessions (>24h)
 # Also cleans architect-gate classified markers (created by architect-gate.sh)
-find /tmp -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
-find /tmp -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
 
 touch "$MARKER"
 
@@ -67,7 +71,25 @@ case "$AUTONOMY" in
     ;;
 esac
 
-jq -n --arg ctx "SYSTEM: ${PERSONA_HINT}${NUDGE} ${BRANCH_REMINDER}" '{
+# Document chain nudge — one-time per project, only for non-trivial projects
+DOC_NUDGE=""
+PROJECT_CLAUDE_DIR="$(pwd)/.claude"
+if [ -d "$PROJECT_CLAUDE_DIR" ] && \
+   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-skip" ] && \
+   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-nudged" ] && \
+   [ ! -f "$(pwd)/PROJECT.md" ] && [ ! -f "$(pwd)/REQUIREMENTS.md" ] && [ ! -f "$(pwd)/ROADMAP.md" ]; then
+  # Heuristic: non-trivial project has a build/manifest file
+  _has_manifest=false
+  for _f in package.json Cargo.toml go.mod pyproject.toml Makefile CMakeLists.txt pom.xml build.gradle Gemfile; do
+    [ -f "$(pwd)/$_f" ] && _has_manifest=true && break
+  done
+  if [ "$_has_manifest" = true ]; then
+    DOC_NUDGE=" For multi-session projects, consider 'forge init --docs' for persistent context files (PROJECT.md, REQUIREMENTS.md, ROADMAP.md)."
+    touch "$PROJECT_CLAUDE_DIR/.docchain-nudged" 2>/dev/null || true
+  fi
+fi
+
+jq -n --arg ctx "SYSTEM: ${PERSONA_HINT}${NUDGE} ${BRANCH_REMINDER}${DOC_NUDGE}" '{
   hookSpecificOutput: {
     hookEventName: "UserPromptSubmit",
     additionalContext: $ctx

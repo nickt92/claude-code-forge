@@ -58,7 +58,7 @@ IFS='|' read -r cwd model_id model_display cost_usd duration_ms \
     (.exceeds_200k_tokens // false | tostring),
     (.context_window.used_percentage // 0 | tostring),
     .agent.name // ""
-  ] | join("|")'
+  ] | join("|")' | tr -d '\r'
 )
 
 # ── Sanitize numeric inputs ─────────────────────────────────
@@ -72,15 +72,19 @@ cost_cents=$(awk -v c="${cost_usd:-0}" 'BEGIN { printf "%.0f", c * 100 }')
 cost_positive=$(awk -v c="${cost_usd:-0}" 'BEGIN { print (c > 0) ? 1 : 0 }')
 
 # ── Git segment (rich) ──────────────────────────────────────
-git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null | tr -d '\r' || echo "")
 
 if [ -z "$git_branch" ]; then
     git_seg="${DIM}🌿 —${RST}"
 else
     # Worktree detection: linked worktree when git-dir != git-common-dir
-    git_dir=$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)
-    git_common=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null)
-    if [ "$git_dir" != "$git_common" ] 2>/dev/null; then
+    # Uses --absolute-git-dir (Git 2.13+) so state detection works
+    # regardless of the process working directory.
+    git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null)
+    git_common=$(cd "$cwd" && git rev-parse --git-common-dir 2>/dev/null)
+    # Resolve git_common to absolute for reliable comparison
+    [ -n "$git_common" ] && [[ "$git_common" != /* ]] && git_common="$cwd/$git_common"
+    if [ "$git_dir" != "$git_common" ]; then
         tree_icon="🔗"  # linked worktree
     else
         tree_icon="🌿"  # main tree
@@ -88,7 +92,7 @@ else
 
     # Detached HEAD: show short SHA instead of "HEAD"
     if [[ "$git_branch" == "HEAD" ]]; then
-        short_sha=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null || echo "???")
+        short_sha=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null | tr -d '\r' || echo "???")
         git_branch="@${short_sha}"
     fi
 
@@ -124,7 +128,7 @@ else
     fi
 
     # Dirty state (capped at 50 for perf — shows 50+ if truncated)
-    porcelain=$(git -C "$cwd" status --porcelain 2>/dev/null | head -50)
+    porcelain=$(git -C "$cwd" status --porcelain 2>/dev/null | tr -d '\r' | head -50)
     dirty_count=0
     if [ -n "$porcelain" ]; then
         dirty_count=$(echo "$porcelain" | wc -l | tr -d ' ')
@@ -132,13 +136,13 @@ else
 
     # Ahead/behind upstream
     ahead=0; behind=0
-    if ab_output=$(git -C "$cwd" rev-list --left-right --count "HEAD...@{upstream}" 2>/dev/null) && [ -n "$ab_output" ]; then
+    if ab_output=$(git -C "$cwd" rev-list --left-right --count "HEAD...@{upstream}" 2>/dev/null | tr -d '\r') && [ -n "$ab_output" ]; then
         ahead="${ab_output%%[[:space:]]*}"
         behind="${ab_output##*[[:space:]]}"
     fi
 
     # Stash count (capped at 100 for perf)
-    stash_count=$(git -C "$cwd" stash list 2>/dev/null | head -100 | wc -l | tr -d ' ')
+    stash_count=$(git -C "$cwd" stash list 2>/dev/null | tr -d '\r' | head -100 | wc -l | tr -d ' ')
 
     # Assemble git segment
     git_seg="${branch_color}${tree_icon} ${display_branch}${RST}"
