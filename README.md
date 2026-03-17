@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **7 Rules Files** · **451 Tests**
+**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **8 Rules Files** · **461 Tests**
 
 </div>
 
@@ -253,7 +253,8 @@ The forge writes only to `~/.claude/`. Before touching anything, it snapshots yo
 │   ├── project-setup.md         # Document chain, project onboarding
 │   ├── pull-requests.md         # PR format standards
 │   ├── quality-engineering.md   # Testing pyramid, coverage targets, accessibility
-│   └── scope-discipline.md      # Task classification guard rails
+│   ├── scope-discipline.md      # Task classification guard rails
+│   └── security-overrides.md    # forge-override usage rules for security hooks
 ├── hooks/
 │   ├── session-init.sh          # First-prompt nudge (persona-aware)
 │   ├── architect-gate.sh        # Blocks plan files without architect review
@@ -533,7 +534,7 @@ Run `/memory` at the start of a Claude session. If `~/.claude/CLAUDE.md` and the
 
 Three things to verify:
 1. `~/.claude/CLAUDE.md` exists and is under 200 lines (`wc -l ~/.claude/CLAUDE.md`)
-2. `~/.claude/rules/` contains the 7 rules files
+2. `~/.claude/rules/` contains the 8 rules files
 3. Claude Code version is 1.0 or newer (`claude --version`)
 
 If the files are loaded but rules aren't followed, check that you're at the start of a fresh session. Long-running sessions accumulate context and can lose instruction adherence — start a new session with `/clear` or open a new terminal.
@@ -596,6 +597,17 @@ If you see a warning but want to proceed, the commit still goes through — the 
 </details>
 
 <details>
+<summary><strong>command-guard or db-guard is blocking a command I need to run</strong></summary>
+
+These hooks block destructive commands by default. If you intentionally need to run a blocked command, tell Claude to proceed — it will retry with a `# forge-override: <reason>` token that bypasses the hook. Claude Code's permission prompt still shows the full command for your approval.
+
+All overrides are logged to `~/.claude/security.log` for audit purposes.
+
+See [SECURITY.md](SECURITY.md) for the full override mechanism, what can and cannot be overridden, and the security model.
+
+</details>
+
+<details>
 <summary><strong>I already have hooks or plugins configured</strong></summary>
 
 The settings merge is additive. The forge appends its hooks to your existing hook arrays and adds its plugins to your existing plugin object. Your hooks and plugins are never removed.
@@ -632,7 +644,7 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-419 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS, Ubuntu, and Windows).
+461 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS, Ubuntu, and Windows).
 
 ```bash
 ./test/run_tests.sh              # Run all tests
