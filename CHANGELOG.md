@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0] - 2025-05-15
+## [1.2.1] - 2026-03-17
+
+### Added
+- `forge-override` bypass mechanism for command-guard and db-guard hooks
+- Audit logging for overrides in `~/.claude/security.log`
+- `security-overrides.md` rules template for Claude behavioural constraints
+
+### Security
+- Override requires non-empty reason — bare token and whitespace-only are rejected
+- Full-bypass behaviour explicitly documented in SECURITY.md
+- Override mechanism, security model, and audit trail format documented
+
+## [1.2.0] - 2026-03-17
 
 ### Added
 - `forge stats` subcommand — installation overview, security event distribution, session backup metrics
@@ -45,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Added SECURITY.md documenting hook limitations and threat model
 
-## [1.1.0] - 2025-04-28
+## [1.1.0] - 2026-03-16
 
 ### Added
 - `forge` CLI with 7 subcommands (`install`, `switch`, `doctor`, `diff`, `init`, `build`, `update`)
@@ -57,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved unbound variable crash in CLI
 - Corrected test assertions and manifest reading order
 
-## [1.0.0] - 2025-04-20
+## [1.0.0] - 2026-03-14
 
 ### Added
 - Initial release with 12 persona profiles across 4 behavioral axes
@@ -67,7 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 7 rules files for engineering standards
 - Onboarding wizard with role selection
 
-[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/nickt92/claude-code-forge/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/nickt92/claude-code-forge/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nickt92/claude-code-forge/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nickt92/claude-code-forge/releases/tag/v1.0.0

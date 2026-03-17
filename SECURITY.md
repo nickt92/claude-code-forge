@@ -17,6 +17,47 @@ Forge hooks are **defense-in-depth** — they add friction against common mistak
 | `backup-transcript` | PreCompact | Lost conversation context before compaction | Best-effort; relies on Claude Code's compaction event firing |
 | `forge-update-check` | UserPromptSubmit | Running outdated forge version | Advisory only — prints a notice, does not block |
 
+## Override Mechanism
+
+### forge-override
+
+The `command-guard` and `db-guard` hooks support a user-confirmed bypass via a comment token in the command string. When a blocked command is intentionally needed, Claude can retry with `# forge-override: <reason>` as the first line:
+
+```bash
+# forge-override: dropping test database per user request
+psql -c "DROP TABLE test_users"
+```
+
+**Requirements:**
+- The reason after `# forge-override:` must be non-empty — bare `# forge-override` (no reason) is rejected and the hook continues to block
+- Claude must explain the block to the user and receive explicit confirmation before using the override
+- The reason must describe the user's intent specifically, not a generic "user confirmed"
+
+**Security model:**
+- The override bypasses **all** guard checks for the entire command, not just the specific pattern that triggered the initial block. A multi-line command with an override skips every guard in that hook.
+- Claude Code's permission prompt displays the full command including the override comment, so the user sees exactly what will run before approving
+- The override is a communication channel between Claude and the hook — the user's approval happens through the standard permission prompt
+- Overrides are logged to `~/.claude/security.log` for audit purposes
+
+**What cannot be overridden:**
+- `secret-filter` — advisory-only by design; fix false positives via better patterns instead
+- `architect-gate` — plan quality enforcement should not be bypassable
+- `commit-validator` — AI attribution block should not be bypassable
+
+### Audit Trail
+
+All overrides are logged to `~/.claude/security.log` in the following format:
+
+```
+2026-03-17T14:22:00Z OVERRIDE_CONFIRMED reason="dropping test database per user request" command="psql -c \"DROP TABLE test_users\""
+```
+
+- ISO 8601 UTC timestamp (consistent with existing `SECRET_DETECTED` entries)
+- Event type: `OVERRIDE_CONFIRMED`
+- Quoted reason and command fields
+- Multi-line commands are truncated with `[+N lines]` indicator
+- Quotes in commands are escaped
+
 ## Known Gaps
 
 1. **PostToolUse hooks are advisory.** `secret-filter` runs after the tool completes and cannot block execution or mask output. It warns Claude not to repeat detected credentials, but the original output has already been processed.

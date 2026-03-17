@@ -35,6 +35,24 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 # Empty command — nothing to guard
 [ -z "$COMMAND" ] && exit 0
 
+# ── forge-override: user-confirmed bypass ─────────────────────
+# Requires non-empty reason. Bare "# forge-override" is rejected.
+# Bypasses ALL guard checks for the entire command — not just the
+# triggering pattern. Security model depends on Claude Code's
+# permission prompt showing the full command to the user.
+# Duplicated in command-guard.sh — hooks must be self-contained (no shared sourcing).
+if echo "$COMMAND" | head -1 | grep -qE '^# forge-override: .+'; then
+  _OVERRIDE_REASON=$(echo "$COMMAND" | head -1 | sed 's/^# forge-override: //')
+  _OVERRIDE_REASON=${_OVERRIDE_REASON//\"/\\\"}
+  _OVERRIDE_CMD=$(echo "$COMMAND" | tail -n +2 | head -1)
+  _OVERRIDE_LINES=$(echo "$COMMAND" | tail -n +2 | wc -l | tr -d ' ')
+  [ "$_OVERRIDE_LINES" -gt 1 ] && _OVERRIDE_CMD="${_OVERRIDE_CMD} [+$((_OVERRIDE_LINES - 1)) lines]"
+  _OVERRIDE_CMD=${_OVERRIDE_CMD//\"/\\\"}
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) OVERRIDE_CONFIRMED reason=\"$_OVERRIDE_REASON\" command=\"$_OVERRIDE_CMD\"" \
+    >> "$HOME/.claude/security.log"
+  exit 0
+fi
+
 # Fast path: exit immediately if no database CLI is involved
 echo "$COMMAND" | grep -qE '(psql|mysql|sqlite3|mongosh)' || exit 0
 
