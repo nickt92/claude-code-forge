@@ -92,6 +92,10 @@ public enum ForgeError: LocalizedError, Sendable {
     case cliExitCode(Int, stderr: String)
     case jsonDecodingFailed(DecodingError)
     case unexpected(String)
+    case claudeNotAvailable
+    case claudeFailed(String)
+    case claudeTimeout
+    case fixInProgress
 
     public var errorDescription: String? {
         switch self {
@@ -104,6 +108,14 @@ public enum ForgeError: LocalizedError, Sendable {
             return "Failed to parse forge output: \(error.localizedDescription)"
         case .unexpected(let message):
             return "Unexpected error: \(message)"
+        case .claudeNotAvailable:
+            return "Claude Code CLI not found. Install Claude Code to use intelligent fixes."
+        case .claudeFailed(let message):
+            return "Claude analysis failed: \(message)"
+        case .claudeTimeout:
+            return "Claude analysis timed out after 90 seconds."
+        case .fixInProgress:
+            return "A fix is already running for this repository."
         }
     }
 }
