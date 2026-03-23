@@ -166,20 +166,58 @@ _score_repo_config() {
   local repo_json="$1"
   local score=0
 
-  # CLAUDE.md exists (50 points)
-  local has_claude_md
-  has_claude_md=$(echo "$repo_json" | jq -r '.claude_md.exists')
-  [ "$has_claude_md" = "true" ] && score=$((score + 50))
+  # Check if audit data is available for enriched scoring
+  local has_audit
+  has_audit=$(echo "$repo_json" | jq -r '.claude_md_audit // empty')
 
-  # CLAUDE.md has content (25 points)
-  local lines
-  lines=$(echo "$repo_json" | jq -r '.claude_md.lines')
-  [ "$lines" -gt 10 ] 2>/dev/null && score=$((score + 25))
+  if [ -z "$has_audit" ] || [ "$has_audit" = "null" ]; then
+    # Backward-compatible scoring (no audit data)
+    # CLAUDE.md exists (50 points)
+    local has_claude_md
+    has_claude_md=$(echo "$repo_json" | jq -r '.claude_md.exists')
+    [ "$has_claude_md" = "true" ] && score=$((score + 50))
 
-  # Has rules (25 points)
-  local rules_count
-  rules_count=$(echo "$repo_json" | jq -r '.rules.count')
-  [ "$rules_count" -gt 0 ] 2>/dev/null && score=$((score + 25))
+    # CLAUDE.md has content (25 points)
+    local lines
+    lines=$(echo "$repo_json" | jq -r '.claude_md.lines')
+    [ "$lines" -gt 10 ] 2>/dev/null && score=$((score + 25))
+
+    # Has rules (25 points)
+    local rules_count
+    rules_count=$(echo "$repo_json" | jq -r '.rules.count')
+    [ "$rules_count" -gt 0 ] 2>/dev/null && score=$((score + 25))
+  else
+    # Enriched scoring with audit data
+    # CLAUDE.md exists (25 points)
+    local has_claude_md
+    has_claude_md=$(echo "$repo_json" | jq -r '.claude_md.exists')
+    [ "$has_claude_md" = "true" ] && score=$((score + 25))
+
+    # CLAUDE.md has content >10 lines (10 points)
+    local lines
+    lines=$(echo "$repo_json" | jq -r '.claude_md.lines')
+    [ "$lines" -gt 10 ] 2>/dev/null && score=$((score + 10))
+
+    # Section coverage >= 3 sections (25 points)
+    local found_count
+    found_count=$(echo "$repo_json" | jq -r '.claude_md_audit.sections.found | length')
+    [ "$found_count" -ge 3 ] 2>/dev/null && score=$((score + 25))
+
+    # Not stale (10 points)
+    local is_stale
+    is_stale=$(echo "$repo_json" | jq -r '.claude_md_audit.staleness.stale')
+    [ "$is_stale" = "false" ] && score=$((score + 10))
+
+    # No placeholders (5 points)
+    local has_placeholders
+    has_placeholders=$(echo "$repo_json" | jq -r '.claude_md_audit.quality.has_placeholders')
+    [ "$has_placeholders" = "false" ] && score=$((score + 5))
+
+    # Has rules (25 points)
+    local rules_count
+    rules_count=$(echo "$repo_json" | jq -r '.rules.count')
+    [ "$rules_count" -gt 0 ] 2>/dev/null && score=$((score + 25))
+  fi
 
   echo "$score"
 }

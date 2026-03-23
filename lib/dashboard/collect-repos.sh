@@ -35,11 +35,17 @@ _collect_repo_data() {
   local repo_name
   repo_name=$(basename "$repo_dir")
 
-  # CLAUDE.md status
+  # CLAUDE.md status — check both repo root and .claude/ directory
   local has_claude_md=false claude_md_lines=0
+  if [ -f "$repo_dir/CLAUDE.md" ]; then
+    has_claude_md=true
+    claude_md_lines=$(wc -l < "$repo_dir/CLAUDE.md" | tr -d ' ')
+  fi
   if [ -f "$claude_dir/CLAUDE.md" ]; then
     has_claude_md=true
-    claude_md_lines=$(wc -l < "$claude_dir/CLAUDE.md" | tr -d ' ')
+    local managed_lines
+    managed_lines=$(wc -l < "$claude_dir/CLAUDE.md" | tr -d ' ')
+    claude_md_lines=$((claude_md_lines + managed_lines))
   fi
 
   # Rules
@@ -97,6 +103,12 @@ _collect_repo_data() {
     [ "$hooks_count" -gt 0 ] && has_hooks=true
   fi
 
+  # CLAUDE.md audit (if audit module is loaded)
+  local audit_json='null'
+  if type audit_claude_md >/dev/null 2>&1; then
+    audit_json=$(audit_claude_md "$repo_dir")
+  fi
+
   jq -n \
     --arg path "$repo_dir" \
     --arg name "$repo_name" \
@@ -112,6 +124,7 @@ _collect_repo_data() {
     --arg git_branch "$git_branch" \
     --argjson has_hooks "$has_hooks" \
     --argjson hooks_count "$hooks_count" \
+    --argjson claude_md_audit "$audit_json" \
     '{
       path: $path,
       name: $name,
@@ -124,11 +137,17 @@ _collect_repo_data() {
         dismissed: $docchain_dismissed
       },
       git: { is_repo: $is_git, branch: $git_branch },
-      hooks: { present: $has_hooks, count: $hooks_count }
+      hooks: { present: $has_hooks, count: $hooks_count },
+      claude_md_audit: $claude_md_audit
     }'
 }
 
 # ── Public API ───────────────────────────────────────────────
+
+# Load audit module if available
+if [ -f "${BASH_SOURCE[0]%/*}/audit-claude-md.sh" ]; then
+  source "${BASH_SOURCE[0]%/*}/audit-claude-md.sh"
+fi
 
 collect_repos() {
   local scan_path="$1"
