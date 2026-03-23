@@ -2,6 +2,10 @@ import SwiftUI
 
 public struct RepoDetailView: View {
     let repo: RepoData
+    @State private var dismissedFindings: Set<String> = []
+    @State private var contentHashAtLoad: String?
+    @State private var fixRunning: Bool = false
+    @Environment(\.fixService) private var fixService
 
     public init(repo: RepoData) {
         self.repo = repo
@@ -25,6 +29,11 @@ public struct RepoDetailView: View {
         }
         .navigationTitle(repo.name)
         .frame(minWidth: 450)
+        .task(id: repo.path) {
+            if let mdPath = repo.claudeMdAudit?.locations.first {
+                contentHashAtLoad = try? fixService.contentHash(for: mdPath)
+            }
+        }
     }
 
     // MARK: - Header
@@ -159,16 +168,31 @@ public struct RepoDetailView: View {
     // MARK: - Findings
 
     private func findingsSection(_ findings: [Finding]) -> some View {
-        DetailCard("Findings (\(findings.count))") {
-            if findings.isEmpty {
+        let visibleFindings = findings.filter { !dismissedFindings.contains($0.id) }
+        return DetailCard("Findings (\(visibleFindings.count))") {
+            if visibleFindings.isEmpty {
                 Text("No findings — looking good!")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 4)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(findings) { finding in
-                        FindingRow(finding: finding)
+                    ForEach(visibleFindings) { finding in
+                        FindingRow(
+                            finding: finding,
+                            repoPath: repo.path,
+                            claudeMdPath: repo.claudeMdAudit?.locations.first,
+                            contentHashAtLoad: contentHashAtLoad,
+                            fixDisabled: fixRunning,
+                            onFixed: { [finding] in
+                                let id = finding.id
+                                withAnimation {
+                                    _ = dismissedFindings.insert(id)
+                                }
+                            },
+                            onFixStarted: { fixRunning = true },
+                            onFixEnded: { fixRunning = false }
+                        )
                     }
                 }
             }
@@ -233,6 +257,39 @@ struct ConfigChip: View {
 
 struct FindingRow: View {
     let finding: Finding
+    var repoPath: String = ""
+    var claudeMdPath: String?
+    var contentHashAtLoad: String?
+    var fixDisabled: Bool = false
+    var onFixed: (() -> Void)?
+    var onFixStarted: (() -> Void)?
+    var onFixEnded: (() -> Void)?
+
+    @Environment(\.fixService) private var fixService
+    @State private var showConfirm = false
+    @State private var fixState: FixState = .idle
+
+    enum FixState {
+        case idle, running, pendingReview(before: String, after: String), success, failed(String)
+    }
+
+    private var usesClaudeFix: Bool {
+        ["missing_section", "tech_gap", "low_coverage"].contains(finding.code)
+    }
+
+    private var isPendingReview: Binding<Bool> {
+        Binding(
+            get: {
+                if case .pendingReview = fixState { return true }
+                return false
+            },
+            set: { newValue in
+                if !newValue, case .pendingReview(let before, _) = fixState {
+                    handleReject(before)
+                }
+            }
+        )
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -249,10 +306,9 @@ struct FindingRow: View {
                     Text(finding.code.replacingOccurrences(of: "_", with: " "))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+
                     if finding.fixable {
-                        Text("FIXABLE")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.blue)
+                        fixButton
                     }
                 }
             }
@@ -262,6 +318,235 @@ struct FindingRow: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
         .background(severityColor(finding.severity).opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+        .sheet(isPresented: isPendingReview) {
+            if case .pendingReview(let before, let after) = fixState {
+                DiffPreviewView(
+                    before: before,
+                    after: after,
+                    sectionName: finding.section ?? finding.code,
+                    onApprove: { handleApprove(after) },
+                    onReject: { handleReject(before) }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var fixButton: some View {
+        switch fixState {
+        case .idle:
+            if usesClaudeFix && !fixService.claudeAvailable {
+                HStack(spacing: 3) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .font(.system(size: 8))
+                    Text("Fix")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.gray.opacity(0.1), in: Capsule())
+                .foregroundStyle(.gray)
+                .help("Requires Claude Code CLI to generate intelligent fixes")
+            } else {
+                Button {
+                    showConfirm = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
+                            .font(.system(size: 8))
+                        Text("Fix")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.1), in: Capsule())
+                    .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .disabled(fixDisabled)
+                .opacity(fixDisabled ? 0.4 : 1)
+                .popover(isPresented: $showConfirm) {
+                    fixConfirmPopover
+                }
+            }
+        case .running:
+            HStack(spacing: 3) {
+                ProgressView()
+                    .controlSize(.mini)
+                Text(usesClaudeFix ? "Claude is analyzing..." : "Fixing...")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        case .pendingReview:
+            HStack(spacing: 3) {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 9))
+                Text("Reviewing...")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.blue.opacity(0.1), in: Capsule())
+            .foregroundStyle(.blue)
+        case .success:
+            HStack(spacing: 3) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 9))
+                Text(usesClaudeFix ? "Section added" : "Fixed")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.green.opacity(0.1), in: Capsule())
+            .foregroundStyle(.green)
+        case .failed(let message):
+            HStack(spacing: 3) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 9))
+                Text(message)
+                    .font(.system(size: 9))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.red.opacity(0.1), in: Capsule())
+            .foregroundStyle(.red)
+        }
+    }
+
+    private var fixConfirmPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
+                    .foregroundStyle(.blue)
+                Text("Apply Fix?")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+
+            Text(fixDescription)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Cancel") { showConfirm = false }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button("Apply Fix") { applyFix() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+
+    private var fixDescription: String {
+        switch finding.code {
+        case "no_claude_md":
+            return "Run 'forge init' to create a CLAUDE.md in this repository."
+        case "missing_section":
+            let section = finding.section ?? "Section"
+            return "Claude will analyze your codebase and generate a proper \(section) section. This takes about 10-30 seconds."
+        case "tech_gap":
+            return "Claude will analyze your codebase and document how this technology is actually used. This takes about 10-30 seconds."
+        case "low_coverage":
+            if let section = finding.section {
+                return "Claude will analyze your codebase and generate a proper \(section) section. This takes about 10-30 seconds."
+            }
+            return "Fix individual missing sections to improve coverage."
+        default:
+            return "Apply an automatic fix for this finding."
+        }
+    }
+
+    private func applyFix() {
+        showConfirm = false
+        fixState = .running
+        onFixStarted?()
+
+        Task {
+            do {
+                let result = try await fixService.fix(
+                    finding: finding,
+                    repoPath: repoPath,
+                    claudeMdPath: claudeMdPath,
+                    contentHashAtLoad: contentHashAtLoad
+                )
+
+                switch result {
+                case .success:
+                    fixState = .success
+                    onFixed?()
+                    onFixEnded?()
+                case .pendingReview(let before, let after):
+                    // Keep fixRunning=true — buttons stay disabled during review
+                    fixState = .pendingReview(before: before, after: after)
+                case .notFixable(let reason):
+                    fixState = .failed(reason)
+                    onFixEnded?()
+                case .staleContent:
+                    fixState = .failed("File changed externally")
+                    onFixEnded?()
+                case .fileNotFound:
+                    fixState = .failed("CLAUDE.md not found")
+                    onFixEnded?()
+                case .claudeNotAvailable:
+                    fixState = .failed("Claude CLI not found")
+                    onFixEnded?()
+                case .claudeFailed(let msg):
+                    fixState = .failed(msg)
+                    onFixEnded?()
+                case .claudeTimeout:
+                    fixState = .failed("Timed out")
+                    onFixEnded?()
+                case .fixInProgress:
+                    fixState = .failed("Another fix is running")
+                    onFixEnded?()
+                }
+            } catch {
+                fixState = .failed(error.localizedDescription)
+                onFixEnded?()
+            }
+        }
+    }
+
+    private func handleApprove(_ afterContent: String) {
+        guard let mdPath = claudeMdPath else {
+            fixState = .failed("CLAUDE.md path unknown")
+            onFixEnded?()
+            return
+        }
+        do {
+            let consistent = try fixService.approveChange(mdPath: mdPath, expectedAfterContent: afterContent)
+            if consistent {
+                fixState = .success
+                onFixed?()
+            } else {
+                fixState = .failed("File changed during review")
+            }
+        } catch {
+            fixState = .failed(error.localizedDescription)
+        }
+        onFixEnded?()
+    }
+
+    private func handleReject(_ beforeContent: String) {
+        guard let mdPath = claudeMdPath else {
+            fixState = .idle
+            onFixEnded?()
+            return
+        }
+        do {
+            try fixService.rejectChange(mdPath: mdPath, originalContent: beforeContent)
+            fixState = .idle
+        } catch {
+            fixState = .failed("Could not restore original file")
+        }
+        onFixEnded?()
     }
 
     private var icon: String {

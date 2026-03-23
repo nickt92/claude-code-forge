@@ -5,17 +5,20 @@ public struct MenuBarView: View {
     let onRefresh: () -> Void
     let onOpenDashboard: () -> Void
     let onOpenSettings: () -> Void
+    let onRunDoctor: () -> Void
 
     public init(
         state: ForgeState,
         onRefresh: @escaping () -> Void,
         onOpenDashboard: @escaping () -> Void,
-        onOpenSettings: @escaping () -> Void
+        onOpenSettings: @escaping () -> Void,
+        onRunDoctor: @escaping () -> Void = {}
     ) {
         self.state = state
         self.onRefresh = onRefresh
         self.onOpenDashboard = onOpenDashboard
         self.onOpenSettings = onOpenSettings
+        self.onRunDoctor = onRunDoctor
     }
 
     public var body: some View {
@@ -48,6 +51,15 @@ public struct MenuBarView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.accentColor)
                 .controlSize(.small)
+
+                Button { onRunDoctor() } label: {
+                    Image(systemName: "stethoscope")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Run Doctor")
 
                 Button { onRefresh() } label: {
                     Image(systemName: "arrow.clockwise")

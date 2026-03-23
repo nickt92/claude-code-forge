@@ -5,6 +5,7 @@ public struct DashboardView: View {
     let onRefresh: () -> Void
     @State private var searchText = ""
     @State private var selectedRepo: RepoData?
+    @State private var showDoctor = false
 
     public init(state: ForgeState, onRefresh: @escaping () -> Void) {
         self.state = state
@@ -37,6 +38,15 @@ public struct DashboardView: View {
                 .disabled(state.isLoading)
                 .help("Refresh (⌘R)")
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button { showDoctor = true } label: {
+                    Label("Doctor", systemImage: "stethoscope")
+                }
+                .help("Run Forge Doctor")
+            }
+        }
+        .sheet(isPresented: $showDoctor) {
+            DoctorView(state: state)
         }
     }
 

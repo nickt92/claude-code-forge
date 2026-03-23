@@ -153,3 +153,5 @@ When multiple specialists are needed and their work is independent, invoke them 
 **Performance** — Lazy load non-critical resources, code split where meaningful, eliminate N+1 queries, paginate large datasets. Measure before and after for performance-sensitive changes.
 
 **Observability** — Structured logging with correlation IDs, health check endpoints, error tracking with context, PII masking in all logs.
+
+- Uses github-actions
