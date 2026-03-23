@@ -1,0 +1,233 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1000001 /* ForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* ForgeApp.swift */; };
+		A1000002 /* ForgeDesktopCore in Frameworks */ = {isa = PBXBuildFile; productRef = A4000001 /* ForgeDesktopCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A2000001 /* ForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeApp.swift; sourceTree = "<group>"; };
+		A2000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000010 /* ForgeDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A2000020 /* ForgeDesktopCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = ForgeDesktopCore; path = ForgeDesktopCore; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A3000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000002 /* ForgeDesktopCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A5000001 = {
+			isa = PBXGroup;
+			children = (
+				A5000002 /* ForgeDesktop */,
+				A2000020 /* ForgeDesktopCore */,
+				A5000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A5000002 /* ForgeDesktop */ = {
+			isa = PBXGroup;
+			children = (
+				A2000001 /* ForgeApp.swift */,
+				A2000002 /* Info.plist */,
+			);
+			path = ForgeDesktop;
+			sourceTree = "<group>";
+		};
+		A5000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A2000010 /* ForgeDesktop.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A6000001 /* ForgeDesktop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A8000001 /* Build configuration list for PBXNativeTarget "ForgeDesktop" */;
+			buildPhases = (
+				A7000001 /* Sources */,
+				A3000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ForgeDesktop;
+			packageProductDependencies = (
+				A4000001 /* ForgeDesktopCore */,
+			);
+			productName = ForgeDesktop;
+			productReference = A2000010 /* ForgeDesktop.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A9000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = A8000003 /* Build configuration list for PBXProject "ForgeDesktop" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A5000001;
+			packageReferences = (
+			);
+			productRefGroup = A5000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A6000001 /* ForgeDesktop */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A7000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001 /* ForgeApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AB000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ForgeDesktop/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.forge.desktop;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		AB000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ForgeDesktop/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.forge.desktop;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AB000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AB000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A8000001 /* Build configuration list for PBXNativeTarget "ForgeDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB000001 /* Debug */,
+				AB000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A8000003 /* Build configuration list for PBXProject "ForgeDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB000003 /* Debug */,
+				AB000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A4000001 /* ForgeDesktopCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ForgeDesktopCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A9000001 /* Project object */;
+}

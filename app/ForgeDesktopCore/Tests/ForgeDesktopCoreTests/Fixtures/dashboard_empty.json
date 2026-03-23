@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "global": {
+    "persona": {
+      "persona": "default",
+      "label": "Default",
+      "description": "No persona configured",
+      "axes": {
+        "communication": "standard",
+        "autonomy": "standard",
+        "workflow": "standard",
+        "depth": "standard"
+      },
+      "quality": []
+    },
+    "hooks": [],
+    "plugins": {
+      "group": "unknown",
+      "count": 0,
+      "plugins": []
+    },
+    "rules": {
+      "count": 0,
+      "files": []
+    },
+    "install": {
+      "forge_version": "0.0.0",
+      "install_timestamp": "",
+      "manifest_version": 0,
+      "source_dir": ""
+    },
+    "claude_md": {
+      "exists": false,
+      "lines": 0,
+      "size": 0
+    }
+  },
+  "global_score": {
+    "total": 0,
+    "grade": "F",
+    "dimensions": {}
+  },
+  "repos": [],
+  "generated_at": "2026-01-01T00:00:00Z"
+}

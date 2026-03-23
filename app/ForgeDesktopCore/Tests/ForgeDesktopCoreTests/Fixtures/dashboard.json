@@ -1,0 +1,522 @@
+{
+  "schema_version": 1,
+  "global": {
+    "persona": {
+      "persona": "cto-architect",
+      "label": "CTO / Technical Architect",
+      "description": "I make architectural decisions and lead engineering organizations",
+      "axes": {
+        "communication": "expert",
+        "autonomy": "high",
+        "workflow": "advanced",
+        "depth": "engineering"
+      },
+      "quality": [
+        "core",
+        "engineering"
+      ]
+    },
+    "hooks": [
+      {
+        "event": "UserPromptSubmit",
+        "matcher": "",
+        "command": "bash ~/.claude/hooks/forge-update-check.sh",
+        "timeout": 3,
+        "name": "forge-update-check"
+      },
+      {
+        "event": "UserPromptSubmit",
+        "matcher": "",
+        "command": "bash ~/.claude/hooks/session-init.sh",
+        "timeout": 3,
+        "name": "session-init"
+      },
+      {
+        "event": "PreToolUse",
+        "matcher": "Write|Edit",
+        "command": "bash ~/.claude/hooks/architect-gate.sh",
+        "timeout": 5,
+        "name": "architect-gate"
+      },
+      {
+        "event": "PreToolUse",
+        "matcher": "Bash",
+        "command": "bash ~/.claude/hooks/command-guard.sh",
+        "timeout": 5,
+        "name": "command-guard"
+      },
+      {
+        "event": "PreToolUse",
+        "matcher": "Bash",
+        "command": "bash ~/.claude/hooks/commit-validator.sh",
+        "timeout": 5,
+        "name": "commit-validator"
+      },
+      {
+        "event": "PreToolUse",
+        "matcher": "Bash",
+        "command": "bash ~/.claude/hooks/db-guard.sh",
+        "timeout": 5,
+        "name": "db-guard"
+      },
+      {
+        "event": "PreCompact",
+        "matcher": "",
+        "command": "bash ~/.claude/hooks/backup-transcript.sh",
+        "timeout": null,
+        "name": "backup-transcript"
+      },
+      {
+        "event": "PostToolUse",
+        "matcher": "",
+        "command": "bash ~/.claude/hooks/secret-filter.sh",
+        "timeout": 5,
+        "name": "secret-filter"
+      }
+    ],
+    "plugins": {
+      "group": "full",
+      "count": 19,
+      "plugins": [
+        "backend-development@claude-code-workflows",
+        "documentation-generation@claude-code-workflows",
+        "debugging-toolkit@claude-code-workflows",
+        "frontend-mobile-development@claude-code-workflows",
+        "full-stack-orchestration@claude-code-workflows",
+        "tdd-workflows@claude-code-workflows",
+        "code-refactoring@claude-code-workflows",
+        "dependency-management@claude-code-workflows",
+        "error-debugging@claude-code-workflows",
+        "javascript-typescript@claude-code-workflows",
+        "cicd-automation@claude-code-workflows",
+        "context7@claude-plugins-official",
+        "cloud-infrastructure@claude-code-workflows",
+        "hr-legal-compliance@claude-code-workflows",
+        "database-design@claude-code-workflows",
+        "startup-business-analyst@claude-code-workflows",
+        "comprehensive-review@claude-code-workflows",
+        "frontend-design@claude-plugins-official",
+        "swift-lsp@claude-plugins-official"
+      ]
+    },
+    "rules": {
+      "count": 8,
+      "files": [
+        "agent-orchestration",
+        "commit-and-delivery",
+        "context-and-memory",
+        "project-setup",
+        "pull-requests",
+        "quality-engineering",
+        "scope-discipline",
+        "security-overrides"
+      ]
+    },
+    "install": {
+      "forge_version": "1.2.1",
+      "install_timestamp": "2026-03-17T10:26:20Z",
+      "manifest_version": 2,
+      "source_dir": "/Users/nickt/claude-code-forge"
+    },
+    "claude_md": {
+      "exists": true,
+      "lines": 140,
+      "size": 9496
+    }
+  },
+  "global_score": {
+    "total": 100,
+    "grade": "A",
+    "dimensions": {
+      "config_completeness": {
+        "score": 100,
+        "weight": 25
+      },
+      "rule_coverage": {
+        "score": 100,
+        "weight": 20
+      },
+      "hook_coverage": {
+        "score": 100,
+        "weight": 20
+      },
+      "doc_chain": {
+        "score": 100,
+        "weight": 15
+      },
+      "freshness": {
+        "score": 100,
+        "weight": 10
+      },
+      "plugin_alignment": {
+        "score": 100,
+        "weight": 10
+      }
+    }
+  },
+  "repos": [
+    {
+      "path": "/Users/nickt/claude-code-forge",
+      "name": "claude-code-forge",
+      "claude_md": {
+        "exists": true,
+        "lines": 155
+      },
+      "rules": {
+        "count": 7,
+        "files": [
+          "agent-orchestration",
+          "commit-and-delivery",
+          "context-and-memory",
+          "project-setup",
+          "pull-requests",
+          "quality-engineering",
+          "scope-discipline"
+        ]
+      },
+      "doc_chain": {
+        "project_md": true,
+        "requirements_md": true,
+        "roadmap_md": true,
+        "dismissed": false
+      },
+      "git": {
+        "is_repo": true,
+        "branch": "feat/forge-desktop"
+      },
+      "hooks": {
+        "present": false,
+        "count": 0
+      },
+      "claude_md_audit": {
+        "schema_version": 1,
+        "has_claude_md": true,
+        "lines": 155,
+        "locations": [
+          "/Users/nickt/claude-code-forge/.claude/CLAUDE.md"
+        ],
+        "sections": {
+          "found": [
+            "conventions"
+          ],
+          "missing": [
+            "tech-stack",
+            "testing",
+            "architecture",
+            "error-handling",
+            "security",
+            "deployment",
+            "performance",
+            "dependencies"
+          ],
+          "coverage": 11
+        },
+        "staleness": {
+          "claude_md_days": 0,
+          "repo_days": 0,
+          "stale": false
+        },
+        "tech_stack": {
+          "detected": [
+            "github-actions"
+          ],
+          "mentioned": [],
+          "gaps": [
+            "github-actions"
+          ]
+        },
+        "quality": {
+          "has_placeholders": true,
+          "length_assessment": "adequate"
+        },
+        "findings": [
+          {
+            "severity": "warn",
+            "code": "low_coverage",
+            "detail": "Low section coverage (11%) — missing: tech-stack, testing, architecture, error-handling, security, deployment, performance, dependencies",
+            "fixable": true
+          },
+          {
+            "severity": "info",
+            "code": "tech_gap",
+            "detail": "github-actions detected but not mentioned in CLAUDE.md",
+            "fixable": true
+          },
+          {
+            "severity": "warn",
+            "code": "has_placeholders",
+            "detail": "CLAUDE.md contains TODO/FIXME/placeholder markers",
+            "fixable": false
+          }
+        ]
+      },
+      "score": {
+        "total": 85,
+        "grade": "B",
+        "dimensions": {
+          "config": {
+            "score": 70,
+            "weight": 50
+          },
+          "doc_chain": {
+            "score": 100,
+            "weight": 30
+          },
+          "rules": {
+            "score": 100,
+            "weight": 20
+          }
+        }
+      }
+    },
+    {
+      "path": "/Users/nickt/idealz-interview",
+      "name": "idealz-interview",
+      "claude_md": {
+        "exists": true,
+        "lines": 230
+      },
+      "rules": {
+        "count": 8,
+        "files": [
+          "agent-orchestration",
+          "commit-and-delivery",
+          "context-and-memory",
+          "project-setup",
+          "pull-requests",
+          "quality-engineering",
+          "scope-discipline",
+          "security-overrides"
+        ]
+      },
+      "doc_chain": {
+        "project_md": true,
+        "requirements_md": true,
+        "roadmap_md": true,
+        "dismissed": false
+      },
+      "git": {
+        "is_repo": false,
+        "branch": ""
+      },
+      "hooks": {
+        "present": false,
+        "count": 0
+      },
+      "claude_md_audit": {
+        "schema_version": 1,
+        "has_claude_md": true,
+        "lines": 230,
+        "locations": [
+          "/Users/nickt/idealz-interview/CLAUDE.md",
+          "/Users/nickt/idealz-interview/.claude/CLAUDE.md"
+        ],
+        "sections": {
+          "found": [
+            "architecture",
+            "conventions"
+          ],
+          "missing": [
+            "tech-stack",
+            "testing",
+            "error-handling",
+            "security",
+            "deployment",
+            "performance",
+            "dependencies"
+          ],
+          "coverage": 22
+        },
+        "staleness": {
+          "claude_md_days": 6,
+          "repo_days": -1,
+          "stale": false
+        },
+        "tech_stack": {
+          "detected": [],
+          "mentioned": [],
+          "gaps": []
+        },
+        "quality": {
+          "has_placeholders": true,
+          "length_assessment": "adequate"
+        },
+        "findings": [
+          {
+            "severity": "warn",
+            "code": "low_coverage",
+            "detail": "Low section coverage (22%) — missing: tech-stack, testing, error-handling, security, deployment, performance, dependencies",
+            "fixable": true
+          },
+          {
+            "severity": "warn",
+            "code": "has_placeholders",
+            "detail": "CLAUDE.md contains TODO/FIXME/placeholder markers",
+            "fixable": false
+          }
+        ]
+      },
+      "score": {
+        "total": 85,
+        "grade": "B",
+        "dimensions": {
+          "config": {
+            "score": 70,
+            "weight": 50
+          },
+          "doc_chain": {
+            "score": 100,
+            "weight": 30
+          },
+          "rules": {
+            "score": 100,
+            "weight": 20
+          }
+        }
+      }
+    },
+    {
+      "path": "/Users/nickt/pitstop-360",
+      "name": "pitstop-360",
+      "claude_md": {
+        "exists": true,
+        "lines": 473
+      },
+      "rules": {
+        "count": 8,
+        "files": [
+          "agent-orchestration",
+          "commit-and-delivery",
+          "context-and-memory",
+          "project-setup",
+          "pull-requests",
+          "quality-engineering",
+          "scope-discipline",
+          "security-overrides"
+        ]
+      },
+      "doc_chain": {
+        "project_md": true,
+        "requirements_md": true,
+        "roadmap_md": true,
+        "dismissed": true
+      },
+      "git": {
+        "is_repo": true,
+        "branch": "feat/vendor-admin-overhaul"
+      },
+      "hooks": {
+        "present": false,
+        "count": 0
+      },
+      "claude_md_audit": {
+        "schema_version": 1,
+        "has_claude_md": true,
+        "lines": 473,
+        "locations": [
+          "/Users/nickt/pitstop-360/CLAUDE.md",
+          "/Users/nickt/pitstop-360/.claude/CLAUDE.md"
+        ],
+        "sections": {
+          "found": [
+            "tech-stack",
+            "testing",
+            "architecture",
+            "security",
+            "conventions",
+            "deployment"
+          ],
+          "missing": [
+            "error-handling",
+            "performance",
+            "dependencies"
+          ],
+          "coverage": 66
+        },
+        "staleness": {
+          "claude_md_days": 6,
+          "repo_days": 10,
+          "stale": false
+        },
+        "tech_stack": {
+          "detected": [
+            "nodejs",
+            "docker",
+            "github-actions"
+          ],
+          "mentioned": [
+            "docker"
+          ],
+          "gaps": [
+            "nodejs",
+            "github-actions"
+          ]
+        },
+        "quality": {
+          "has_placeholders": true,
+          "length_assessment": "adequate"
+        },
+        "findings": [
+          {
+            "severity": "warn",
+            "code": "missing_section",
+            "detail": "No error-handling section found",
+            "section": "error-handling",
+            "fixable": true
+          },
+          {
+            "severity": "warn",
+            "code": "missing_section",
+            "detail": "No performance section found",
+            "section": "performance",
+            "fixable": true
+          },
+          {
+            "severity": "warn",
+            "code": "missing_section",
+            "detail": "No dependencies section found",
+            "section": "dependencies",
+            "fixable": true
+          },
+          {
+            "severity": "info",
+            "code": "tech_gap",
+            "detail": "nodejs detected but not mentioned in CLAUDE.md",
+            "fixable": true
+          },
+          {
+            "severity": "info",
+            "code": "tech_gap",
+            "detail": "github-actions detected but not mentioned in CLAUDE.md",
+            "fixable": true
+          },
+          {
+            "severity": "warn",
+            "code": "has_placeholders",
+            "detail": "CLAUDE.md contains TODO/FIXME/placeholder markers",
+            "fixable": false
+          }
+        ]
+      },
+      "score": {
+        "total": 85,
+        "grade": "B",
+        "dimensions": {
+          "config": {
+            "score": 95,
+            "weight": 50
+          },
+          "doc_chain": {
+            "score": 60,
+            "weight": 30
+          },
+          "rules": {
+            "score": 100,
+            "weight": 20
+          }
+        }
+      }
+    }
+  ],
+  "generated_at": "2026-03-23T11:06:03Z"
+}

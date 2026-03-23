@@ -1,3 +1,9 @@
 .DS_Store
 *.backup-*
 .idea/
+
+# Swift
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
