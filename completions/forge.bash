@@ -9,7 +9,7 @@ _forge() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="build config dashboard diff doctor export help init install stats status switch ui update version"
+  commands="audit build config dashboard diff doctor export help init install stats status switch update version"
 
   case "$prev" in
     forge)
@@ -97,12 +97,20 @@ _forge() {
       COMPREPLY=($(compgen -W "--persona --docs --skip-docs --help" -- "$cur"))
       return 0
       ;;
-    dashboard)
-      COMPREPLY=($(compgen -W "--open --output --help" -- "$cur"))
+    audit)
+      COMPREPLY=($(compgen -W "--json --help" -- "$cur"))
       return 0
       ;;
-    ui)
-      COMPREPLY=($(compgen -W "stop status --port --no-open --help" -- "$cur"))
+    dashboard)
+      COMPREPLY=($(compgen -W "--json --help" -- "$cur"))
+      return 0
+      ;;
+    doctor)
+      COMPREPLY=($(compgen -W "--json --help" -- "$cur"))
+      return 0
+      ;;
+    status)
+      COMPREPLY=($(compgen -W "--json --help" -- "$cur"))
       return 0
       ;;
     config)

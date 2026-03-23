@@ -1,42 +1,40 @@
 # Roadmap — Claude Code Forge
 
-## Dashboard Feature
+## Forge Desktop — Native macOS Application
 
-### Phase 1 — MVP Dashboard (in-progress)
+### Phase 0 — CLI Cleanup (in-progress)
 
-Config visibility, repo scanning, scoring, recommendations, dark mode, keyboard nav, accessibility, responsive design, print styles.
+Remove web UI, make JSON the default dashboard output, add `--json` to doctor and status.
 
-- `forge dashboard` generates self-contained HTML at `~/.claude/dashboard/index.html`
-- `forge config get/set` for persistent forge settings
-- Global config overview: persona, hooks, plugins, rules
-- Per-repo health: CLAUDE.md, rules, document chain
-- Effectiveness scoring: weighted 0-100 with letter grades
-- Recommendations panel with copy-to-clipboard commands
-- Light/dark mode with OS preference detection + manual toggle
-- Vim-style keyboard navigation (j/k, /, ?, t, f, g)
-- Responsive grid: 1-4 columns based on viewport
-- WCAG 2.1 AA accessibility, ARIA landmarks, screen reader support
-- Print styles, reduced motion support
-- Focus mode for repos needing attention
+- Delete `forge-server.js`, `web/`, `cmd-ui.sh`, `dashboard/generate.sh`
+- `forge dashboard` outputs JSON to stdout (no HTML generation)
+- `forge doctor --json` for structured diagnostic output
+- `forge status --json` for structured status output
+- All JSON outputs include `schema_version: 1`
 
-### Phase 2 — Security Analytics (planned)
+### Phase 1 — Minimal Viable App (planned)
 
-- Security log parsing and event aggregation
-- SVG sparkline charts for security events over time
-- Hook effectiveness breakdown (blocks vs allows)
-- Per-repo security event attribution
-- Security score dimension added to effectiveness scoring
+Read-only native macOS dashboard (SwiftUI) + menu bar icon.
 
-### Phase 3 — Power Features (planned)
+- Swift app in `app/` directory alongside CLI
+- Menu bar icon with aggregate health score
+- Main window: global score, persona, repo grid with scores/grades
+- Repo detail view with audit breakdown
+- Settings: native folder picker for scan path
+- macOS 14 (Sonoma) minimum
+- Data flow: shell out to `forge` CLI, parse JSON
 
-- `forge dashboard --watch` auto-regeneration on config change
-- Caching layer for faster regeneration
-- Side-by-side config comparison view
-- `forge dashboard --json` for scripting and CI integration
+### Phase 2 — Actions & Setup (planned)
 
-### Phase 4 — Integration (planned)
+- Fix actions: add missing CLAUDE.md sections, init project config
+- First-run setup wizard (detect forge CLI, configure scan path)
+- Run `forge init` and `forge doctor` from app
 
-- `forge dashboard --ci` for compliance checks in CI pipelines
-- Historical score tracking across dashboard generations
-- Sparkline trends on repo cards
-- `forge status` integration with dashboard link
+### Phase 3 — Distribution & Polish (planned)
+
+- FSEvents auto-refresh on config changes
+- Background refresh timer (configurable)
+- Native notifications for score degradation
+- Developer ID signing + notarization
+- GitHub Actions CI → .dmg → GitHub Releases
+- Homebrew cask formula in `nickt/homebrew-forge` tap

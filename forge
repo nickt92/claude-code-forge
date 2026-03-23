@@ -71,8 +71,7 @@ cmd_help() {
   printf "  ${_C_BOLD}status${_C_RST}      Show current installation status\n"
   printf "  ${_C_BOLD}stats${_C_RST}       Show installation statistics\n"
   printf "  ${_C_BOLD}doctor${_C_RST}      Run diagnostic health checks\n"
-  printf "  ${_C_BOLD}dashboard${_C_RST}   Generate configuration dashboard\n"
-  printf "  ${_C_BOLD}ui${_C_RST}          Interactive web management interface\n"
+  printf "  ${_C_BOLD}dashboard${_C_RST}   Configuration health dashboard (JSON)\n"
   printf "  ${_C_BOLD}diff${_C_RST}        Show differences between source and installed\n"
   printf "  ${_C_BOLD}export${_C_RST}      Package installation into portable archive\n"
 

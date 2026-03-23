@@ -16,7 +16,7 @@ teardown() {
 
 # ── Config → Dashboard Pipeline ──────────────────────────────
 
-@test "config set + dashboard generates HTML with repo data" {
+@test "config set + dashboard outputs JSON with repo data" {
   # Set up global config
   create_test_profile "senior-engineer"
   create_test_manifest_v2 "senior-engineer"
@@ -40,24 +40,18 @@ EOF
   source "$SCRIPT_DIR/lib/cmd-config.sh"
   _config_set "dashboard.scan_path" "$scan_dir"
 
-  # Generate dashboard (no run — avoid clobbering $output)
-  local out_file="$TEST_SANDBOX/test-dashboard.html"
+  # Generate dashboard
   source "$SCRIPT_DIR/lib/cmd-dashboard.sh"
-  cmd_dashboard --output "$out_file"
+  run cmd_dashboard
+  assert_success
 
-  # Verify HTML was created
-  assert [ -f "$out_file" ]
-
-  # Verify it contains expected content
-  local content
-  content=$(cat "$out_file")
-  echo "$content" | grep -q "<!DOCTYPE html>"
-  echo "$content" | grep -q "const DATA ="
-  echo "$content" | grep -q "Forge Dashboard"
+  # Verify valid JSON with schema_version
+  echo "$output" | jq -e '.schema_version == 1'
 
   # Verify data includes repos
-  echo "$content" | grep -q "project-alpha"
-  echo "$content" | grep -q "project-beta"
+  echo "$output" | jq -e '.repos | length == 2'
+  echo "$output" | jq -e '[.repos[] | select(.name == "project-alpha")] | length == 1'
+  echo "$output" | jq -e '[.repos[] | select(.name == "project-beta")] | length == 1'
 }
 
 @test "dashboard works without scan path configured" {
@@ -68,12 +62,13 @@ EOF
 {"hooks": {}, "enabledPlugins": {}}
 EOF
 
-  local out_file="$TEST_SANDBOX/test-dashboard.html"
   source "$SCRIPT_DIR/lib/cmd-dashboard.sh"
-  run cmd_dashboard --output "$out_file"
+  run cmd_dashboard
   assert_success
-  assert [ -f "$out_file" ]
-  assert_output --partial "No scan path configured"
+
+  # Should still produce valid JSON with empty repos
+  echo "$output" | jq -e '.schema_version == 1'
+  echo "$output" | jq -e '.repos | length == 0'
 }
 
 @test "dashboard --help shows usage" {
@@ -81,11 +76,10 @@ EOF
   run cmd_dashboard --help
   assert_success
   assert_output --partial "forge dashboard"
-  assert_output --partial "--open"
-  assert_output --partial "--output"
+  assert_output --partial "--json"
 }
 
-@test "dashboard default output goes to ~/.claude/dashboard/index.html" {
+@test "dashboard --json is backward compatible" {
   create_test_profile "senior-engineer"
   create_test_manifest_v2 "senior-engineer"
   echo "# CLAUDE.md" > "$CLAUDE_DIR/CLAUDE.md"
@@ -94,8 +88,9 @@ EOF
 EOF
 
   source "$SCRIPT_DIR/lib/cmd-dashboard.sh"
-  cmd_dashboard
-  assert [ -f "$CLAUDE_DIR/dashboard/index.html" ]
+  run cmd_dashboard --json
+  assert_success
+  echo "$output" | jq -e '.schema_version == 1'
 }
 
 @test "dashboard rejects unknown flags" {
@@ -134,13 +129,11 @@ EOF
   source "$SCRIPT_DIR/lib/cmd-config.sh"
   _config_set "dashboard.scan_path" "$scan_dir"
 
-  local out_file="$TEST_SANDBOX/scored.html"
   source "$SCRIPT_DIR/lib/cmd-dashboard.sh"
-  cmd_dashboard --output "$out_file"
+  run cmd_dashboard
+  assert_success
 
-  # Extract JSON from HTML: find "const DATA = " and extract to matching ";""
-  local json
-  json=$(sed -n 's/^<script>const DATA = \(.*\);<\/script>$/\1/p' "$out_file")
+  local json="$output"
 
   # Good repo should have high score
   local good_score
@@ -169,8 +162,7 @@ EOF
 {"hooks": {}, "enabledPlugins": {}}
 EOF
 
-  local out_file="$TEST_SANDBOX/dispatch-test.html"
-  run "$SCRIPT_DIR/forge" dashboard --output "$out_file"
+  run "$SCRIPT_DIR/forge" dashboard
   assert_success
-  assert [ -f "$out_file" ]
+  echo "$output" | jq -e '.schema_version == 1'
 }

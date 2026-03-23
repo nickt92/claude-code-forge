@@ -6,6 +6,7 @@
 _forge() {
   local -a commands
   commands=(
+    'audit:Audit CLAUDE.md quality for a repository'
     'build:Create a custom persona profile'
     'config:Get/set forge settings'
     'dashboard:Generate configuration dashboard'
@@ -18,7 +19,6 @@ _forge() {
     'stats:Show installation statistics'
     'status:Show current installation status'
     'switch:Switch to a different persona'
-    'ui:Interactive web management interface'
     'update:Update forge from source repository'
     'version:Show forge version'
   )
@@ -33,6 +33,12 @@ _forge() {
       ;;
     args)
       case "${words[1]}" in
+        audit)
+          _arguments \
+            '--json[Output structured JSON]' \
+            '--help[Show help]' \
+            '1:path:_directories'
+          ;;
         switch)
           _forge_personas
           ;;
@@ -68,15 +74,17 @@ _forge() {
           ;;
         dashboard)
           _arguments \
-            '--open[Open in browser after generating]' \
-            {-o,--output}'[Output path]:path:_files -g "*.html"' \
+            '--json[Output JSON (default, backward compat)]' \
             '--help[Show help]'
           ;;
-        ui)
+        doctor)
           _arguments \
-            '1:subcommand:(stop status)' \
-            '--port[Use specific port]:port:' \
-            '--no-open[Start without opening browser]' \
+            '--json[Output structured JSON]' \
+            '--help[Show help]'
+          ;;
+        status)
+          _arguments \
+            '--json[Output structured JSON]' \
             '--help[Show help]'
           ;;
         config)
