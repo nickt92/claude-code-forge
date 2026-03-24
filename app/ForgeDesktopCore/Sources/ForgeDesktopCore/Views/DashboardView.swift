@@ -6,6 +6,10 @@ public struct DashboardView: View {
     @State private var searchText = ""
     @State private var selectedRepo: RepoData?
     @State private var showDoctor = false
+    @State private var showPersonaSwitcher = false
+    @State private var showNewProject = false
+    @AppStorage("sidebarSort") private var sortOrder: String = "name"
+    @State private var activeFilters: Set<SidebarFilter> = []
 
     public init(state: ForgeState, onRefresh: @escaping () -> Void) {
         self.state = state
@@ -31,6 +35,12 @@ public struct DashboardView: View {
         .navigationTitle("Forge Dashboard")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Button { showNewProject = true } label: {
+                    Label("New Project", systemImage: "folder.badge.plus")
+                }
+                .help("New Project...")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button { onRefresh() } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -47,6 +57,23 @@ public struct DashboardView: View {
         }
         .sheet(isPresented: $showDoctor) {
             DoctorView(state: state)
+        }
+        .sheet(isPresented: $showPersonaSwitcher) {
+            if let dashboard = state.dashboard {
+                PersonaSwitcherView(
+                    currentPersona: dashboard.global.persona.persona,
+                    onSwitched: { onRefresh() }
+                )
+            }
+        }
+        .sheet(isPresented: $showNewProject) {
+            if let dashboard = state.dashboard {
+                OnboardingView(
+                    mode: .greenfield(projectPath: "", projectName: "", description: ""),
+                    persona: dashboard.global.persona,
+                    onComplete: { onRefresh() }
+                )
+            }
         }
     }
 
@@ -82,11 +109,41 @@ public struct DashboardView: View {
     private func loadedSidebar(_ data: DashboardData) -> some View {
         List(selection: $selectedRepo) {
             Section {
-                GlobalHealthCard(data: data)
+                GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
             }
 
-            Section("Repositories") {
-                ForEach(filteredRepos(data)) { repo in
+            Section {
+                HStack(spacing: 6) {
+                    Picker("Sort", selection: $sortOrder) {
+                        Text("Name (A-Z)").tag("name")
+                        Text("Score (Low)").tag("score_asc")
+                        Text("Score (High)").tag("score_desc")
+                        Text("Findings").tag("findings")
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .controlSize(.small)
+                }
+
+                FlowLayout(spacing: 4) {
+                    ForEach(SidebarFilter.allCases, id: \.self) { filter in
+                        FilterChip(
+                            label: filter.label,
+                            isActive: activeFilters.contains(filter),
+                            onToggle: {
+                                if activeFilters.contains(filter) {
+                                    activeFilters.remove(filter)
+                                } else {
+                                    activeFilters.insert(filter)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            Section("Repositories (\(sortedAndFilteredRepos(data).count))") {
+                ForEach(sortedAndFilteredRepos(data)) { repo in
                     RepoRow(repo: repo)
                         .tag(repo)
                 }
@@ -95,9 +152,32 @@ public struct DashboardView: View {
         .listStyle(.sidebar)
     }
 
-    private func filteredRepos(_ data: DashboardData) -> [RepoData] {
-        if searchText.isEmpty { return data.repos }
-        return data.repos.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    private func sortedAndFilteredRepos(_ data: DashboardData) -> [RepoData] {
+        var repos = data.repos
+
+        // Text search
+        if !searchText.isEmpty {
+            repos = repos.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+
+        // Filters
+        for filter in activeFilters {
+            repos = repos.filter { filter.matches($0) }
+        }
+
+        // Sort
+        switch sortOrder {
+        case "score_asc":
+            repos.sort { ($0.score?.total ?? 0) < ($1.score?.total ?? 0) }
+        case "score_desc":
+            repos.sort { ($0.score?.total ?? 0) > ($1.score?.total ?? 0) }
+        case "findings":
+            repos.sort { ($0.claudeMdAudit?.findings.count ?? 0) > ($1.claudeMdAudit?.findings.count ?? 0) }
+        default:
+            repos.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+
+        return repos
     }
 }
 
@@ -105,6 +185,7 @@ public struct DashboardView: View {
 
 struct GlobalHealthCard: View {
     let data: DashboardData
+    var onPersonaTap: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -112,8 +193,16 @@ struct GlobalHealthCard: View {
                 ScoreRing(score: data.globalScore.total, grade: data.globalScore.grade, size: 48)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(data.global.persona.label)
-                        .font(.system(size: 13, weight: .semibold))
+                    Button { onPersonaTap?() } label: {
+                        HStack(spacing: 4) {
+                            Text(data.global.persona.label)
+                                .font(.system(size: 13, weight: .semibold))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                     HStack(spacing: 4) {
                         Text("v\(data.global.install.forgeVersion)")
                         Text("·")
@@ -241,6 +330,53 @@ struct DimensionBars: View {
 
     private func formatDimensionName(_ key: String) -> String {
         key.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+// MARK: - Sidebar Filter
+
+public enum SidebarFilter: String, CaseIterable, Sendable {
+    case needsAttention
+    case hasErrors
+    case missingClaudeMd
+
+    var label: String {
+        switch self {
+        case .needsAttention: return "Needs Attention"
+        case .hasErrors: return "Has Errors"
+        case .missingClaudeMd: return "Missing CLAUDE.md"
+        }
+    }
+
+    func matches(_ repo: RepoData) -> Bool {
+        switch self {
+        case .needsAttention:
+            return (repo.score?.total ?? 100) < 80
+        case .hasErrors:
+            return (repo.claudeMdAudit?.findings.filter { $0.severity == "error" }.count ?? 0) > 0
+        case .missingClaudeMd:
+            return !repo.claudeMd.exists
+        }
+    }
+}
+
+// MARK: - Filter Chip
+
+struct FilterChip: View {
+    let label: String
+    let isActive: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(isActive ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.15), in: Capsule())
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 

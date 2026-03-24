@@ -5,11 +5,16 @@ public struct SetupWizardView: View {
     @Environment(\.configService) private var configService
     @State private var detectedPath: String?
     @State private var detectError: String?
+    @State private var claudeDetectedPath: String?
+    @State private var claudeDetectError: String?
+    @State private var claudeVersion: String?
     @State private var scanPath: String = ""
     @State private var loadError: String?
 
     let forgeService: ForgeService
     let onComplete: () -> Void
+
+    @Environment(\.claudeService) private var claudeService
 
     public init(state: ForgeState, forgeService: ForgeService, onComplete: @escaping () -> Void) {
         self.state = state
@@ -49,6 +54,8 @@ public struct SetupWizardView: View {
                 switch state.setupPhase {
                 case .detectCLI:
                     detectCLIStep
+                case .detectClaude:
+                    detectClaudeStep
                 case .setScanPath:
                     scanPathStep
                 case .initialLoad:
@@ -70,19 +77,22 @@ public struct SetupWizardView: View {
         HStack(spacing: 0) {
             stepDot(step: 1, label: "Find CLI", active: state.setupPhase == .detectCLI, done: stepNumber > 1)
             stepLine(done: stepNumber > 1)
-            stepDot(step: 2, label: "Scan Path", active: state.setupPhase == .setScanPath, done: stepNumber > 2)
+            stepDot(step: 2, label: "Claude", active: state.setupPhase == .detectClaude, done: stepNumber > 2)
             stepLine(done: stepNumber > 2)
-            stepDot(step: 3, label: "Load Data", active: state.setupPhase == .initialLoad, done: state.setupPhase == .complete)
+            stepDot(step: 3, label: "Scan Path", active: state.setupPhase == .setScanPath, done: stepNumber > 3)
+            stepLine(done: stepNumber > 3)
+            stepDot(step: 4, label: "Load Data", active: state.setupPhase == .initialLoad, done: state.setupPhase == .complete)
         }
-        .padding(.horizontal, 60)
+        .padding(.horizontal, 40)
     }
 
     private var stepNumber: Int {
         switch state.setupPhase {
         case .detectCLI: return 1
-        case .setScanPath: return 2
-        case .initialLoad: return 3
-        case .complete: return 4
+        case .detectClaude: return 2
+        case .setScanPath: return 3
+        case .initialLoad: return 4
+        case .complete: return 5
         }
     }
 
@@ -138,7 +148,7 @@ public struct SetupWizardView: View {
 
                 Button {
                     state.forgePath = path
-                    state.setupPhase = .setScanPath
+                    state.setupPhase = .detectClaude
                 } label: {
                     Text("Continue")
                         .frame(minWidth: 120)
@@ -200,7 +210,144 @@ public struct SetupWizardView: View {
         }
     }
 
-    // MARK: - Step 2: Scan Path
+    // MARK: - Step 2: Detect Claude
+
+    private var detectClaudeStep: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 6) {
+                Text("Check Claude Code CLI")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Claude Code powers intelligent CLAUDE.md fixes.\nIt's optional but recommended.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let path = claudeDetectedPath {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.green)
+                    Text("Claude Code found")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .textSelection(.enabled)
+                    if let version = claudeVersion {
+                        Text("Version: \(version)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                Button {
+                    UserDefaults.standard.set(path, forKey: "claudeBinaryPath")
+                    state.claudeAvailable = true
+                    state.setupPhase = .setScanPath
+                } label: {
+                    Text("Continue")
+                        .frame(minWidth: 120)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else if claudeDetectError != nil {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.orange)
+                    Text("Claude Code CLI not found")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("Install it to enable intelligent fixes:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 6) {
+                        Text("npm install -g @anthropic-ai/claude-code")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                            .textSelection(.enabled)
+
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("npm install -g @anthropic-ai/claude-code", forType: .string)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 10))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Copy command")
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    Button("Skip for Now") {
+                        state.claudeAvailable = false
+                        state.setupPhase = .setScanPath
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Retry") { detectClaude() }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.regular)
+                    Text("Searching for Claude Code CLI...")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task { detectClaude() }
+    }
+
+    private func detectClaude() {
+        claudeDetectedPath = nil
+        claudeDetectError = nil
+        claudeVersion = nil
+
+        Task {
+            if let path = ClaudeService.discoverClaudePath() {
+                // Verify it's functional with --version
+                let versionStr = await getClaudeVersion(at: path)
+                claudeDetectedPath = path
+                claudeVersion = versionStr
+            } else {
+                claudeDetectError = "Not found"
+            }
+        }
+    }
+
+    private func getClaudeVersion(at path: String) async -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["--version"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - Step 3: Scan Path
 
     private var scanPathStep: some View {
         VStack(spacing: 18) {

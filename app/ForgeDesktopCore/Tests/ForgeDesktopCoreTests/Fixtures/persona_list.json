@@ -1,0 +1,29 @@
+[
+  {
+    "persona": "senior-engineer",
+    "label": "Senior Engineer",
+    "description": "I architect and build production systems with deep technical expertise",
+    "axes": { "communication": "expert", "autonomy": "high", "workflow": "advanced", "depth": "engineering" },
+    "quality": ["core", "engineering"],
+    "default_plugin_group": "full",
+    "source": "builtin"
+  },
+  {
+    "persona": "junior-dev",
+    "label": "Junior Developer",
+    "description": "I'm learning to code and building my first projects",
+    "axes": { "communication": "beginner", "autonomy": "low", "workflow": "guided", "depth": "learning" },
+    "quality": ["core"],
+    "default_plugin_group": "minimal",
+    "source": "builtin"
+  },
+  {
+    "persona": "custom-team",
+    "label": "Custom Team Profile",
+    "description": "Team-specific profile for our org",
+    "axes": { "communication": "detailed", "autonomy": "moderate", "workflow": "standard", "depth": "technical" },
+    "quality": ["core", "engineering"],
+    "default_plugin_group": "full",
+    "source": "custom"
+  }
+]

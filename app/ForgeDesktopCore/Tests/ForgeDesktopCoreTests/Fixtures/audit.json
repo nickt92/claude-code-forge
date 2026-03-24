@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "has_claude_md": true,
+  "lines": 200,
+  "locations": ["/Users/test/repo/.claude/CLAUDE.md"],
+  "sections": {
+    "found": ["conventions", "tech-stack", "testing"],
+    "missing": ["architecture", "deployment"],
+    "coverage": 60
+  },
+  "staleness": {
+    "claude_md_days": 2,
+    "repo_days": 1,
+    "stale": false
+  },
+  "tech_stack": {
+    "detected": ["swift", "swiftui"],
+    "mentioned": ["swift"],
+    "gaps": ["swiftui"]
+  },
+  "quality": {
+    "has_placeholders": false,
+    "length_assessment": "adequate"
+  },
+  "findings": [
+    {
+      "severity": "warn",
+      "code": "missing_section",
+      "detail": "Missing architecture section",
+      "section": "architecture",
+      "fixable": true
+    },
+    {
+      "severity": "info",
+      "code": "tech_gap",
+      "detail": "SwiftUI detected but not documented",
+      "section": null,
+      "fixable": true
+    }
+  ]
+}

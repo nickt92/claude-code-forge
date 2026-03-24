@@ -35,9 +35,26 @@ public final class ForgeState {
 
     public enum SetupPhase: Sendable {
         case detectCLI
+        case detectClaude
         case setScanPath
         case initialLoad
         case complete
+    }
+
+    public func updateRepo(path: String, audit: AuditData) {
+        guard case .loaded(let data) = loadState else { return }
+        var repos = data.repos
+        if let idx = repos.firstIndex(where: { $0.path == path }) {
+            repos[idx] = repos[idx].withUpdatedAudit(audit)
+            let updated = DashboardData(
+                schemaVersion: data.schemaVersion,
+                global: data.global,
+                globalScore: data.globalScore,
+                repos: repos,
+                generatedAt: data.generatedAt
+            )
+            loadState = .loaded(updated)
+        }
     }
 
     public init() {}

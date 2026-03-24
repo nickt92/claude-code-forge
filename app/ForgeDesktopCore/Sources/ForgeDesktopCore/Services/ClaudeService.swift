@@ -1,4 +1,13 @@
 import Foundation
+import os
+
+public enum ClaudeStreamEvent: Sendable {
+    case assistantText(String)
+    case toolUse(name: String, input: String)
+    case toolResult(name: String, output: String)
+    case result(ClaudeResult)
+    case error(String)
+}
 
 public struct ClaudeResult: Codable, Sendable {
     public let result: String?
@@ -26,6 +35,8 @@ public struct ClaudeResult: Codable, Sendable {
 }
 
 public final class ClaudeService: Sendable {
+    private static let logger = Logger(subsystem: "com.forge.desktop", category: "ClaudeService")
+
     private let executor: CLIExecutor
     private let claudePath: String?
 
@@ -64,6 +75,8 @@ public final class ClaudeService: Sendable {
             "--max-budget-usd", Self.maxBudget,
         ]
 
+        Self.logger.info("Invoking Claude: model=\(Self.model) tools=\(allowedTools.joined(separator: ","), privacy: .public) prompt_length=\(prompt.count) repo=\(repoPath, privacy: .public)")
+
         let data: Data
         do {
             data = try await executor.run(
@@ -73,12 +86,150 @@ public final class ClaudeService: Sendable {
                 timeout: Self.timeout
             )
         } catch let error as ForgeError where error.isCLIExit {
+            Self.logger.error("Claude CLI failed: \(error.errorDescription ?? "Unknown", privacy: .public)")
             throw ForgeError.claudeFailed(error.errorDescription ?? "Unknown error")
         } catch let error as ForgeError where error.isTimeout {
+            Self.logger.error("Claude timed out after \(Self.timeout)s")
             throw ForgeError.claudeTimeout
         }
 
-        return try parseResult(data)
+        let result = try parseResult(data)
+        Self.logger.info("Claude response: isError=\(result.isError) cost=$\(result.costUsd ?? 0, format: .fixed(precision: 4)) result_length=\(result.result?.count ?? 0)")
+        return result
+    }
+
+    // MARK: - Streaming
+
+    public func streamInRepo(
+        prompt: String,
+        repoPath: String,
+        systemPrompt: String? = nil,
+        allowedTools: [String] = ["Read", "Edit", "Glob", "Grep"],
+        maxBudget: String = "1.00",
+        timeout: TimeInterval = 300
+    ) -> AsyncThrowingStream<ClaudeStreamEvent, Error> {
+        guard let path = claudePath else {
+            return AsyncThrowingStream { $0.finish(throwing: ForgeError.claudeNotAvailable) }
+        }
+
+        var arguments = [
+            "-p", prompt,
+            "--output-format", "stream-json",
+            "--model", Self.model,
+            "--permission-mode", "bypassPermissions",
+            "--no-session-persistence",
+            "--allowedTools", allowedTools.joined(separator: ","),
+            "--max-budget-usd", maxBudget,
+        ]
+
+        if let systemPrompt {
+            arguments += ["--append-system-prompt", systemPrompt]
+        }
+
+        Self.logger.info("Streaming Claude: model=\(Self.model) tools=\(allowedTools.joined(separator: ","), privacy: .public) prompt_length=\(prompt.count) repo=\(repoPath, privacy: .public)")
+
+        let rawStream = executor.stream(
+            executable: path,
+            arguments: arguments,
+            workingDirectory: repoPath,
+            timeout: timeout
+        )
+
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    for try await lineData in rawStream {
+                        guard let line = String(data: lineData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines),
+                              !line.isEmpty else { continue }
+
+                        if let event = Self.parseStreamLine(line) {
+                            continuation.yield(event)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    Self.logger.error("Stream error: \(error.localizedDescription, privacy: .public)")
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
+    static func parseStreamLine(_ line: String) -> ClaudeStreamEvent? {
+        guard let data = line.data(using: .utf8) else { return nil }
+
+        do {
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            guard let json else { return nil }
+
+            let type = json["type"] as? String ?? ""
+
+            switch type {
+            case "assistant":
+                // Text content block
+                if let message = json["message"] as? [String: Any],
+                   let content = message["content"] as? [[String: Any]] {
+                    var text = ""
+                    for block in content {
+                        if let blockText = block["text"] as? String {
+                            text += blockText
+                        }
+                    }
+                    if !text.isEmpty {
+                        return .assistantText(text)
+                    }
+                }
+                return nil
+
+            case "content_block_delta":
+                if let delta = json["delta"] as? [String: Any],
+                   let text = delta["text"] as? String {
+                    return .assistantText(text)
+                }
+                return nil
+
+            case "tool_use":
+                let name = json["name"] as? String ?? "unknown"
+                let input: String
+                if let inputObj = json["input"] {
+                    if let inputData = try? JSONSerialization.data(withJSONObject: inputObj),
+                       let inputStr = String(data: inputData, encoding: .utf8) {
+                        input = inputStr
+                    } else {
+                        input = ""
+                    }
+                } else {
+                    input = ""
+                }
+                return .toolUse(name: name, input: input)
+
+            case "tool_result":
+                let name = json["name"] as? String ?? "unknown"
+                let output = json["output"] as? String ?? ""
+                return .toolResult(name: name, output: output)
+
+            case "result":
+                if let resultStr = json["result"] as? String {
+                    let isError = json["is_error"] as? Bool ?? false
+                    let costUsd = json["cost_usd"] as? Double
+                    let result = ClaudeResult(result: resultStr, isError: isError, costUsd: costUsd)
+                    return .result(result)
+                }
+                return nil
+
+            case "error":
+                let message = json["error"] as? String
+                    ?? (json["message"] as? String)
+                    ?? "Unknown error"
+                return .error(message)
+
+            default:
+                return nil
+            }
+        } catch {
+            return nil
+        }
     }
 
     private func parseResult(_ data: Data) throws -> ClaudeResult {

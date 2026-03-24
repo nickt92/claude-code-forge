@@ -5,7 +5,14 @@ public struct RepoDetailView: View {
     @State private var dismissedFindings: Set<String> = []
     @State private var contentHashAtLoad: String?
     @State private var fixRunning: Bool = false
+    @State private var claudeMdRefreshTrigger: Int = 0
+    @State private var bulkFixState: BulkFixState?
+    @State private var showOnboarding = false
     @Environment(\.fixService) private var fixService
+    @Environment(\.forgeService) private var forgeService
+    @Environment(\.forgeState) private var forgeState
+    @Environment(\.dismissalService) private var dismissalService
+    @Environment(\.claudeService) private var claudeService
 
     public init(repo: RepoData) {
         self.repo = repo
@@ -18,9 +25,19 @@ public struct RepoDetailView: View {
                 if let score = repo.score {
                     scoreSection(score)
                 }
+                if showOnboardingCard {
+                    onboardingCard
+                }
                 configSection
                 if let audit = repo.claudeMdAudit {
                     auditSection(audit)
+                    if let mdPath = audit.locations.first {
+                        ClaudeMdContentView(
+                            filePath: mdPath,
+                            audit: audit,
+                            refreshTrigger: claudeMdRefreshTrigger
+                        )
+                    }
                     findingsSection(audit.findings)
                 }
             }
@@ -33,10 +50,13 @@ public struct RepoDetailView: View {
             if let mdPath = repo.claudeMdAudit?.locations.first {
                 contentHashAtLoad = try? fixService.contentHash(for: mdPath)
             }
+            dismissedFindings = dismissalService.dismissedIds(for: repo.path)
         }
     }
 
     // MARK: - Header
+
+    @State private var isRefreshingAudit = false
 
     private var header: some View {
         HStack(spacing: 14) {
@@ -44,9 +64,62 @@ public struct RepoDetailView: View {
                 ScoreRing(score: score.total, grade: score.grade, size: 56)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(repo.name)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                HStack(spacing: 8) {
+                    Text(repo.name)
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Spacer()
+
+                    HStack(spacing: 2) {
+                        Button { SystemActions.openInFinder(path: repo.path) } label: {
+                            Image(systemName: "folder")
+                                .frame(width: 24, height: 24)
+                        }
+                        .help("Open in Finder")
+
+                        Button { SystemActions.openInTerminal(path: repo.path) } label: {
+                            Image(systemName: "terminal")
+                                .frame(width: 24, height: 24)
+                        }
+                        .help("Open in Terminal")
+
+                        Button { SystemActions.openInEditor(path: repo.path) } label: {
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .frame(width: 24, height: 24)
+                        }
+                        .help("Open in Editor")
+
+                        if repo.claudeMd.exists, claudeService.isAvailable {
+                            Button { showOnboarding = true } label: {
+                                Image(systemName: "sparkles")
+                                    .frame(width: 24, height: 24)
+                            }
+                            .help("Regenerate CLAUDE.md with Claude")
+                        }
+
+                        Button {
+                            isRefreshingAudit = true
+                            Task {
+                                await refreshRepoAudit()
+                                isRefreshingAudit = false
+                            }
+                        } label: {
+                            if isRefreshingAudit {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .frame(width: 24, height: 24)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .frame(width: 24, height: 24)
+                            }
+                        }
+                        .disabled(isRefreshingAudit)
+                        .help("Re-audit Repository")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
                 Text(repo.path)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
@@ -60,7 +133,6 @@ public struct RepoDetailView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            Spacer()
         }
     }
 
@@ -69,6 +141,62 @@ public struct RepoDetailView: View {
     private func scoreSection(_ score: ScoreData) -> some View {
         DetailCard("Score Breakdown") {
             DimensionBars(dimensions: score.dimensions)
+        }
+    }
+
+    // MARK: - Onboarding Card
+
+    private var showOnboardingCard: Bool {
+        !repo.claudeMd.exists || (repo.score?.total ?? 100) < 50
+    }
+
+    private var onboardingCard: some View {
+        DetailCard("Generate CLAUDE.md") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(repo.claudeMd.exists
+                    ? "Your CLAUDE.md scored low. Regenerate it with Claude for comprehensive codebase analysis."
+                    : "Analyze this codebase and generate a comprehensive CLAUDE.md with Claude.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    Button {
+                        showOnboarding = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                            Text("Generate with Claude")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(!claudeService.isAvailable)
+
+                    if !claudeService.isAvailable {
+                        Text("Requires Claude CLI")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.blue.opacity(0.3), lineWidth: 1)
+        )
+        .sheet(isPresented: $showOnboarding) {
+            if let dashboard = forgeState.dashboard {
+                OnboardingView(
+                    mode: .brownfield(repoPath: repo.path),
+                    persona: dashboard.global.persona,
+                    onComplete: {
+                        claudeMdRefreshTrigger += 1
+                        Task { await refreshRepoAudit() }
+                    }
+                )
+            }
         }
     }
 
@@ -169,6 +297,9 @@ public struct RepoDetailView: View {
 
     private func findingsSection(_ findings: [Finding]) -> some View {
         let visibleFindings = findings.filter { !dismissedFindings.contains($0.id) }
+        let fixableCount = visibleFindings.filter(\.fixable).count
+        let infoFindings = visibleFindings.filter { $0.severity == "info" }
+
         return DetailCard("Findings (\(visibleFindings.count))") {
             if visibleFindings.isEmpty {
                 Text("No findings — looking good!")
@@ -176,27 +307,208 @@ public struct RepoDetailView: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 4)
             } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(visibleFindings) { finding in
-                        FindingRow(
-                            finding: finding,
-                            repoPath: repo.path,
-                            claudeMdPath: repo.claudeMdAudit?.locations.first,
-                            contentHashAtLoad: contentHashAtLoad,
-                            fixDisabled: fixRunning,
-                            onFixed: { [finding] in
-                                let id = finding.id
-                                withAnimation {
-                                    _ = dismissedFindings.insert(id)
+                VStack(alignment: .leading, spacing: 8) {
+                    // Bulk action buttons
+                    HStack(spacing: 8) {
+                        if fixableCount >= 2 {
+                            Button {
+                                runBulkFix(visibleFindings.filter(\.fixable))
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "wrench.and.screwdriver.fill")
+                                        .font(.system(size: 10))
+                                    Text("Fix All (\(fixableCount))")
+                                        .font(.system(size: 11, weight: .medium))
                                 }
-                            },
-                            onFixStarted: { fixRunning = true },
-                            onFixEnded: { fixRunning = false }
-                        )
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(fixRunning || bulkFixState != nil)
+                        }
+
+                        if !infoFindings.isEmpty {
+                            Button {
+                                dismissInfoFindings(infoFindings)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "eye.slash")
+                                        .font(.system(size: 10))
+                                    Text("Dismiss Info (\(infoFindings.count))")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+
+                        Spacer()
+                    }
+
+                    // Bulk fix progress
+                    if let bulk = bulkFixState {
+                        BulkFixProgressView(state: bulk)
+                    }
+
+                    // Individual finding rows
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(visibleFindings) { finding in
+                            FindingRow(
+                                finding: finding,
+                                repoPath: repo.path,
+                                claudeMdPath: repo.claudeMdAudit?.locations.first,
+                                contentHashAtLoad: contentHashAtLoad,
+                                fixDisabled: fixRunning || bulkFixState != nil,
+                                onFixed: { [finding] in
+                                    let id = finding.id
+                                    dismissalService.dismiss(repoPath: repo.path, findingId: id)
+                                    withAnimation {
+                                        _ = dismissedFindings.insert(id)
+                                    }
+                                    claudeMdRefreshTrigger += 1
+                                    Task { await refreshRepoAudit() }
+                                },
+                                onFixStarted: { fixRunning = true },
+                                onFixEnded: { fixRunning = false }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Bulk Operations
+
+    private func dismissInfoFindings(_ findings: [Finding]) {
+        let ids = findings.map(\.id)
+        dismissalService.dismissAll(repoPath: repo.path, findingIds: ids)
+        withAnimation {
+            for id in ids {
+                dismissedFindings.insert(id)
+            }
+        }
+    }
+
+    private func runBulkFix(_ fixableFindings: [Finding]) {
+        let state = BulkFixState(total: fixableFindings.count)
+        bulkFixState = state
+        fixRunning = true
+
+        Task {
+            for (index, finding) in fixableFindings.enumerated() {
+                bulkFixState?.currentIndex = index
+                bulkFixState?.currentFinding = finding.detail
+
+                do {
+                    let result = try await fixService.fix(
+                        finding: finding,
+                        repoPath: repo.path,
+                        claudeMdPath: repo.claudeMdAudit?.locations.first,
+                        contentHashAtLoad: contentHashAtLoad
+                    )
+
+                    switch result {
+                    case .success:
+                        bulkFixState?.completedCount += 1
+                        dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
+                        _ = withAnimation {
+                            dismissedFindings.insert(finding.id)
+                        }
+                        claudeMdRefreshTrigger += 1
+                    case .pendingReview(_, let after):
+                        // Auto-approve in bulk mode — user opted into "Fix All"
+                        if let mdPath = repo.claudeMdAudit?.locations.first {
+                            let consistent = try fixService.approveChange(mdPath: mdPath, expectedAfterContent: after)
+                            if consistent {
+                                bulkFixState?.completedCount += 1
+                                dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
+                                _ = withAnimation {
+                                    dismissedFindings.insert(finding.id)
+                                }
+                                claudeMdRefreshTrigger += 1
+                            } else {
+                                bulkFixState?.failedFinding = finding.detail
+                                break
+                            }
+                        }
+                    default:
+                        bulkFixState?.failedFinding = finding.detail
+                        break
+                    }
+                } catch {
+                    bulkFixState?.failedFinding = finding.detail
+                    break
+                }
+
+                if bulkFixState?.failedFinding != nil { break }
+            }
+
+            await refreshRepoAudit()
+            fixRunning = false
+
+            // Clear bulk state after a delay so user sees the result
+            try? await Task.sleep(for: .seconds(3))
+            bulkFixState = nil
+        }
+    }
+
+    // MARK: - Repo Refresh
+
+    private func refreshRepoAudit() async {
+        do {
+            let audit = try await forgeService.auditRepo(path: repo.path)
+            forgeState.updateRepo(path: repo.path, audit: audit)
+        } catch {
+            // Refresh is best-effort — don't surface errors for background refresh
+        }
+    }
+}
+
+// MARK: - Bulk Fix State
+
+struct BulkFixState {
+    let total: Int
+    var currentIndex: Int = 0
+    var completedCount: Int = 0
+    var currentFinding: String = ""
+    var failedFinding: String?
+}
+
+struct BulkFixProgressView: View {
+    let state: BulkFixState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                ProgressView(value: Double(state.completedCount), total: Double(state.total))
+                    .progressViewStyle(.linear)
+                Text("\(state.completedCount)/\(state.total)")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let failed = state.failedFinding {
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.system(size: 10))
+                    Text("Failed: \(failed)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text(state.currentFinding)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -268,9 +580,11 @@ struct FindingRow: View {
     @Environment(\.fixService) private var fixService
     @State private var showConfirm = false
     @State private var fixState: FixState = .idle
+    @State private var showClaudeResponse = false
 
     enum FixState {
         case idle, running, pendingReview(before: String, after: String), success, failed(String)
+        case claudeDidNotModify(response: String)
     }
 
     private var usesClaudeFix: Bool {
@@ -292,28 +606,42 @@ struct FindingRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(severityColor(finding.severity))
-                .frame(width: 16, alignment: .center)
-                .padding(.top, 2)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(severityColor(finding.severity))
+                    .frame(width: 16, alignment: .center)
+                    .padding(.top, 2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(finding.detail)
-                    .font(.system(size: 12))
-                HStack(spacing: 6) {
-                    Text(finding.code.replacingOccurrences(of: "_", with: " "))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(finding.detail)
+                        .font(.system(size: 12))
+                    HStack(spacing: 6) {
+                        Text(finding.code.replacingOccurrences(of: "_", with: " "))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
 
-                    if finding.fixable {
-                        fixButton
+                        if finding.fixable {
+                            fixButton
+                        }
                     }
                 }
+
+                Spacer()
             }
 
-            Spacer()
+            if case .claudeDidNotModify(let response) = fixState, showClaudeResponse, !response.isEmpty {
+                Text(response)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(.top, 6)
+                    .padding(.leading, 24)
+            }
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
@@ -399,6 +727,24 @@ struct FindingRow: View {
             .padding(.vertical, 2)
             .background(Color.green.opacity(0.1), in: Capsule())
             .foregroundStyle(.green)
+        case .claudeDidNotModify:
+            Button {
+                showClaudeResponse.toggle()
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 9))
+                    Text("No changes")
+                        .font(.system(size: 9, weight: .bold))
+                    Image(systemName: showClaudeResponse ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 7))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.red.opacity(0.1), in: Capsule())
+                .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
         case .failed(let message):
             HStack(spacing: 3) {
                 Image(systemName: "xmark.circle.fill")
@@ -485,6 +831,9 @@ struct FindingRow: View {
                 case .pendingReview(let before, let after):
                     // Keep fixRunning=true — buttons stay disabled during review
                     fixState = .pendingReview(before: before, after: after)
+                case .claudeDidNotModify(let response):
+                    fixState = .claudeDidNotModify(response: response)
+                    onFixEnded?()
                 case .notFixable(let reason):
                     fixState = .failed(reason)
                     onFixEnded?()

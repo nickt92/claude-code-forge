@@ -95,6 +95,20 @@ public struct RepoData: Codable, Sendable, Identifiable {
     public let score: ScoreData?
 
     public var id: String { path }
+
+    public func withUpdatedAudit(_ audit: AuditData) -> RepoData {
+        RepoData(
+            path: path,
+            name: name,
+            claudeMd: ClaudeMdBasic(exists: audit.hasClaudeMd, lines: audit.lines),
+            rules: rules,
+            docChain: docChain,
+            git: git,
+            hooks: hooks,
+            claudeMdAudit: audit,
+            score: score
+        )
+    }
 }
 
 public struct ClaudeMdBasic: Codable, Sendable {

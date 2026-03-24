@@ -5,6 +5,7 @@ import ForgeDesktopCore
 struct ForgeApp: App {
     @State private var forgeState = ForgeState()
     @State private var showDoctor = false
+    @State private var showNewProject = false
     @Environment(\.openWindow) private var openWindow
     @AppStorage("setupComplete") private var setupComplete = false
 
@@ -13,18 +14,28 @@ struct ForgeApp: App {
     private let fixService: FixService
     private let configService: ConfigService
     private let claudeService: ClaudeService
+    private let personaService: PersonaService
+    private let onboardingService: OnboardingService
 
     init() {
         let forgePath = UserDefaults.standard.string(forKey: "forgeBinaryPath")
         let resolvedPath = forgePath?.isEmpty == true ? nil : forgePath
 
+        let claudePath = UserDefaults.standard.string(forKey: "claudeBinaryPath")
+        let resolvedClaudePath = claudePath?.isEmpty == true ? nil : claudePath
+
         self.forgeService = ForgeService(forgePath: resolvedPath)
         self.doctorService = DoctorService(forgePath: resolvedPath)
-        self.claudeService = ClaudeService()
+        self.claudeService = ClaudeService(claudePath: resolvedClaudePath)
 
         let initService = InitService(forgePath: resolvedPath)
         self.fixService = FixService(initService: initService, claudeService: claudeService)
         self.configService = ConfigService(forgePath: resolvedPath)
+        self.personaService = PersonaService(forgePath: resolvedPath)
+        self.onboardingService = OnboardingService(
+            claudeService: claudeService,
+            forgePath: resolvedPath
+        )
     }
 
     var body: some Scene {
@@ -71,11 +82,35 @@ struct ForgeApp: App {
                 .environment(\.doctorService, doctorService)
                 .environment(\.configService, configService)
                 .environment(\.claudeService, claudeService)
+                .environment(\.personaService, personaService)
+                .environment(\.forgeService, forgeService)
+                .environment(\.forgeState, forgeState)
+                .environment(\.dismissalService, DismissalService())
+                .environment(\.onboardingService, onboardingService)
+                .sheet(isPresented: $showNewProject) {
+                    if let dashboard = forgeState.dashboard {
+                        OnboardingView(
+                            mode: .greenfield(projectPath: "", projectName: "", description: ""),
+                            persona: dashboard.global.persona,
+                            onComplete: { refresh() }
+                        )
+                    }
+                }
         }
         .defaultSize(width: 900, height: 650)
 
         Settings {
-            SettingsView()
+            SettingsView(onRescan: { refresh() })
+                .environment(\.configService, configService)
+        }
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("New Project...") {
+                    openWindow(id: "dashboard")
+                    showNewProject = true
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
     }
 

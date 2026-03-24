@@ -1,0 +1,52 @@
+{
+  "path": "/Users/test/my-project",
+  "name": "my-project",
+  "directory_structure": ".\n├── src\n│   ├── components\n│   └── utils\n├── tests\n└── package.json",
+  "dependencies": [
+    {
+      "file": "package.json",
+      "content": "{\n  \"name\": \"my-project\",\n  \"version\": \"1.0.0\",\n  \"dependencies\": {\n    \"react\": \"^18.2.0\",\n    \"next\": \"14.0.4\"\n  }\n}"
+    }
+  ],
+  "configs": [
+    {
+      "file": "tsconfig.json",
+      "content": "{\n  \"compilerOptions\": {\n    \"target\": \"es2017\",\n    \"strict\": true\n  }\n}"
+    }
+  ],
+  "documentation": [
+    {
+      "file": "README.md",
+      "content": "# My Project\n\nA sample project for testing."
+    }
+  ],
+  "git": {
+    "is_repo": true,
+    "branch": "main",
+    "default_branch": "main",
+    "recent_commits": [
+      "abc1234 feat: add auth",
+      "def5678 fix: login redirect",
+      "ghi9012 chore: update deps"
+    ],
+    "contributors": [
+      "42\tAlice",
+      "17\tBob"
+    ]
+  },
+  "test_files": [
+    "tests/auth.test.ts",
+    "tests/utils.test.ts"
+  ],
+  "scripts": [
+    "scripts/deploy.sh",
+    "scripts/seed.sh"
+  ],
+  "existing_claude_md": null,
+  "ci_configs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "content": "name: CI\non:\n  push:\n    branches: [main]"
+    }
+  ]
+}

@@ -23,6 +23,20 @@ public final class ForgeService: Sendable {
         }
     }
 
+    public func auditRepo(path: String) async throws -> AuditData {
+        let forgePath = try await discoverForgePath()
+        let data = try await executor.run(executable: forgePath, arguments: ["audit", path, "--json"])
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        do {
+            return try decoder.decode(AuditData.self, from: data)
+        } catch let error as DecodingError {
+            throw ForgeError.jsonDecodingFailed(error)
+        }
+    }
+
     public func discoverForgePath() async throws -> String {
         if let override = forgePathOverride, !override.isEmpty {
             guard FileManager.default.isExecutableFile(atPath: override) else {

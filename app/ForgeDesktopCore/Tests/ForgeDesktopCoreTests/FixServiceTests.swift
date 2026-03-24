@@ -380,7 +380,7 @@ final class FixServiceTests: XCTestCase {
         XCTAssertEqual(result, .claudeTimeout)
     }
 
-    func testClaudeNoModificationReturnsFailed() async throws {
+    func testClaudeNoModificationReturnsDidNotModify() async throws {
         let mdPath = "/repo/CLAUDE.md"
         let original = "# Project\n"
         let fs = MockFileSystem(files: [mdPath: original])
@@ -394,10 +394,10 @@ final class FixServiceTests: XCTestCase {
 
         let result = try await service.fix(finding: finding, repoPath: "/repo", claudeMdPath: mdPath, contentHashAtLoad: hash)
 
-        if case .claudeFailed(let msg) = result {
-            XCTAssertTrue(msg.contains("did not modify"))
+        if case .claudeDidNotModify(let response) = result {
+            XCTAssertEqual(response, "Done")
         } else {
-            XCTFail("Expected .claudeFailed, got \(result)")
+            XCTFail("Expected .claudeDidNotModify, got \(result)")
         }
     }
 

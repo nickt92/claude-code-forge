@@ -26,6 +26,38 @@ private struct ConfigServiceKey: EnvironmentKey {
     static let defaultValue: ConfigService = ConfigService()
 }
 
+// MARK: - Persona Service Key
+
+private struct PersonaServiceKey: EnvironmentKey {
+    static let defaultValue: PersonaService = PersonaService()
+}
+
+// MARK: - Forge Service Key
+
+private struct ForgeServiceEnvironmentKey: EnvironmentKey {
+    static let defaultValue: ForgeService = ForgeService()
+}
+
+// MARK: - Dismissal Service Key
+
+private struct DismissalServiceKey: EnvironmentKey {
+    static let defaultValue: DismissalService = DismissalService()
+}
+
+// MARK: - Onboarding Service Key
+
+private struct OnboardingServiceKey: EnvironmentKey {
+    static let defaultValue: OnboardingService = OnboardingService(
+        claudeService: ClaudeService()
+    )
+}
+
+// MARK: - Forge State Key
+
+private struct ForgeStateKey: @preconcurrency EnvironmentKey {
+    @MainActor static let defaultValue: ForgeState = ForgeState()
+}
+
 // MARK: - Environment Extensions
 
 extension EnvironmentValues {
@@ -47,5 +79,30 @@ extension EnvironmentValues {
     public var configService: ConfigService {
         get { self[ConfigServiceKey.self] }
         set { self[ConfigServiceKey.self] = newValue }
+    }
+
+    public var personaService: PersonaService {
+        get { self[PersonaServiceKey.self] }
+        set { self[PersonaServiceKey.self] = newValue }
+    }
+
+    public var forgeService: ForgeService {
+        get { self[ForgeServiceEnvironmentKey.self] }
+        set { self[ForgeServiceEnvironmentKey.self] = newValue }
+    }
+
+    public var onboardingService: OnboardingService {
+        get { self[OnboardingServiceKey.self] }
+        set { self[OnboardingServiceKey.self] = newValue }
+    }
+
+    public var forgeState: ForgeState {
+        get { self[ForgeStateKey.self] }
+        set { self[ForgeStateKey.self] = newValue }
+    }
+
+    public var dismissalService: DismissalService {
+        get { self[DismissalServiceKey.self] }
+        set { self[DismissalServiceKey.self] = newValue }
     }
 }

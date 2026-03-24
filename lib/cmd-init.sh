@@ -19,6 +19,7 @@ cmd_init() {
   local persona=""
   local docs_only=false
   local skip_docs=false
+  local project_dir=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -27,6 +28,7 @@ cmd_init() {
         printf "\n${_C_BOLD}Usage:${_C_RST}\n"
         printf "  forge init                           ${_C_DIM}Uses current global persona${_C_RST}\n"
         printf "  forge init ${_C_BOLD}--persona${_C_RST} <name>          ${_C_DIM}Specify persona${_C_RST}\n"
+        printf "  forge init ${_C_BOLD}--dir${_C_RST} <path>              ${_C_DIM}Target directory (default: cwd)${_C_RST}\n"
         printf "  forge init ${_C_BOLD}--docs${_C_RST}                    ${_C_DIM}Scaffold document chain only${_C_RST}\n"
         printf "  forge init ${_C_BOLD}--skip-docs${_C_RST}               ${_C_DIM}Skip document chain prompt${_C_RST}\n"
         printf "\nCreates ${_C_BOLD}.claude/${_C_RST} with project-level CLAUDE.md and rules.\n"
@@ -45,6 +47,14 @@ cmd_init() {
         persona="$2"
         shift 2
         ;;
+      --dir)
+        if [[ $# -lt 2 ]]; then
+          fail "Missing path after --dir"
+          return 1
+        fi
+        project_dir="$2"
+        shift 2
+        ;;
       --docs)
         docs_only=true
         shift
@@ -55,13 +65,13 @@ cmd_init() {
         ;;
       *)
         fail "Unknown option: $1"
-        echo "Usage: forge init [--persona <name>] [--docs] [--skip-docs]"
+        echo "Usage: forge init [--persona <name>] [--dir <path>] [--docs] [--skip-docs]"
         return 1
         ;;
     esac
   done
 
-  local project_dir="$(pwd)"
+  project_dir="${project_dir:-$(pwd)}"
   local project_claude_dir="$project_dir/.claude"
 
   # --docs: scaffold document chain only, then return
@@ -89,9 +99,14 @@ cmd_init() {
   fi
 
   if [ -f "$project_claude_dir/CLAUDE.md" ]; then
-    read -p "  Project .claude/CLAUDE.md already exists. Overwrite? (y/N) " -n 1 -r
-    echo
-    [[ ! $REPLY =~ ^[Yy]$ ]] && return 0
+    # Non-interactive when --dir is provided (programmatic usage)
+    if [ "$project_dir" != "$(pwd)" ]; then
+      : # proceed silently — caller controls overwrite decisions
+    else
+      read -p "  Project .claude/CLAUDE.md already exists. Overwrite? (y/N) " -n 1 -r
+      echo
+      [[ ! $REPLY =~ ^[Yy]$ ]] && return 0
+    fi
   fi
 
   banner "Project Init"

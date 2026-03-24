@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import os
 
 // MARK: - FileSystem Protocol
 
@@ -62,6 +63,8 @@ public final class MockFileSystem: FileSystemProtocol, @unchecked Sendable {
 // MARK: - Fix Service
 
 public final class FixService: @unchecked Sendable {
+    private static let logger = Logger(subsystem: "com.forge.desktop", category: "FixService")
+
     private let initService: InitService
     private let claudeService: ClaudeService?
     private let fileSystem: FileSystemProtocol
@@ -85,6 +88,7 @@ public final class FixService: @unchecked Sendable {
     public enum FixResult: Sendable, Equatable {
         case success
         case pendingReview(before: String, after: String)
+        case claudeDidNotModify(response: String)
         case notFixable(String)
         case staleContent
         case fileNotFound
@@ -165,15 +169,19 @@ public final class FixService: @unchecked Sendable {
         if let expected = expectedHash {
             let currentHash = try contentHash(for: mdPath)
             if currentHash != expected {
+                Self.logger.debug("Stale content detected for \(mdPath, privacy: .public)")
                 return .staleContent
             }
         }
 
         // Serialization: one fix at a time per repo
         guard acquireLock(for: repoPath) else {
+            Self.logger.info("Fix already in progress for \(repoPath, privacy: .public)")
             return .fixInProgress
         }
         defer { releaseLock(for: repoPath) }
+
+        Self.logger.info("Starting fix for \(mdPath, privacy: .public)")
 
         // Backup CLAUDE.md before Claude invocation
         let backup = try fileSystem.readString(at: mdPath)
@@ -185,7 +193,7 @@ public final class FixService: @unchecked Sendable {
             )
 
             if result.isError {
-                // Restore on error
+                Self.logger.error("Claude returned error: \(result.result ?? "nil", privacy: .public)")
                 try? fileSystem.writeString(backup, to: mdPath)
                 return .claudeFailed(result.result ?? "Unknown error")
             }
@@ -193,9 +201,12 @@ public final class FixService: @unchecked Sendable {
             // Verify file was actually modified
             let updated = try fileSystem.readString(at: mdPath)
             if hashString(updated) == hashString(backup) {
-                return .claudeFailed("Claude did not modify CLAUDE.md")
+                let response = result.result ?? ""
+                Self.logger.warning("Claude did not modify file. Response: \(response, privacy: .public)")
+                return .claudeDidNotModify(response: response)
             }
 
+            Self.logger.info("Fix complete — pending review for \(mdPath, privacy: .public)")
             return .pendingReview(before: backup, after: updated)
         } catch let error as ForgeError {
             // Restore on failure
@@ -203,6 +214,8 @@ public final class FixService: @unchecked Sendable {
             if current != nil, hashString(current!) != hashString(backup) {
                 try? fileSystem.writeString(backup, to: mdPath)
             }
+
+            Self.logger.error("Fix failed: \(error.errorDescription ?? "Unknown", privacy: .public)")
 
             switch error {
             case .claudeTimeout:
