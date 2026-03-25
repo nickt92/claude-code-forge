@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **8 Rules Files** · **461 Tests**
+**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **8 Rules Files** · **507 Tests**
 
 </div>
 
@@ -75,9 +75,36 @@ Add `~/.claude/bin` to your PATH so `forge` is available anywhere:
 export PATH="$HOME/.claude/bin:$PATH"
 ```
 
+## Forge Desktop (macOS)
+
+A native macOS menu bar app that gives you a visual dashboard over all your forge-managed repositories. Built with SwiftUI, requires macOS 14 (Sonoma) or later.
+
+### What It Does
+
+- **Menu bar icon** with aggregate health score across all repos
+- **Dashboard window** with searchable, filterable repository list sorted by score, name, or findings
+- **Repo detail view** showing audit breakdown, CLAUDE.md content, score dimensions, and quick-fix actions
+- **Claude-powered onboarding** — analyze an existing codebase or set up a new project, with streaming split-view UX showing tool activity and live markdown preview
+- **Persona switcher** — switch personas without touching the terminal
+- **Doctor view** — visual health diagnostics
+- **Setup wizard** — first-run detection of forge CLI and scan path configuration
+
+### Data Flow
+
+The desktop app shells out to the `forge` CLI and parses JSON output. It does not duplicate CLI logic — the CLI is the single source of truth. The app requires `forge` to be installed.
+
+### Building
+
+```bash
+cd app
+xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean build
+```
+
+Or open `app/ForgeDesktop.xcodeproj` in Xcode.
+
 ## forge CLI
 
-The `forge` CLI is a command dispatcher with dedicated, documented subcommands. `install.sh` still works as a thin wrapper that calls `forge install "$@"`.
+The `forge` CLI is a command dispatcher with dedicated subcommands. Each subcommand lives in `lib/cmd-<name>.sh` and is auto-sourced by the dispatcher.
 
 ```
 forge <command> [options]
@@ -90,13 +117,19 @@ Setup
 Management
   switch      Switch to a different persona
   update      Update forge from source repository
+  config      Get or set forge settings
 
 Diagnostics
   status      Show current installation status
   doctor      Run diagnostic health checks
   diff        Show differences between source and installed
+  dashboard   Configuration health dashboard (JSON output)
+  audit       Audit CLAUDE.md files for quality issues
+  analyze     Extract codebase context as structured JSON
 
-Info
+Utilities
+  stats       Installation statistics and security event summary
+  export      Package installation into portable tar.gz
   version     Show forge version
   help        Show this help
 ```
@@ -149,6 +182,7 @@ Diagnostic health checks across 7 categories. Shows pass/warn/fail per check wit
 
 ```bash
 forge doctor
+forge doctor --json            # Structured output for tooling
 ```
 
 Categories checked:
@@ -161,6 +195,40 @@ Categories checked:
 | **CLAUDE.md** | Matches current profile (content diff against live assembly) |
 | **Plugins** | Count matches expected for installed plugin group |
 | **CLI** | forge symlink valid and executable |
+
+### forge dashboard
+
+Outputs a JSON health dashboard covering all forge-managed repositories. This is the data source for the desktop app.
+
+```bash
+forge dashboard                # JSON to stdout
+```
+
+### forge analyze
+
+Extracts structured codebase context from a repository — directory tree, dependencies, configs, git history, test files, scripts, and existing CLAUDE.md. Used by the desktop app's onboarding flow to feed Claude real context about a project.
+
+```bash
+forge analyze /path/to/repo --json
+```
+
+### forge audit
+
+Audits CLAUDE.md files for quality issues — missing sections, stale content, formatting problems.
+
+```bash
+forge audit /path/to/repo
+forge audit /path/to/repo --json
+```
+
+### forge config
+
+Get or set forge configuration values.
+
+```bash
+forge config get scan_path
+forge config set scan_path ~/projects
+```
 
 ### forge update
 
@@ -176,6 +244,7 @@ Shows current installation status at a glance — persona, plugin group, version
 
 ```bash
 forge status
+forge status --json
 ```
 
 ### forge diff
@@ -203,11 +272,28 @@ Per-project configuration. Creates a `.claude/` directory in the current working
 ```bash
 forge init                           # Uses current global persona
 forge init --persona senior-engineer # Specify a persona
+forge init --dir /path/to/project    # Target a specific directory
 forge init --docs                    # Scaffold document chain only
 forge init --skip-docs               # Skip document chain prompt
 ```
 
 Useful for monorepos or projects where you want project-level Claude instructions committed alongside the code.
+
+### forge stats
+
+Installation overview — hook counts, security event summary, backup metrics, and plugin inventory.
+
+```bash
+forge stats
+```
+
+### forge export
+
+Package your current forge installation into a portable `tar.gz` archive for sharing or backup.
+
+```bash
+forge export
+```
 
 ## Plugin Groups
 
@@ -425,32 +511,38 @@ See [SECURITY.md](SECURITY.md) for the security model and known limitations.
 
 ## Project Onboarding
 
-### Brownfield (Existing Projects)
+### From the Desktop App
 
-Analyzes your codebase and generates a project-level CLAUDE.md — not a template with blanks, but a real analysis of your architecture, tech stack, patterns, and pitfalls.
+The desktop app provides a visual onboarding experience for both new and existing projects:
+
+- **Existing projects:** Open a repo in the dashboard → click "Generate CLAUDE.md" → watch Claude analyze your codebase in a streaming split-view (tool activity on the left, live markdown preview on the right) → review and save
+- **New projects:** Click "New Project" (or ⌘N) → pick a directory → describe what you're building → Claude generates a project-specific CLAUDE.md
+
+Both flows adapt to your current persona and use Claude's tool-use capabilities (Read, Glob, Grep) to analyze real code, not just templates.
+
+### From the CLI
+
+**Brownfield (existing projects)** — analyzes your codebase and generates a project-level CLAUDE.md with real analysis of your architecture, tech stack, patterns, and pitfalls:
 
 ```bash
 cd /path/to/your-existing-project
 ~/.claude/scripts/generate-project-claude.sh
 ```
 
-### Greenfield (New Projects)
-
-Interactive setup that helps you make architectural decisions and generates the CLAUDE.md before the first line of code.
+**Greenfield (new projects)** — interactive setup that helps you make architectural decisions and generates the CLAUDE.md before the first line of code:
 
 ```bash
 mkdir my-new-project && cd my-new-project && git init
 ~/.claude/scripts/init-project-claude.sh
 ```
 
-### Per-Project with `forge init`
-
-For projects where you want Claude instructions version-controlled alongside the code:
+**Per-project with `forge init`** — for projects where you want Claude instructions version-controlled alongside the code:
 
 ```bash
 cd /path/to/project
 forge init                             # Uses your current global persona
 forge init --persona senior-engineer  # Or specify one explicitly
+forge init --dir /path/to/project     # Target a specific directory
 ```
 
 This creates `.claude/CLAUDE.md` and `.claude/rules/` in your project directory. Hooks and plugins remain global — only the instructions and rules are project-scoped.
@@ -644,12 +736,16 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-461 automated tests using [bats-core](https://github.com/bats-core/bats-core), run on every push via GitHub Actions (macOS, Ubuntu, and Windows).
+507 automated tests across two test suites, run on every push via GitHub Actions.
+
+### CLI Tests (bats-core)
+
+372 tests using [bats-core](https://github.com/bats-core/bats-core) across macOS, Ubuntu, and Windows.
 
 ```bash
 ./test/run_tests.sh              # Run all tests
 ./test/run_tests.sh unit         # Hook and CLI unit tests
-./test/run_tests.sh integration  # Assembly, merge, install flow, new subcommands
+./test/run_tests.sh integration  # Assembly, merge, install flow, subcommands
 ./test/run_tests.sh validation   # Profile schema, section coverage
 ```
 
@@ -657,11 +753,21 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 | Suite | Files | What It Covers |
 |:------|------:|:---------------|
-| **Unit** | 10 | Commit validator, architect gate, session init, backup transcript, platform detection, UI library, plugins, manifest v2, forge CLI dispatcher, status |
-| **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup and restore, switch, doctor, diff, update, build, init |
+| **Unit** | 20 | Hooks, CLI dispatcher, plugins, manifest, platform detection, UI library, config, dashboard, stats, export |
+| **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup/restore, switch, doctor, diff, update, build, init |
 | **Validation** | 4 | Profile schema integrity, section file coverage, settings template structure, shell completions |
 
 All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
+
+### Desktop App Tests (Swift)
+
+135 tests using XCTest and Swift Testing.
+
+```bash
+cd app/ForgeDesktopCore && swift test
+```
+
+Covers service logic, model decoding, streaming infrastructure, line buffering, diff engine, doctor diagnostics, and onboarding flows.
 
 ## Design Decisions
 
@@ -671,6 +777,20 @@ All tests run in a sandbox (`$HOME` redirected to a temp directory) — your rea
 `install.sh` flags worked for a single command, but as operations multiplied (switch persona, run doctor, compare files, update, build custom personas), a flat flag namespace became unmanageable. The `forge` CLI groups related operations, provides consistent `--help` per subcommand, and is extensible — adding a new command is one `lib/cmd-<name>.sh` file.
 
 `install.sh` is kept as a compatibility wrapper so existing documentation, scripts, and muscle memory continue to work.
+
+</details>
+
+<details>
+<summary><strong>Why a native desktop app instead of a web UI?</strong></summary>
+
+The first attempt was a web UI (Node.js server, HTML dashboard). It worked but added a runtime dependency, a localhost port, and a process to manage. A native SwiftUI app is always-on via the menu bar, launches instantly, and feels like a first-class macOS citizen. The tradeoff is macOS-only — the CLI remains the cross-platform interface.
+
+</details>
+
+<details>
+<summary><strong>Why does the desktop app shell out to the CLI?</strong></summary>
+
+Single source of truth. The CLI already knows how to gather dashboard data, run doctor checks, switch personas, and analyze codebases. Duplicating that logic in Swift would create divergence. The app calls `forge dashboard --json`, `forge doctor --json`, etc. and parses the structured output. When the CLI gains new capabilities, the app gets them for free.
 
 </details>
 
