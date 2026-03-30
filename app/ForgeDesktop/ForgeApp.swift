@@ -7,6 +7,7 @@ struct ForgeApp: App {
     @State private var showDoctor = false
     @State private var showNewProject = false
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @AppStorage("setupComplete") private var setupComplete = false
 
     private let forgeService: ForgeService
@@ -16,6 +17,7 @@ struct ForgeApp: App {
     private let claudeService: ClaudeService
     private let personaService: PersonaService
     private let onboardingService: OnboardingService
+    private let dismissalService: DismissalService
 
     init() {
         let forgePath = UserDefaults.standard.string(forKey: "forgeBinaryPath")
@@ -36,6 +38,7 @@ struct ForgeApp: App {
             claudeService: claudeService,
             forgePath: resolvedPath
         )
+        self.dismissalService = DismissalService()
     }
 
     var body: some Scene {
@@ -48,7 +51,7 @@ struct ForgeApp: App {
                     NSApp.activate(ignoringOtherApps: true)
                 },
                 onOpenSettings: {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    openSettings()
                 },
                 onRunDoctor: {
                     openWindow(id: "dashboard")
@@ -88,7 +91,7 @@ struct ForgeApp: App {
                 .environment(\.personaService, personaService)
                 .environment(\.forgeService, forgeService)
                 .environment(\.forgeState, forgeState)
-                .environment(\.dismissalService, DismissalService())
+                .environment(\.dismissalService, dismissalService)
                 .environment(\.onboardingService, onboardingService)
                 .sheet(isPresented: $showNewProject) {
                     if let dashboard = forgeState.dashboard {
@@ -103,7 +106,7 @@ struct ForgeApp: App {
         .defaultSize(width: 900, height: 650)
 
         Settings {
-            SettingsView(onRescan: { refresh() })
+            SettingsView(onRescan: { await refreshAsync() })
                 .environment(\.configService, configService)
         }
         .commands {
@@ -128,18 +131,20 @@ struct ForgeApp: App {
     }
 
     private func refresh() {
+        Task { await refreshAsync() }
+    }
+
+    private func refreshAsync() async {
         guard !forgeState.isLoading else { return }
         forgeState.loadState = .loading
 
-        Task { @MainActor in
-            do {
-                let data = try await forgeService.loadDashboard()
-                forgeState.loadState = .loaded(data)
-            } catch let error as ForgeError {
-                forgeState.loadState = .failed(error)
-            } catch {
-                forgeState.loadState = .failed(.unexpected(error.localizedDescription))
-            }
+        do {
+            let data = try await forgeService.loadDashboard()
+            forgeState.loadState = .loaded(data)
+        } catch let error as ForgeError {
+            forgeState.loadState = .failed(error)
+        } catch {
+            forgeState.loadState = .failed(.unexpected(error.localizedDescription))
         }
     }
 }

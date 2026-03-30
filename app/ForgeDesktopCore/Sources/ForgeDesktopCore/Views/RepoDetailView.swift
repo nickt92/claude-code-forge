@@ -52,6 +52,23 @@ public struct RepoDetailView: View {
             }
             dismissedFindings = dismissalService.dismissedIds(for: repo.path)
         }
+        .sheet(isPresented: $showBulkReview, onDismiss: {
+            // User dismissed without approving — reject the current review
+            if let review = currentBulkReview {
+                handleBulkReviewReject(review.before)
+            }
+        }) {
+            if let review = currentBulkReview {
+                DiffPreviewView(
+                    before: review.before,
+                    after: review.after,
+                    sectionName: review.finding.section ?? review.finding.code,
+                    remaining: bulkReviewQueue.count,
+                    onApprove: { handleBulkReviewApprove(review.after, finding: review.finding) },
+                    onReject: { handleBulkReviewReject(review.before) }
+                )
+            }
+        }
     }
 
     // MARK: - Header
@@ -365,6 +382,7 @@ public struct RepoDetailView: View {
                                         _ = dismissedFindings.insert(id)
                                     }
                                     claudeMdRefreshTrigger += 1
+                                    recomputeContentHash()
                                     Task { await refreshRepoAudit() }
                                 },
                                 onFixStarted: { fixRunning = true },
@@ -388,6 +406,10 @@ public struct RepoDetailView: View {
             }
         }
     }
+
+    @State private var bulkReviewQueue: [(finding: Finding, before: String, after: String)] = []
+    @State private var currentBulkReview: (finding: Finding, before: String, after: String)?
+    @State private var showBulkReview = false
 
     private func runBulkFix(_ fixableFindings: [Finding]) {
         let state = BulkFixState(total: fixableFindings.count)
@@ -415,22 +437,10 @@ public struct RepoDetailView: View {
                             dismissedFindings.insert(finding.id)
                         }
                         claudeMdRefreshTrigger += 1
-                    case .pendingReview(_, let after):
-                        // Auto-approve in bulk mode — user opted into "Fix All"
-                        if let mdPath = repo.claudeMdAudit?.locations.first {
-                            let consistent = try fixService.approveChange(mdPath: mdPath, expectedAfterContent: after)
-                            if consistent {
-                                bulkFixState?.completedCount += 1
-                                dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
-                                _ = withAnimation {
-                                    dismissedFindings.insert(finding.id)
-                                }
-                                claudeMdRefreshTrigger += 1
-                            } else {
-                                bulkFixState?.failedFinding = finding.detail
-                                break
-                            }
-                        }
+                        recomputeContentHash()
+                    case .pendingReview(let before, let after):
+                        bulkReviewQueue.append((finding: finding, before: before, after: after))
+                        bulkFixState?.completedCount += 1
                     default:
                         bulkFixState?.failedFinding = finding.detail
                         break
@@ -443,12 +453,66 @@ public struct RepoDetailView: View {
                 if bulkFixState?.failedFinding != nil { break }
             }
 
-            await refreshRepoAudit()
             fixRunning = false
 
-            // Clear bulk state after a delay so user sees the result
-            try? await Task.sleep(for: .seconds(3))
+            // Clear bulk progress after a delay
+            try? await Task.sleep(for: .seconds(1))
             bulkFixState = nil
+
+            // Present queued reviews one at a time
+            if !bulkReviewQueue.isEmpty {
+                currentBulkReview = bulkReviewQueue.removeFirst()
+                showBulkReview = true
+            } else {
+                await refreshRepoAudit()
+            }
+        }
+    }
+
+    private func handleBulkReviewApprove(_ afterContent: String, finding: Finding) {
+        showBulkReview = false
+        guard let mdPath = repo.claudeMdAudit?.locations.first else {
+            advanceBulkReview()
+            return
+        }
+        do {
+            let consistent = try fixService.approveChange(mdPath: mdPath, expectedAfterContent: afterContent)
+            if consistent {
+                dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
+                withAnimation { _ = dismissedFindings.insert(finding.id) }
+                claudeMdRefreshTrigger += 1
+                recomputeContentHash()
+            }
+        } catch {
+            // Approval failed — the file remains as-is on disk
+        }
+        advanceBulkReview()
+    }
+
+    private func handleBulkReviewReject(_ beforeContent: String) {
+        showBulkReview = false
+        guard let mdPath = repo.claudeMdAudit?.locations.first else {
+            advanceBulkReview()
+            return
+        }
+        try? fixService.rejectChange(mdPath: mdPath, originalContent: beforeContent)
+        recomputeContentHash()
+        advanceBulkReview()
+    }
+
+    private func advanceBulkReview() {
+        if bulkReviewQueue.isEmpty {
+            currentBulkReview = nil
+            Task { await refreshRepoAudit() }
+        } else {
+            currentBulkReview = bulkReviewQueue.removeFirst()
+            showBulkReview = true
+        }
+    }
+
+    private func recomputeContentHash() {
+        if let mdPath = repo.claudeMdAudit?.locations.first {
+            contentHashAtLoad = try? fixService.contentHash(for: mdPath)
         }
     }
 

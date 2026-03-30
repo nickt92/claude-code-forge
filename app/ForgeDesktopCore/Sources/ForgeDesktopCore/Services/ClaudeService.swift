@@ -36,15 +36,17 @@ public struct ClaudeResult: Codable, Sendable {
     }
 }
 
-public final class ClaudeService: Sendable {
+public final class ClaudeService: @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.forge.desktop", category: "ClaudeService")
 
     private let executor: CLIExecutor
-    private let claudePath: String?
+    private let explicitPath: String?
+    private let lock = NSLock()
+    private var _resolvedPath: String??  // nil = not yet resolved, .some(nil) = resolved to not found
 
     static let timeout: TimeInterval = 180
     static let model = "sonnet"
-    static let maxBudget = "0.25"
+    static let maxBudget = "0.50"
 
     static let knownPaths = [
         "\(NSHomeDirectory())/.local/bin/claude",
@@ -55,7 +57,18 @@ public final class ClaudeService: Sendable {
 
     public init(executor: CLIExecutor = ProcessExecutor(), claudePath: String? = nil) {
         self.executor = executor
-        self.claudePath = claudePath ?? Self.discoverClaudePath()
+        self.explicitPath = claudePath
+    }
+
+    /// Resolved path to the Claude CLI binary. Discovered lazily on first access.
+    /// Resolution happens outside the lock to avoid blocking UI thread during `which` calls.
+    private var claudePath: String? {
+        let cached: String?? = lock.withLock { _resolvedPath }
+        if let cached { return cached }
+
+        let resolved = explicitPath ?? Self.discoverClaudePath()
+        lock.withLock { _resolvedPath = .some(resolved) }
+        return resolved
     }
 
     public var isAvailable: Bool {
@@ -263,7 +276,7 @@ public final class ClaudeService: Sendable {
             }
         }
 
-        // Fall back to `which claude`
+        // Fall back to `which claude` with a 5-second timeout to prevent hangs
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         process.arguments = ["claude"]
@@ -273,10 +286,11 @@ public final class ClaudeService: Sendable {
         process.standardError = FileHandle.nullDevice
 
         do {
-            try process.run()
-            process.waitUntilExit()
-
-            guard process.terminationStatus == 0 else { return nil }
+            let completed = try process.runWithTimeout(seconds: 5)
+            guard completed, process.terminationStatus == 0 else {
+                if !completed && process.isRunning { process.terminate() }
+                return nil
+            }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -288,6 +302,19 @@ public final class ClaudeService: Sendable {
         } catch {
             return nil
         }
+    }
+}
+
+// MARK: - Process Timeout Helper
+
+extension Process {
+    /// Launches the process and waits for exit with a timeout. Returns `true` if it exited in time.
+    /// The `terminationHandler` is set before `run()` to avoid races with fast-exiting processes.
+    func runWithTimeout(seconds: TimeInterval) throws -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        terminationHandler = { _ in semaphore.signal() }
+        try run()
+        return semaphore.wait(timeout: .now() + seconds) == .success
     }
 }
 

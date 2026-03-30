@@ -10,6 +10,7 @@ public struct DashboardView: View {
     @State private var showNewProject = false
     @AppStorage("sidebarSort") private var sortOrder: String = "name"
     @State private var activeFilters: Set<SidebarFilter> = []
+    @Environment(\.openSettings) private var openSettings
 
     public init(state: ForgeState, onRefresh: @escaping () -> Void) {
         self.state = state
@@ -125,7 +126,7 @@ public struct DashboardView: View {
                     Text("Set a scan path in Settings so Forge knows where to find your projects.")
                 } actions: {
                     Button("Open Settings") {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                        openSettings()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -173,8 +174,9 @@ public struct DashboardView: View {
                     }
                 }
 
-                Section("Repositories (\(sortedAndFilteredRepos(data).count))") {
-                    ForEach(sortedAndFilteredRepos(data)) { repo in
+                let filteredRepos = sortedAndFilteredRepos(data)
+                Section("Repositories (\(filteredRepos.count))") {
+                    ForEach(filteredRepos) { repo in
                         RepoRow(repo: repo)
                             .tag(repo)
                     }

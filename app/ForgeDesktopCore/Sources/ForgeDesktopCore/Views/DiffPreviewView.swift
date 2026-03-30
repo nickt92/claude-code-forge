@@ -4,6 +4,7 @@ public struct DiffPreviewView: View {
     let before: String
     let after: String
     let sectionName: String
+    let remaining: Int
     let onApprove: () -> Void
     let onReject: () -> Void
 
@@ -18,12 +19,14 @@ public struct DiffPreviewView: View {
         before: String,
         after: String,
         sectionName: String,
+        remaining: Int = 0,
         onApprove: @escaping () -> Void,
         onReject: @escaping () -> Void
     ) {
         self.before = before
         self.after = after
         self.sectionName = sectionName
+        self.remaining = remaining
         self.onApprove = onApprove
         self.onReject = onReject
     }
@@ -48,6 +51,11 @@ public struct DiffPreviewView: View {
                     .foregroundStyle(.blue)
                 Text("Review Changes")
                     .font(.system(size: 14, weight: .semibold))
+                if remaining > 0 {
+                    Text("(\(remaining) more)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()

@@ -106,6 +106,8 @@ public struct ProcessExecutor: CLIExecutor {
                 }
             }
 
+            let timeoutGuard = StreamTimeoutGuard(process: process)
+
             process.terminationHandler = { proc in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
 
@@ -113,6 +115,8 @@ public struct ProcessExecutor: CLIExecutor {
                 if let remaining = lineBuffer.flush() {
                     continuation.yield(remaining)
                 }
+
+                guard timeoutGuard.markFinished() else { return }
 
                 if proc.terminationStatus != 0 {
                     let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
@@ -128,9 +132,9 @@ public struct ProcessExecutor: CLIExecutor {
             }
 
             // Timeout
-            let timeoutGuard = StreamTimeoutGuard(process: process)
             if let timeout {
                 let item = DispatchWorkItem {
+                    guard timeoutGuard.markFinished() else { return }
                     timeoutGuard.terminate()
                     continuation.finish(throwing: ForgeError.claudeTimeout)
                 }
@@ -219,6 +223,7 @@ private final class StreamTimeoutGuard: @unchecked Sendable {
     private let lock = NSLock()
     private let process: Process
     private var item: DispatchWorkItem?
+    private var finished = false
 
     init(process: Process) {
         self.process = process
@@ -230,6 +235,16 @@ private final class StreamTimeoutGuard: @unchecked Sendable {
 
     func cancel() {
         lock.withLock { item?.cancel() }
+    }
+
+    /// Marks the stream as finished. Returns `true` if this was the first call.
+    func markFinished() -> Bool {
+        lock.withLock {
+            guard !finished else { return false }
+            finished = true
+            item?.cancel()
+            return true
+        }
     }
 
     func terminate() {

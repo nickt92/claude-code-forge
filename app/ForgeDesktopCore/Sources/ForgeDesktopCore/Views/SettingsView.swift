@@ -3,7 +3,6 @@ import SwiftUI
 public struct SettingsView: View {
     @AppStorage("forgeBinaryPath") private var forgePath: String = ""
     @AppStorage("claudeBinaryPath") private var claudePath: String = ""
-    @AppStorage("scanDepth") private var scanDepth: Int = 3
     @State private var resolvedPath: String = ""
     @State private var resolvedClaudePath: String = ""
     @State private var isResolving = false
@@ -12,15 +11,15 @@ public struct SettingsView: View {
     @State private var isRescanning = false
     @Environment(\.configService) private var configService
 
-    var onRescan: (() -> Void)?
+    var onRescan: (() async -> Void)?
 
-    public init(onRescan: (() -> Void)? = nil) {
+    public init(onRescan: (() async -> Void)? = nil) {
         self.onRescan = onRescan
     }
 
     public var body: some View {
         Form {
-            Section("Forge Binary") {
+            Section {
                 HStack {
                     TextField("Path to forge binary", text: $forgePath, prompt: Text("Auto-detect"))
                         .textFieldStyle(.roundedBorder)
@@ -34,9 +33,15 @@ public struct SettingsView: View {
                     autoDetectStatus(isResolving: isResolving, resolvedPath: resolvedPath, label: "Forge CLI")
                         .task { await resolveAutoPath() }
                 }
+            } header: {
+                Text("Forge Binary")
+            } footer: {
+                Text("Changes take effect after restarting Forge.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
             }
 
-            Section("Claude Code Binary") {
+            Section {
                 HStack {
                     TextField("Path to claude binary", text: $claudePath, prompt: Text("Auto-detect"))
                         .textFieldStyle(.roundedBorder)
@@ -50,6 +55,12 @@ public struct SettingsView: View {
                     autoDetectStatus(isResolving: isResolving, resolvedPath: resolvedClaudePath, label: "Claude Code CLI")
                         .task { await resolveClaudePath() }
                 }
+            } header: {
+                Text("Claude Code Binary")
+            } footer: {
+                Text("Changes take effect after restarting Forge.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
             }
 
             Section("Repository Scanning") {
@@ -76,16 +87,15 @@ public struct SettingsView: View {
                     }
                 }
 
-                Stepper("Scan depth: \(scanDepth)", value: $scanDepth, in: 1...5)
-                    .font(.system(size: 12))
-
                 Button {
                     if !scanPath.isEmpty {
                         Task { try? await configService.setScanPath(scanPath) }
                     }
                     isRescanning = true
-                    onRescan?()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { isRescanning = false }
+                    Task {
+                        await onRescan?()
+                        isRescanning = false
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         if isRescanning {
