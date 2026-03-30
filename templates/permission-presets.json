@@ -29,6 +29,10 @@
         "Bash(git ls-files:*)", "Bash(git describe:*)",
         "Bash(git shortlog:*)",
 
+        "Bash(command:*)", "Bash(test:*)",
+        "Bash(printf:*)", "Bash(seq:*)", "Bash(sleep:*)",
+        "Bash(md5sum:*)", "Bash(shasum:*)", "Bash(sha256sum:*)",
+
         "Bash(systemctl status:*)", "Bash(journalctl:*)"
       ]
     },
@@ -52,11 +56,14 @@
       "detail": "Auto-approves: everything above, plus git, package managers, compilers, build tools, test runners, linters, Docker, and web access. You approve: rm, sudo, force pushes, hard resets.",
       "inherits": "auto-edit",
       "permissions": [
+        "Bash(git -C:*)", "Bash(git -c:*)",
         "Bash(git add:*)", "Bash(git commit:*)", "Bash(git push:*)",
         "Bash(git checkout:*)", "Bash(git stash:*)", "Bash(git fetch:*)",
         "Bash(git pull:*)", "Bash(git merge:*)", "Bash(git rebase:*)",
         "Bash(git tag:*)", "Bash(git remote:*)", "Bash(git cherry-pick:*)",
-        "Bash(git switch:*)",
+        "Bash(git switch:*)", "Bash(git worktree:*)",
+        "Bash(git config:*)", "Bash(git clone:*)", "Bash(git init:*)",
+        "Bash(git submodule:*)",
 
         "Bash(npm:*)", "Bash(npx:*)", "Bash(pnpm:*)", "Bash(yarn:*)", "Bash(bun:*)",
         "Bash(pip:*)", "Bash(pip3:*)", "Bash(uv:*)", "Bash(poetry:*)",
@@ -96,6 +103,11 @@
 
         "Bash(tsc:*)", "Bash(node:*)", "Bash(deno:*)",
         "Bash(python:*)", "Bash(python3:*)",
+
+        "Bash(source:*)", "Bash(.:*)",
+        "Bash(bash:*)", "Bash(sh:*)", "Bash(zsh:*)",
+        "Bash(xargs:*)", "Bash(timeout:*)",
+        "Bash(nohup:*)",
 
         "Bash(curl:*)", "Bash(wget:*)", "Bash(http:*)",
 

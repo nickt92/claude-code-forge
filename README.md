@@ -245,9 +245,9 @@ forge permissions --json                   # Machine-readable output
 
 | Preset | Rules | What's Auto-Approved |
 |:-------|------:|:---------------------|
-| **Ask Before Changes** | 52 | File reading, code search, git inspection, system info |
-| **Auto-Edit** | 64 | Everything above + file creation/editing, copy, move |
-| **Full Autonomy** | 200 | Everything above + git, package managers, compilers, test runners, linters, Docker, GitHub CLI, web access |
+| **Ask Before Changes** | 60 | File reading, code search, git inspection, system info, checksums |
+| **Auto-Edit** | 70 | Everything above + file creation/editing, copy, move |
+| **Full Autonomy** | 223 | Everything above + git (incl. `-C`/`-c`), package managers, compilers, shell scripts, test runners, linters, Docker, GitHub CLI, web access |
 
 All tiers exclude destructive operations (`rm`, `sudo`, force push, hard reset). The [command-guard hook](#hooks) provides runtime enforcement as a safety net.
 
