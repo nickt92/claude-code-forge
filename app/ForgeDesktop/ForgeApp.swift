@@ -43,7 +43,10 @@ struct ForgeApp: App {
             MenuBarView(
                 state: forgeState,
                 onRefresh: { refresh() },
-                onOpenDashboard: { openWindow(id: "dashboard") },
+                onOpenDashboard: {
+                    openWindow(id: "dashboard")
+                    NSApp.activate(ignoringOtherApps: true)
+                },
                 onOpenSettings: {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 },
@@ -115,6 +118,7 @@ struct ForgeApp: App {
     }
 
     private func onDashboardAppear() {
+        NSApp.activate(ignoringOtherApps: true)
         forgeState.claudeAvailable = claudeService.isAvailable
         if !setupComplete {
             forgeState.setupPhase = .detectCLI

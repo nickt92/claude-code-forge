@@ -17,7 +17,9 @@ public struct ClaudeResult: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case result
         case isError = "is_error"
-        case costUsd = "cost_usd"
+        // Claude CLI v2+ emits "total_cost_usd" in --output-format json responses.
+        // The legacy "cost_usd" key is no longer present.
+        case costUsd = "total_cost_usd"
     }
 
     public init(result: String?, isError: Bool, costUsd: Double? = nil) {
@@ -40,7 +42,7 @@ public final class ClaudeService: Sendable {
     private let executor: CLIExecutor
     private let claudePath: String?
 
-    static let timeout: TimeInterval = 90
+    static let timeout: TimeInterval = 180
     static let model = "sonnet"
     static let maxBudget = "0.25"
 
@@ -94,7 +96,11 @@ public final class ClaudeService: Sendable {
         }
 
         let result = try parseResult(data)
-        Self.logger.info("Claude response: isError=\(result.isError) cost=$\(result.costUsd ?? 0, format: .fixed(precision: 4)) result_length=\(result.result?.count ?? 0)")
+        let cost = result.costUsd.map { String(format: "$%.4f", $0) } ?? "unknown"
+        Self.logger.info("Claude response: isError=\(result.isError) cost=\(cost, privacy: .public) result_length=\(result.result?.count ?? 0)")
+        if result.costUsd == nil {
+            Self.logger.warning("Claude response missing cost field — raw output may indicate an unexpected response format")
+        }
         return result
     }
 
@@ -234,10 +240,16 @@ public final class ClaudeService: Sendable {
 
     private func parseResult(_ data: Data) throws -> ClaudeResult {
         do {
-            return try JSONDecoder().decode(ClaudeResult.self, from: data)
+            let result = try JSONDecoder().decode(ClaudeResult.self, from: data)
+            if !result.isError && (result.result == nil || result.result?.isEmpty == true) && (result.costUsd ?? 0) == 0 {
+                Self.logger.warning("Claude returned empty result with zero cost — likely a no-op invocation")
+            }
+            return result
         } catch {
-            // Claude may return plain text on success
+            // Claude with --output-format json should always return JSON.
+            // Non-JSON output is anomalous — log it as a warning.
             if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                Self.logger.warning("Claude returned non-JSON output: \(text.prefix(200), privacy: .public)")
                 return ClaudeResult(result: text.trimmingCharacters(in: .whitespacesAndNewlines), isError: false)
             }
             throw ForgeError.claudeFailed("Could not parse Claude output")

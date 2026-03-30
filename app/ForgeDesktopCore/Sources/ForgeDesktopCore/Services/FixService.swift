@@ -88,7 +88,7 @@ public final class FixService: @unchecked Sendable {
     public enum FixResult: Sendable, Equatable {
         case success
         case pendingReview(before: String, after: String)
-        case claudeDidNotModify(response: String)
+        case claudeDidNotModify(response: String, costUsd: Double)
         case notFixable(String)
         case staleContent
         case fileNotFound
@@ -202,8 +202,9 @@ public final class FixService: @unchecked Sendable {
             let updated = try fileSystem.readString(at: mdPath)
             if hashString(updated) == hashString(backup) {
                 let response = result.result ?? ""
-                Self.logger.warning("Claude did not modify file. Response: \(response, privacy: .public)")
-                return .claudeDidNotModify(response: response)
+                let cost = result.costUsd ?? 0
+                Self.logger.warning("Claude did not modify file. cost=$\(cost) Response: \(response, privacy: .public)")
+                return .claudeDidNotModify(response: response, costUsd: cost)
             }
 
             Self.logger.info("Fix complete — pending review for \(mdPath, privacy: .public)")
@@ -262,14 +263,19 @@ public final class FixService: @unchecked Sendable {
             .joined(separator: " ")
 
         return """
-        Read this project's codebase to understand its actual patterns. Then edit the CLAUDE.md \
-        file at \(claudeMdPath) to add a ## \(sectionTitle) section at the end of the file.
+        You MUST use the Edit tool to modify the file at \(claudeMdPath). Do not describe what \
+        you would do — actually call the Edit tool to make the change.
 
-        Requirements:
-        - Document the ACTUAL patterns, frameworks, tools, and conventions found in this codebase
+        Steps:
+        1. Use the Read tool to read \(claudeMdPath)
+        2. Use Glob and Read to scan the codebase and understand its actual patterns
+        3. Use the Edit tool to append a new ## \(sectionTitle) section at the end of \(claudeMdPath)
+
+        Requirements for the new section:
+        - Document ACTUAL patterns, frameworks, tools, and conventions found in this codebase
         - Reference real file paths, tool names, and patterns you observe
         - Keep it concise: 8-20 lines of actionable, project-specific guidance
-        - Only ADD the new section at the end — do not modify or remove existing content
+        - Only ADD the new section — do not modify or remove existing content
         - Do NOT read or reference any .env files, secrets, credentials, or API keys
         - Do NOT include any secrets, tokens, or passwords in the content you write
         """
@@ -277,12 +283,17 @@ public final class FixService: @unchecked Sendable {
 
     static func techGapPrompt(tech: String, claudeMdPath: String) -> String {
         """
-        Read this project's codebase to understand how \(tech) is used. Then edit the CLAUDE.md \
-        file at \(claudeMdPath).
+        You MUST use the Edit tool to modify the file at \(claudeMdPath). Do not describe what \
+        you would do — actually call the Edit tool to make the change.
 
-        Requirements:
-        - If a ## Tech Stack section exists, add \(tech) documentation to it
-        - If no Tech Stack section exists, create one at the end of the file
+        Steps:
+        1. Use the Read tool to read \(claudeMdPath)
+        2. Use Glob and Read to scan how \(tech) is used in this codebase
+        3. Use the Edit tool to update \(claudeMdPath):
+           - If a ## Tech Stack section exists, add \(tech) documentation to it
+           - If no Tech Stack section exists, create one at the end of the file
+
+        Requirements for the addition:
         - Document the version, key packages/config, and usage patterns you observe
         - Keep additions concise: 3-10 lines
         - Only ADD content — do not modify or remove existing content

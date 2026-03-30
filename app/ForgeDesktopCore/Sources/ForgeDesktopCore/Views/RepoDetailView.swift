@@ -584,7 +584,7 @@ struct FindingRow: View {
 
     enum FixState {
         case idle, running, pendingReview(before: String, after: String), success, failed(String)
-        case claudeDidNotModify(response: String)
+        case claudeDidNotModify(response: String, costUsd: Double)
     }
 
     private var usesClaudeFix: Bool {
@@ -631,16 +631,22 @@ struct FindingRow: View {
                 Spacer()
             }
 
-            if case .claudeDidNotModify(let response) = fixState, showClaudeResponse, !response.isEmpty {
-                Text(response)
-                    .font(.system(size: 10, design: .monospaced))
+            if case .claudeDidNotModify(let response, let cost) = fixState, showClaudeResponse {
+                Text(cost > 0
+                    ? "Claude analyzed the file but determined no changes were needed."
+                    : "Claude did not process the request. Check CLI configuration and authentication.")
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-                    .padding(.top, 6)
-                    .padding(.leading, 24)
+                    .padding(.bottom, 2)
+                if !response.isEmpty {
+                    Text(response)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                }
             }
         }
         .padding(.vertical, 5)
@@ -831,8 +837,8 @@ struct FindingRow: View {
                 case .pendingReview(let before, let after):
                     // Keep fixRunning=true — buttons stay disabled during review
                     fixState = .pendingReview(before: before, after: after)
-                case .claudeDidNotModify(let response):
-                    fixState = .claudeDidNotModify(response: response)
+                case .claudeDidNotModify(let response, let costUsd):
+                    fixState = .claudeDidNotModify(response: response, costUsd: costUsd)
                     onFixEnded?()
                 case .notFixable(let reason):
                     fixState = .failed(reason)

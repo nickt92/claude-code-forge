@@ -127,7 +127,7 @@ public enum ForgeError: LocalizedError, Sendable {
         case .claudeFailed(let message):
             return "Claude analysis failed: \(message)"
         case .claudeTimeout:
-            return "Claude analysis timed out after 90 seconds."
+            return "Claude analysis timed out."
         case .fixInProgress:
             return "A fix is already running for this repository."
         }

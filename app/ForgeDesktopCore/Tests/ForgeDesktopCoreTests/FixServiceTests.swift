@@ -394,8 +394,9 @@ final class FixServiceTests: XCTestCase {
 
         let result = try await service.fix(finding: finding, repoPath: "/repo", claudeMdPath: mdPath, contentHashAtLoad: hash)
 
-        if case .claudeDidNotModify(let response) = result {
+        if case .claudeDidNotModify(let response, let costUsd) = result {
             XCTAssertEqual(response, "Done")
+            XCTAssertEqual(costUsd, 0.01, accuracy: 0.001)
         } else {
             XCTFail("Expected .claudeDidNotModify, got \(result)")
         }
@@ -441,14 +442,26 @@ final class FixServiceTests: XCTestCase {
     // MARK: - ClaudeResult decoding
 
     func testClaudeResultDecodesSuccessJSON() throws {
+        // Claude CLI v2+ emits "total_cost_usd", not the legacy "cost_usd" key.
         let json = """
-        {"result": "Done editing", "is_error": false, "cost_usd": 0.12}
+        {"result": "Done editing", "is_error": false, "total_cost_usd": 0.12}
         """.data(using: .utf8)!
 
         let result = try JSONDecoder().decode(ClaudeResult.self, from: json)
         XCTAssertEqual(result.result, "Done editing")
         XCTAssertFalse(result.isError)
         XCTAssertEqual(result.costUsd!, 0.12, accuracy: 0.001)
+    }
+
+    func testClaudeResultDecodesLegacyCostKeyAsNil() throws {
+        // Verify the old "cost_usd" key no longer populates costUsd — it would
+        // indicate a downgrade or format regression.
+        let json = """
+        {"result": "Done editing", "is_error": false, "cost_usd": 0.12}
+        """.data(using: .utf8)!
+
+        let result = try JSONDecoder().decode(ClaudeResult.self, from: json)
+        XCTAssertNil(result.costUsd, "Legacy cost_usd key should not decode into costUsd — expected total_cost_usd")
     }
 
     func testClaudeResultDecodesErrorJSON() throws {

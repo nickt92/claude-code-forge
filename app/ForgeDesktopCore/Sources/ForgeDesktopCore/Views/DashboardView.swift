@@ -37,22 +37,25 @@ public struct DashboardView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewProject = true } label: {
                     Label("New Project", systemImage: "folder.badge.plus")
+                        .labelStyle(.titleAndIcon)
                 }
-                .help("New Project...")
+                .help("Create a new project with Claude-generated CLAUDE.md")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { onRefresh() } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
+                        .labelStyle(.titleAndIcon)
                 }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(state.isLoading)
-                .help("Refresh (⌘R)")
+                .help("Rescan all repositories (⌘R)")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showDoctor = true } label: {
                     Label("Doctor", systemImage: "stethoscope")
+                        .labelStyle(.titleAndIcon)
                 }
-                .help("Run Forge Doctor")
+                .help("Run diagnostic health checks on your forge installation")
             }
         }
         .sheet(isPresented: $showDoctor) {
@@ -106,50 +109,79 @@ public struct DashboardView: View {
         }
     }
 
+    @ViewBuilder
     private func loadedSidebar(_ data: DashboardData) -> some View {
-        List(selection: $selectedRepo) {
-            Section {
+        if data.repos.isEmpty {
+            VStack(spacing: 16) {
                 GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
-            }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
 
-            Section {
-                HStack(spacing: 6) {
-                    Picker("Sort", selection: $sortOrder) {
-                        Text("Name (A-Z)").tag("name")
-                        Text("Score (Low)").tag("score_asc")
-                        Text("Score (High)").tag("score_desc")
-                        Text("Findings").tag("findings")
+                Spacer()
+
+                ContentUnavailableView {
+                    Label("No Repositories Found", systemImage: "folder.badge.questionmark")
+                } description: {
+                    Text("Set a scan path in Settings so Forge knows where to find your projects.")
+                } actions: {
+                    Button("Open Settings") {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+
+                    Button("Refresh") { onRefresh() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
 
-                FlowLayout(spacing: 4) {
-                    ForEach(SidebarFilter.allCases, id: \.self) { filter in
-                        FilterChip(
-                            label: filter.label,
-                            isActive: activeFilters.contains(filter),
-                            onToggle: {
-                                if activeFilters.contains(filter) {
-                                    activeFilters.remove(filter)
-                                } else {
-                                    activeFilters.insert(filter)
+                Spacer()
+            }
+        } else {
+            List(selection: $selectedRepo) {
+                Section {
+                    GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
+                }
+
+                Section {
+                    HStack(spacing: 6) {
+                        Picker("Sort", selection: $sortOrder) {
+                            Text("Name (A-Z)").tag("name")
+                            Text("Score (Low)").tag("score_asc")
+                            Text("Score (High)").tag("score_desc")
+                            Text("Findings").tag("findings")
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    FlowLayout(spacing: 4) {
+                        ForEach(SidebarFilter.allCases, id: \.self) { filter in
+                            FilterChip(
+                                label: filter.label,
+                                isActive: activeFilters.contains(filter),
+                                onToggle: {
+                                    if activeFilters.contains(filter) {
+                                        activeFilters.remove(filter)
+                                    } else {
+                                        activeFilters.insert(filter)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
+                    }
+                }
+
+                Section("Repositories (\(sortedAndFilteredRepos(data).count))") {
+                    ForEach(sortedAndFilteredRepos(data)) { repo in
+                        RepoRow(repo: repo)
+                            .tag(repo)
                     }
                 }
             }
-
-            Section("Repositories (\(sortedAndFilteredRepos(data).count))") {
-                ForEach(sortedAndFilteredRepos(data)) { repo in
-                    RepoRow(repo: repo)
-                        .tag(repo)
-                }
-            }
+            .listStyle(.sidebar)
         }
-        .listStyle(.sidebar)
     }
 
     private func sortedAndFilteredRepos(_ data: DashboardData) -> [RepoData] {
