@@ -29,7 +29,7 @@ cmd_switch() {
       *) args+=("$1"); shift ;;
     esac
   done
-  set -- "${args[@]}"
+  set -- ${args[@]+"${args[@]}"}
 
   persona="${1:-}"
 
