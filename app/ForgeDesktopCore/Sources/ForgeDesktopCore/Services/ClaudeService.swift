@@ -134,6 +134,7 @@ public final class ClaudeService: @unchecked Sendable {
         var arguments = [
             "-p", prompt,
             "--output-format", "stream-json",
+            "--verbose",
             "--model", Self.model,
             "--permission-mode", "bypassPermissions",
             "--no-session-persistence",

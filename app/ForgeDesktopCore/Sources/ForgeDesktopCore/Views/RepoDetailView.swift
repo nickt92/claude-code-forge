@@ -411,6 +411,19 @@ public struct RepoDetailView: View {
     @State private var currentBulkReview: (finding: Finding, before: String, after: String)?
     @State private var showBulkReview = false
 
+    private func handleBulkStreamEvent(_ event: ClaudeStreamEvent) {
+        switch event {
+        case .toolUse(let name, let input):
+            bulkFixState?.currentActivities.append(ToolActivity(name: name, input: input))
+        case .toolResult(let name, _):
+            if let idx = bulkFixState?.currentActivities.lastIndex(where: { $0.name == name && !$0.isComplete }) {
+                bulkFixState?.currentActivities[idx].isComplete = true
+            }
+        default:
+            break
+        }
+    }
+
     private func runBulkFix(_ fixableFindings: [Finding]) {
         let state = BulkFixState(total: fixableFindings.count)
         bulkFixState = state
@@ -420,13 +433,17 @@ public struct RepoDetailView: View {
             for (index, finding) in fixableFindings.enumerated() {
                 bulkFixState?.currentIndex = index
                 bulkFixState?.currentFinding = finding.detail
+                bulkFixState?.currentActivities = []
+
+                let usesClaudeFix = ["missing_section", "tech_gap", "low_coverage"].contains(finding.code)
 
                 do {
                     let result = try await fixService.fix(
                         finding: finding,
                         repoPath: repo.path,
                         claudeMdPath: repo.claudeMdAudit?.locations.first,
-                        contentHashAtLoad: contentHashAtLoad
+                        contentHashAtLoad: contentHashAtLoad,
+                        onEvent: usesClaudeFix ? handleBulkStreamEvent : nil
                     )
 
                     switch result {
@@ -536,6 +553,7 @@ struct BulkFixState {
     var completedCount: Int = 0
     var currentFinding: String = ""
     var failedFinding: String?
+    var currentActivities: [ToolActivity] = []
 }
 
 struct BulkFixProgressView: View {
@@ -568,6 +586,29 @@ struct BulkFixProgressView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                }
+
+                // Show tool activities for the current fix
+                if !state.currentActivities.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(state.currentActivities) { activity in
+                            HStack(spacing: 4) {
+                                if activity.isComplete {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.green)
+                                } else {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                }
+                                Text(activity.displayLabel)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
                 }
             }
         }
@@ -645,6 +686,7 @@ struct FindingRow: View {
     @State private var showConfirm = false
     @State private var fixState: FixState = .idle
     @State private var showClaudeResponse = false
+    @State private var fixActivities: [ToolActivity] = []
 
     enum FixState {
         case idle, running, pendingReview(before: String, after: String), success, failed(String)
@@ -695,6 +737,32 @@ struct FindingRow: View {
                 Spacer()
             }
 
+            // Inline tool activity during Claude fix
+            if case .running = fixState, !fixActivities.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(fixActivities) { activity in
+                        HStack(spacing: 4) {
+                            if activity.isComplete {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.green)
+                            } else {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            }
+                            Text(activity.displayLabel)
+                                .font(.system(size: 9))
+                                .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.leading, 24)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             if case .claudeDidNotModify(let response, let cost) = fixState, showClaudeResponse {
                 Text(cost > 0
                     ? "Claude analyzed the file but determined no changes were needed."
@@ -716,6 +784,7 @@ struct FindingRow: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
         .background(severityColor(finding.severity).opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+        .animation(.easeInOut(duration: 0.2), value: fixActivities.count)
         .sheet(isPresented: isPendingReview) {
             if case .pendingReview(let before, let after) = fixState {
                 DiffPreviewView(
@@ -771,7 +840,9 @@ struct FindingRow: View {
             HStack(spacing: 3) {
                 ProgressView()
                     .controlSize(.mini)
-                Text(usesClaudeFix ? "Claude is analyzing..." : "Fixing...")
+                Text(fixActivities.isEmpty
+                    ? (usesClaudeFix ? "Starting Claude..." : "Fixing...")
+                    : "Claude is working...")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -879,9 +950,23 @@ struct FindingRow: View {
         }
     }
 
+    private func handleStreamEvent(_ event: ClaudeStreamEvent) {
+        switch event {
+        case .toolUse(let name, let input):
+            fixActivities.append(ToolActivity(name: name, input: input))
+        case .toolResult(let name, _):
+            if let idx = fixActivities.lastIndex(where: { $0.name == name && !$0.isComplete }) {
+                fixActivities[idx].isComplete = true
+            }
+        default:
+            break
+        }
+    }
+
     private func applyFix() {
         showConfirm = false
         fixState = .running
+        fixActivities = []
         onFixStarted?()
 
         Task {
@@ -890,7 +975,8 @@ struct FindingRow: View {
                     finding: finding,
                     repoPath: repoPath,
                     claudeMdPath: claudeMdPath,
-                    contentHashAtLoad: contentHashAtLoad
+                    contentHashAtLoad: contentHashAtLoad,
+                    onEvent: usesClaudeFix ? handleStreamEvent : nil
                 )
 
                 switch result {
@@ -899,7 +985,6 @@ struct FindingRow: View {
                     onFixed?()
                     onFixEnded?()
                 case .pendingReview(let before, let after):
-                    // Keep fixRunning=true — buttons stay disabled during review
                     fixState = .pendingReview(before: before, after: after)
                 case .claudeDidNotModify(let response, let costUsd):
                     fixState = .claudeDidNotModify(response: response, costUsd: costUsd)

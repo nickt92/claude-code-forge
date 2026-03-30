@@ -13,6 +13,7 @@ public struct OnboardingView: View {
     @State private var generatedContent: String = ""
     @State private var contextSummary: ContextSummary?
     @State private var streamTask: Task<Void, Never>?
+    @State private var detectedSections: [DetectedSection] = []
 
     // Greenfield inputs
     @State private var projectDescription: String = ""
@@ -32,6 +33,14 @@ public struct OnboardingView: View {
             _phase = State(initialValue: .setup)
         case .brownfield:
             _phase = State(initialValue: .analyzing)
+        }
+    }
+
+    /// The effective repo path — uses @State for greenfield (user may change it), mode for brownfield.
+    private var effectivePath: String {
+        switch mode {
+        case .brownfield(let path): return path
+        case .greenfield: return projectPath
         }
     }
 
@@ -99,8 +108,8 @@ public struct OnboardingView: View {
         switch mode {
         case .brownfield(let path):
             return path.components(separatedBy: "/").suffix(2).joined(separator: "/")
-        case .greenfield(_, let name, _):
-            return name
+        case .greenfield:
+            return projectName.isEmpty ? "New Project" : projectName
         }
     }
 
@@ -240,9 +249,9 @@ public struct OnboardingView: View {
 
     private var generatingView: some View {
         HSplitView {
-            // Left pane: Activity log
+            // Left pane: Activity log with sections + tool calls
             VStack(alignment: .leading, spacing: 0) {
-                Text("ACTIVITY")
+                Text("PROGRESS")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
@@ -252,57 +261,103 @@ public struct OnboardingView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(activities) { activity in
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            // Detected sections from markdown headers
+                            ForEach(detectedSections) { section in
                                 HStack(spacing: 6) {
-                                    if activity.isComplete {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.green)
-                                    } else {
-                                        ProgressView()
-                                            .controlSize(.mini)
-                                    }
-                                    Text(activity.displayLabel)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(activity.isComplete ? .secondary : .primary)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.green)
+                                    Text(section.title)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.primary)
                                         .lineLimit(1)
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 2)
-                                .id(activity.id)
+                                .padding(.vertical, 3)
+                                .id(section.id)
+                            }
+
+                            // Current section being written (pulsing)
+                            if !generatedContent.isEmpty, case .generating = phase {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                    Text(currentSectionLabel)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 3)
+                                .id("current-section")
+                            }
+
+                            if !activities.isEmpty {
+                                Divider()
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+
+                                Text("TOOL CALLS")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                                    .tracking(0.5)
+                                    .padding(.horizontal, 12)
+                                    .padding(.bottom, 4)
+
+                                ForEach(activities) { activity in
+                                    HStack(spacing: 6) {
+                                        if activity.isComplete {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.green)
+                                        } else {
+                                            ProgressView()
+                                                .controlSize(.mini)
+                                        }
+                                        Text(activity.displayLabel)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
+                                            .lineLimit(1)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 1)
+                                    .id(activity.id)
+                                }
                             }
                         }
                         .padding(.bottom, 8)
                     }
                     .onChange(of: activities.count) {
                         if let last = activities.last {
-                            withAnimation {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
+                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                         }
+                    }
+                    .onChange(of: detectedSections.count) {
+                        withAnimation { proxy.scrollTo("current-section", anchor: .bottom) }
                     }
                 }
 
                 Divider()
 
-                // Progress indicator
+                // Progress footer
                 HStack {
                     ProgressView()
                         .controlSize(.mini)
-                    Text("Generating...")
+                    Text(progressLabel)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(activities.filter(\.isComplete).count) tools")
-                        .font(.system(size: 10, design: .rounded))
-                        .foregroundStyle(.tertiary)
+                    if !detectedSections.isEmpty {
+                        Text("\(detectedSections.count) sections")
+                            .font(.system(size: 10, design: .rounded))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(10)
             }
             .frame(minWidth: 200, idealWidth: 250)
 
-            // Right pane: Live preview
+            // Right pane: Live markdown preview
             VStack(alignment: .leading, spacing: 0) {
                 Text("LIVE PREVIEW")
                     .font(.system(size: 10, weight: .bold))
@@ -314,17 +369,43 @@ public struct OnboardingView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        Text(generatedContent.isEmpty ? "Waiting for Claude..." : generatedContent)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(generatedContent.isEmpty ? .tertiary : .primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if generatedContent.isEmpty {
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Waiting for Claude...")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.top, 60)
+                        } else {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(LocalizedStringKey(generatedContent))
+                                    .font(.system(size: 12))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                // Typing cursor
+                                if case .generating = phase {
+                                    HStack(spacing: 0) {
+                                        Rectangle()
+                                            .fill(Color.accentColor)
+                                            .frame(width: 2, height: 14)
+                                            .opacity(cursorOpacity)
+                                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: cursorOpacity)
+                                    }
+                                    .padding(.top, 2)
+                                    .id("cursor")
+                                }
+                            }
                             .padding(12)
                             .id("preview-bottom")
+                        }
                     }
                     .onChange(of: generatedContent) {
                         withAnimation {
-                            proxy.scrollTo("preview-bottom", anchor: .bottom)
+                            proxy.scrollTo("cursor", anchor: .bottom)
                         }
                     }
                 }
@@ -333,13 +414,38 @@ public struct OnboardingView: View {
         }
     }
 
+    @State private var cursorOpacity: Double = 1.0
+
+    /// Label for the section currently being written
+    private var currentSectionLabel: String {
+        // Find the last header line in the content
+        let lines = generatedContent.components(separatedBy: "\n")
+        if let lastHeader = lines.last(where: { $0.hasPrefix("#") }) {
+            let title = lastHeader.trimmingCharacters(in: .init(charactersIn: "# "))
+            if !title.isEmpty {
+                return "Writing \(title)..."
+            }
+        }
+        return "Writing..."
+    }
+
+    private var progressLabel: String {
+        if generatedContent.isEmpty {
+            return "Starting generation..."
+        } else if detectedSections.isEmpty {
+            return "Generating content..."
+        } else {
+            return "Writing sections..."
+        }
+    }
+
     // MARK: - Phase: Review
 
     private func reviewView(content: String) -> some View {
         VStack(spacing: 0) {
             ScrollView {
-                Text(content)
-                    .font(.system(size: 12, design: .monospaced))
+                Text(LocalizedStringKey(content))
+                    .font(.system(size: 12))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -348,14 +454,7 @@ public struct OnboardingView: View {
             Divider()
 
             HStack {
-                let repoPath: String = {
-                    switch mode {
-                    case .brownfield(let path): return path
-                    case .greenfield(let path, _, _): return path
-                    }
-                }()
-
-                Text("\(repoPath)/.claude/CLAUDE.md")
+                Text("\(effectivePath)/.claude/CLAUDE.md")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
 
@@ -457,6 +556,8 @@ public struct OnboardingView: View {
             phase = .generating
             generatedContent = ""
             activities = []
+            detectedSections = []
+            cursorOpacity = 0.0
 
             await streamGeneration(
                 onboardingService.generateClaudeMd(context: context, persona: persona)
@@ -470,6 +571,8 @@ public struct OnboardingView: View {
         phase = .generating
         generatedContent = ""
         activities = []
+        detectedSections = []
+        cursorOpacity = 0.0
 
         let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = projectPath
@@ -493,12 +596,12 @@ public struct OnboardingView: View {
                 switch event {
                 case .assistantText(let text):
                     generatedContent += text
+                    updateDetectedSections()
 
                 case .toolUse(let name, let input):
                     activities.append(ToolActivity(name: name, input: input))
 
                 case .toolResult(let name, _):
-                    // Mark the most recent matching tool as complete
                     if let idx = activities.lastIndex(where: { $0.name == name && !$0.isComplete }) {
                         activities[idx].isComplete = true
                     }
@@ -536,9 +639,34 @@ public struct OnboardingView: View {
         }
     }
 
+    /// Scan generatedContent for completed markdown sections (headers followed by more content)
+    private func updateDetectedSections() {
+        let lines = generatedContent.components(separatedBy: "\n")
+        var sections: [DetectedSection] = []
+
+        for (i, line) in lines.enumerated() {
+            guard line.hasPrefix("#") else { continue }
+            let title = line.trimmingCharacters(in: .init(charactersIn: "# "))
+            guard !title.isEmpty else { continue }
+
+            // A section is "complete" if there's a subsequent header after it,
+            // meaning Claude has moved on to the next section
+            let hasSubsequentHeader = lines[(i + 1)...].contains(where: { $0.hasPrefix("#") })
+            if hasSubsequentHeader {
+                // Avoid duplicates by title
+                if !sections.contains(where: { $0.title == title }) {
+                    sections.append(DetectedSection(title: title))
+                }
+            }
+        }
+
+        detectedSections = sections
+    }
+
     private func regenerate() {
         generatedContent = ""
         activities = []
+        detectedSections = []
 
         streamTask?.cancel()
         streamTask = Task {
@@ -553,15 +681,10 @@ public struct OnboardingView: View {
 
     private func save(content: String) {
         phase = .saving
-        let repoPath: String
-        switch mode {
-        case .brownfield(let path): repoPath = path
-        case .greenfield(let path, _, _): repoPath = path
-        }
 
         Task {
             do {
-                try onboardingService.saveClaudeMd(content: content, repoPath: repoPath)
+                try onboardingService.saveClaudeMd(content: content, repoPath: effectivePath)
                 phase = .complete
             } catch {
                 phase = .failed("Failed to save: \(error.localizedDescription)")
@@ -570,15 +693,9 @@ public struct OnboardingView: View {
     }
 
     private func saveAndOpenInEditor(content: String) {
-        let repoPath: String
-        switch mode {
-        case .brownfield(let path): repoPath = path
-        case .greenfield(let path, _, _): repoPath = path
-        }
-
         do {
-            try onboardingService.saveClaudeMd(content: content, repoPath: repoPath)
-            let mdPath = "\(repoPath)/.claude/CLAUDE.md"
+            try onboardingService.saveClaudeMd(content: content, repoPath: effectivePath)
+            let mdPath = "\(effectivePath)/.claude/CLAUDE.md"
             SystemActions.openInEditor(path: mdPath)
             onComplete()
             dismiss()
@@ -607,6 +724,13 @@ public struct OnboardingView: View {
         if case .greenfield = mode { return true }
         return false
     }
+}
+
+// MARK: - Detected Section
+
+private struct DetectedSection: Identifiable {
+    let id = UUID()
+    let title: String
 }
 
 // MARK: - Context Summary

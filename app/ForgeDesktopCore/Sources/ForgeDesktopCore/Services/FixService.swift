@@ -98,7 +98,13 @@ public final class FixService: @unchecked Sendable {
         case fixInProgress
     }
 
-    public func fix(finding: Finding, repoPath: String, claudeMdPath: String?, contentHashAtLoad: String?) async throws -> FixResult {
+    public func fix(
+        finding: Finding,
+        repoPath: String,
+        claudeMdPath: String?,
+        contentHashAtLoad: String?,
+        onEvent: (@MainActor @Sendable (ClaudeStreamEvent) -> Void)? = nil
+    ) async throws -> FixResult {
         switch finding.code {
         case "no_claude_md":
             try await initService.initProject(at: repoPath)
@@ -111,7 +117,7 @@ public final class FixService: @unchecked Sendable {
             guard let mdPath = claudeMdPath, fileSystem.fileExists(at: mdPath) else {
                 return .fileNotFound
             }
-            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad) {
+            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad, onEvent: onEvent) {
                 Self.missingSectionPrompt(section: section, claudeMdPath: mdPath)
             }
 
@@ -120,7 +126,7 @@ public final class FixService: @unchecked Sendable {
                 return .fileNotFound
             }
             let tech = extractTechName(from: finding.detail)
-            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad) {
+            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad, onEvent: onEvent) {
                 Self.techGapPrompt(tech: tech, claudeMdPath: mdPath)
             }
 
@@ -131,7 +137,7 @@ public final class FixService: @unchecked Sendable {
             guard let section = finding.section else {
                 return .notFixable("No specific section to add — run individual missing_section fixes instead")
             }
-            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad) {
+            return try await fixWithClaude(repoPath: repoPath, mdPath: mdPath, expectedHash: contentHashAtLoad, onEvent: onEvent) {
                 Self.missingSectionPrompt(section: section, claudeMdPath: mdPath)
             }
 
@@ -160,7 +166,13 @@ public final class FixService: @unchecked Sendable {
 
     // MARK: - Claude-Powered Fix
 
-    private func fixWithClaude(repoPath: String, mdPath: String, expectedHash: String?, prompt: () -> String) async throws -> FixResult {
+    private func fixWithClaude(
+        repoPath: String,
+        mdPath: String,
+        expectedHash: String?,
+        onEvent: (@MainActor @Sendable (ClaudeStreamEvent) -> Void)? = nil,
+        prompt: () -> String
+    ) async throws -> FixResult {
         guard let claude = claudeService, claude.isAvailable else {
             return .claudeNotAvailable
         }
@@ -185,10 +197,20 @@ public final class FixService: @unchecked Sendable {
 
         // Backup CLAUDE.md before Claude invocation
         let backup = try fileSystem.readString(at: mdPath)
+        let promptText = prompt()
 
+        // Use streaming path when onEvent callback is provided
+        if let onEvent {
+            return try await fixWithClaudeStreaming(
+                claude: claude, repoPath: repoPath, mdPath: mdPath,
+                backup: backup, prompt: promptText, onEvent: onEvent
+            )
+        }
+
+        // Non-streaming path (backwards compatible for tests / callers without UI)
         do {
             let result = try await claude.runInRepo(
-                prompt: prompt(),
+                prompt: promptText,
                 repoPath: repoPath
             )
 
@@ -198,36 +220,101 @@ public final class FixService: @unchecked Sendable {
                 return .claudeFailed(result.result ?? "Unknown error")
             }
 
-            // Verify file was actually modified
-            let updated = try fileSystem.readString(at: mdPath)
-            if hashString(updated) == hashString(backup) {
-                let response = result.result ?? ""
-                let cost = result.costUsd ?? 0
-                Self.logger.warning("Claude did not modify file. cost=$\(cost) Response: \(response, privacy: .public)")
-                return .claudeDidNotModify(response: response, costUsd: cost)
-            }
-
-            Self.logger.info("Fix complete — pending review for \(mdPath, privacy: .public)")
-            return .pendingReview(before: backup, after: updated)
+            return try evaluateFixResult(mdPath: mdPath, backup: backup, claudeResult: result)
         } catch let error as ForgeError {
-            // Restore on failure
-            let current = try? fileSystem.readString(at: mdPath)
-            if current != nil, hashString(current!) != hashString(backup) {
-                try? fileSystem.writeString(backup, to: mdPath)
-            }
+            return handleFixError(error, mdPath: mdPath, backup: backup)
+        }
+    }
 
-            Self.logger.error("Fix failed: \(error.errorDescription ?? "Unknown", privacy: .public)")
+    private func fixWithClaudeStreaming(
+        claude: ClaudeService,
+        repoPath: String,
+        mdPath: String,
+        backup: String,
+        prompt: String,
+        onEvent: @MainActor @Sendable (ClaudeStreamEvent) -> Void
+    ) async throws -> FixResult {
+        let stream = claude.streamInRepo(
+            prompt: prompt,
+            repoPath: repoPath,
+            allowedTools: ["Read", "Edit", "Glob", "Grep"],
+            maxBudget: ClaudeService.maxBudget,
+            timeout: ClaudeService.timeout
+        )
 
-            switch error {
-            case .claudeTimeout:
-                return .claudeTimeout
-            case .claudeNotAvailable:
-                return .claudeNotAvailable
-            case .claudeFailed(let msg):
-                return .claudeFailed(msg)
-            default:
-                return .claudeFailed(error.errorDescription ?? "Unknown error")
+        var claudeResult: ClaudeResult?
+        var streamError: String?
+
+        do {
+            for try await event in stream {
+                await onEvent(event)
+                switch event {
+                case .result(let result):
+                    claudeResult = result
+                case .error(let message):
+                    streamError = message
+                default:
+                    break
+                }
             }
+        } catch let error as ForgeError {
+            return handleFixError(error, mdPath: mdPath, backup: backup)
+        } catch {
+            restoreIfChanged(mdPath: mdPath, backup: backup)
+            throw error
+        }
+
+        if let error = streamError {
+            restoreIfChanged(mdPath: mdPath, backup: backup)
+            return .claudeFailed(error)
+        }
+
+        if let result = claudeResult, result.isError {
+            Self.logger.error("Claude returned error: \(result.result ?? "nil", privacy: .public)")
+            try? fileSystem.writeString(backup, to: mdPath)
+            return .claudeFailed(result.result ?? "Unknown error")
+        }
+
+        return try evaluateFixResult(
+            mdPath: mdPath,
+            backup: backup,
+            claudeResult: claudeResult ?? ClaudeResult(result: nil, isError: false)
+        )
+    }
+
+    private func evaluateFixResult(mdPath: String, backup: String, claudeResult: ClaudeResult) throws -> FixResult {
+        let updated = try fileSystem.readString(at: mdPath)
+        if hashString(updated) == hashString(backup) {
+            let response = claudeResult.result ?? ""
+            let cost = claudeResult.costUsd ?? 0
+            Self.logger.warning("Claude did not modify file. cost=$\(cost) Response: \(response, privacy: .public)")
+            return .claudeDidNotModify(response: response, costUsd: cost)
+        }
+
+        Self.logger.info("Fix complete — pending review for \(mdPath, privacy: .public)")
+        return .pendingReview(before: backup, after: updated)
+    }
+
+    private func handleFixError(_ error: ForgeError, mdPath: String, backup: String) -> FixResult {
+        restoreIfChanged(mdPath: mdPath, backup: backup)
+        Self.logger.error("Fix failed: \(error.errorDescription ?? "Unknown", privacy: .public)")
+
+        switch error {
+        case .claudeTimeout:
+            return .claudeTimeout
+        case .claudeNotAvailable:
+            return .claudeNotAvailable
+        case .claudeFailed(let msg):
+            return .claudeFailed(msg)
+        default:
+            return .claudeFailed(error.errorDescription ?? "Unknown error")
+        }
+    }
+
+    private func restoreIfChanged(mdPath: String, backup: String) {
+        let current = try? fileSystem.readString(at: mdPath)
+        if let current, hashString(current) != hashString(backup) {
+            try? fileSystem.writeString(backup, to: mdPath)
         }
     }
 
