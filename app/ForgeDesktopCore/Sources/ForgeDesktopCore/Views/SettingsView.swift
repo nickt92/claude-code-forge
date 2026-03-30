@@ -9,7 +9,12 @@ public struct SettingsView: View {
     @State private var scanPath: String = ""
     @State private var scanPathLoaded = false
     @State private var isRescanning = false
+    @State private var currentPresetName: String?
+    @State private var permissionsLoaded = false
+    @State private var showPermissionPicker = false
+    @State private var applyingPreset = false
     @Environment(\.configService) private var configService
+    @Environment(\.permissionsService) private var permissionsService
 
     var onRescan: (() async -> Void)?
 
@@ -59,6 +64,43 @@ public struct SettingsView: View {
                 Text("Claude Code Binary")
             } footer: {
                 Text("Changes take effect after restarting Forge.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Current: \(currentPresetLabel)")
+                            .font(.system(size: 12))
+                        if let name = currentPresetName {
+                            Text(presetDescription(for: name))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button(showPermissionPicker ? "Done" : "Change...") {
+                        withAnimation { showPermissionPicker.toggle() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .task {
+                    guard !permissionsLoaded else { return }
+                    permissionsLoaded = true
+                    await loadCurrentPreset()
+                }
+
+                if showPermissionPicker {
+                    permissionPickerRows
+                }
+            } header: {
+                Text("Permissions")
+            } footer: {
+                Text("Controls what Claude Code can do without asking permission.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
@@ -126,7 +168,7 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 380)
+        .frame(width: 500, height: 500)
     }
 
     private func autoDetectStatus(isResolving: Bool, resolvedPath: String, label: String) -> some View {
@@ -184,5 +226,93 @@ public struct SettingsView: View {
         let expanded = (path as NSString).expandingTildeInPath
         let home = NSHomeDirectory()
         return expanded == home || expanded == "/" || expanded == "/Users"
+    }
+
+    // MARK: - Permissions Helpers
+
+    private var currentPresetLabel: String {
+        switch currentPresetName {
+        case "ask-before-changes": return "Ask Before Changes"
+        case "auto-edit": return "Auto-Edit"
+        case "full-autonomy": return "Full Autonomy (Recommended)"
+        case nil: return "None"
+        default: return currentPresetName ?? "None"
+        }
+    }
+
+    private func presetDescription(for name: String) -> String {
+        switch name {
+        case "ask-before-changes":
+            return "Claude browses your code without asking, but asks before making changes."
+        case "auto-edit":
+            return "Claude browses and edits files without asking. Still asks before running commands."
+        case "full-autonomy":
+            return "Claude runs dev commands without asking. Still asks before destructive operations."
+        default:
+            return ""
+        }
+    }
+
+    private var permissionPickerRows: some View {
+        VStack(spacing: 6) {
+            ForEach(
+                [("ask-before-changes", "Ask Before Changes", false),
+                 ("auto-edit", "Auto-Edit", false),
+                 ("full-autonomy", "Full Autonomy", true)],
+                id: \.0
+            ) { id, label, recommended in
+                HStack {
+                    Image(systemName: currentPresetName == id ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(currentPresetName == id ? Color.accentColor : .secondary)
+                        .font(.system(size: 13))
+
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+
+                    if recommended {
+                        Text("Recommended")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor, in: Capsule())
+                    }
+
+                    Spacer()
+
+                    if applyingPreset && currentPresetName != id {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !applyingPreset, currentPresetName != id else { return }
+                    applyPreset(id)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private func loadCurrentPreset() async {
+        do {
+            let state = try await permissionsService.currentState()
+            currentPresetName = state.currentPreset == "none" ? nil : state.currentPreset
+        } catch {
+            currentPresetName = nil
+        }
+    }
+
+    private func applyPreset(_ name: String) {
+        applyingPreset = true
+        Task {
+            do {
+                try await permissionsService.applyPreset(name: name)
+                currentPresetName = name
+            } catch {
+                // Silently fail — user can retry
+            }
+            applyingPreset = false
+        }
     }
 }

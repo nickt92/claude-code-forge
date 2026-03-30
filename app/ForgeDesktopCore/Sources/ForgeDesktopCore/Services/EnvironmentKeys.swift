@@ -52,6 +52,12 @@ private struct OnboardingServiceKey: EnvironmentKey {
     )
 }
 
+// MARK: - Permissions Service Key
+
+private struct PermissionsServiceKey: EnvironmentKey {
+    static let defaultValue: PermissionsService = PermissionsService()
+}
+
 // MARK: - Forge State Key
 
 private struct ForgeStateKey: @preconcurrency EnvironmentKey {
@@ -94,6 +100,11 @@ extension EnvironmentValues {
     public var onboardingService: OnboardingService {
         get { self[OnboardingServiceKey.self] }
         set { self[OnboardingServiceKey.self] = newValue }
+    }
+
+    public var permissionsService: PermissionsService {
+        get { self[PermissionsServiceKey.self] }
+        set { self[PermissionsServiceKey.self] = newValue }
     }
 
     public var forgeState: ForgeState {

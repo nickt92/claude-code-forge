@@ -77,6 +77,7 @@ cmd_help() {
 
   printf "\n${_C_BOLD}Configuration${_C_RST}\n"
   printf "  ${_C_BOLD}config${_C_RST}      Get/set forge settings\n"
+  printf "  ${_C_BOLD}permissions${_C_RST} Manage Claude Code permission presets\n"
 
   printf "\n${_C_BOLD}Info${_C_RST}\n"
   printf "  ${_C_BOLD}version${_C_RST}     Show forge version\n"

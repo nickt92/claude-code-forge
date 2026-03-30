@@ -36,6 +36,7 @@ public final class ForgeState {
     public enum SetupPhase: Sendable {
         case detectCLI
         case detectClaude
+        case configurePermissions
         case setScanPath
         case initialLoad
         case complete

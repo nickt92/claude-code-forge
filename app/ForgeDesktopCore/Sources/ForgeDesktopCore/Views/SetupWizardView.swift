@@ -10,6 +10,12 @@ public struct SetupWizardView: View {
     @State private var claudeVersion: String?
     @State private var scanPath: String = ""
     @State private var loadError: String?
+    @State private var selectedPreset: String = "full-autonomy"
+    @State private var applyingPreset: Bool = false
+    @State private var presetError: String?
+    @State private var expandedPreset: String?
+
+    @Environment(\.permissionsService) private var permissionsService
 
     let forgeService: ForgeService
     let onComplete: () -> Void
@@ -56,6 +62,8 @@ public struct SetupWizardView: View {
                     detectCLIStep
                 case .detectClaude:
                     detectClaudeStep
+                case .configurePermissions:
+                    permissionsStep
                 case .setScanPath:
                     scanPathStep
                 case .initialLoad:
@@ -79,20 +87,23 @@ public struct SetupWizardView: View {
             stepLine(done: stepNumber > 1)
             stepDot(step: 2, label: "Claude", active: state.setupPhase == .detectClaude, done: stepNumber > 2)
             stepLine(done: stepNumber > 2)
-            stepDot(step: 3, label: "Scan Path", active: state.setupPhase == .setScanPath, done: stepNumber > 3)
+            stepDot(step: 3, label: "Permissions", active: state.setupPhase == .configurePermissions, done: stepNumber > 3)
             stepLine(done: stepNumber > 3)
-            stepDot(step: 4, label: "Load Data", active: state.setupPhase == .initialLoad, done: state.setupPhase == .complete)
+            stepDot(step: 4, label: "Scan Path", active: state.setupPhase == .setScanPath, done: stepNumber > 4)
+            stepLine(done: stepNumber > 4)
+            stepDot(step: 5, label: "Load Data", active: state.setupPhase == .initialLoad, done: state.setupPhase == .complete)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 28)
     }
 
     private var stepNumber: Int {
         switch state.setupPhase {
         case .detectCLI: return 1
         case .detectClaude: return 2
-        case .setScanPath: return 3
-        case .initialLoad: return 4
-        case .complete: return 5
+        case .configurePermissions: return 3
+        case .setScanPath: return 4
+        case .initialLoad: return 5
+        case .complete: return 6
         }
     }
 
@@ -247,7 +258,7 @@ public struct SetupWizardView: View {
                 Button {
                     UserDefaults.standard.set(path, forKey: "claudeBinaryPath")
                     state.claudeAvailable = true
-                    state.setupPhase = .setScanPath
+                    state.setupPhase = .configurePermissions
                 } label: {
                     Text("Continue")
                         .frame(minWidth: 120)
@@ -355,7 +366,167 @@ public struct SetupWizardView: View {
         }
     }
 
-    // MARK: - Step 3: Scan Path
+    // MARK: - Step 3: Permissions
+
+    private var permissionsStep: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 6) {
+                Text("How much autonomy should Claude have?")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Controls what Claude can do without asking permission.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 8) {
+                permissionPresetRow(
+                    id: "ask-before-changes",
+                    label: "Ask Before Changes",
+                    description: "Claude browses your code without asking, but asks permission before making any changes.",
+                    detail: "Auto-approves: reading files, searching code, listing directories.\nYou approve: file edits, running commands.",
+                    recommended: false
+                )
+                permissionPresetRow(
+                    id: "auto-edit",
+                    label: "Auto-Edit",
+                    description: "Claude browses and edits files without asking. Still asks before running commands.",
+                    detail: "Auto-approves: everything above, plus creating and editing files, viewing git status.\nYou approve: running build/test commands, git operations.",
+                    recommended: false
+                )
+                permissionPresetRow(
+                    id: "full-autonomy",
+                    label: "Full Autonomy",
+                    description: "Claude runs development commands without asking. Still asks before destructive operations.",
+                    detail: "Auto-approves: everything above, plus git operations, package managers, build tools.\nYou approve: force pushes, deletions, arbitrary scripts.",
+                    recommended: true
+                )
+            }
+            .padding(.horizontal, 8)
+
+            if let error = presetError {
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10))
+                Text("You can change this anytime in Settings.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                Button("Skip") {
+                    state.setupPhase = .setScanPath
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    applyPermissionPreset()
+                } label: {
+                    HStack(spacing: 4) {
+                        if applyingPreset {
+                            ProgressView().controlSize(.mini)
+                        }
+                        Text("Apply & Continue")
+                    }
+                    .frame(minWidth: 120)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(applyingPreset)
+            }
+        }
+    }
+
+    private func permissionPresetRow(
+        id: String,
+        label: String,
+        description: String,
+        detail: String,
+        recommended: Bool
+    ) -> some View {
+        Button {
+            selectedPreset = id
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: selectedPreset == id ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(selectedPreset == id ? Color.accentColor : .secondary)
+                        .font(.system(size: 14))
+
+                    Text(label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    if recommended {
+                        Text("Recommended")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor, in: Capsule())
+                    }
+                }
+
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 20)
+
+                if expandedPreset == id {
+                    Text(detail)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 20)
+                        .padding(.top, 2)
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        expandedPreset = expandedPreset == id ? nil : id
+                    }
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: expandedPreset == id ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 8))
+                        Text("Details")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 20)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selectedPreset == id ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selectedPreset == id ? 1.5 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func applyPermissionPreset() {
+        applyingPreset = true
+        presetError = nil
+        Task {
+            do {
+                try await permissionsService.applyPreset(name: selectedPreset)
+                state.setupPhase = .setScanPath
+            } catch {
+                presetError = "Failed to apply preset: \(error.localizedDescription)"
+            }
+            applyingPreset = false
+        }
+    }
+
+    // MARK: - Step 4: Scan Path
 
     private var scanPathStep: some View {
         VStack(spacing: 18) {
@@ -421,7 +592,7 @@ public struct SetupWizardView: View {
         }
     }
 
-    // MARK: - Step 3: Initial Load
+    // MARK: - Step 5: Initial Load
 
     private var initialLoadStep: some View {
         VStack(spacing: 18) {

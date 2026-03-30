@@ -58,6 +58,14 @@ public struct DashboardView: View {
                 }
                 .help("Run diagnostic health checks on your forge installation")
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button { openSettings() } label: {
+                    Label("Settings", systemImage: "gear")
+                        .labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+                .help("Open settings (⌘,)")
+            }
         }
         .sheet(isPresented: $showDoctor) {
             DoctorView(state: state)
