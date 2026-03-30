@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **8 Hooks** · **8 Rules Files** · **507 Tests**
+**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **8 Hooks** · **8 Rules Files** · **555+ Tests**
 
 </div>
 
@@ -87,7 +87,8 @@ A native macOS menu bar app that gives you a visual dashboard over all your forg
 - **Claude-powered onboarding** — analyze an existing codebase or set up a new project, with streaming split-view UX showing tool activity and live markdown preview
 - **Persona switcher** — switch personas without touching the terminal
 - **Doctor view** — visual health diagnostics
-- **Setup wizard** — first-run detection of forge CLI and scan path configuration
+- **Permission presets** — three-tier autonomy system (Ask Before Changes / Auto-Edit / Full Autonomy) with 200 curated rules across 15+ language ecosystems
+- **Setup wizard** — five-step onboarding: CLI detection, Claude detection, permission setup, scan path, initial load
 
 ### Data Flow
 
@@ -118,6 +119,7 @@ Management
   switch      Switch to a different persona
   update      Update forge from source repository
   config      Get or set forge settings
+  permissions Manage Claude Code permission presets
 
 Diagnostics
   status      Show current installation status
@@ -229,6 +231,27 @@ Get or set forge configuration values.
 forge config get scan_path
 forge config set scan_path ~/projects
 ```
+
+### forge permissions
+
+Manage Claude Code permission presets — curated sets of auto-approve rules that control what Claude can do without prompting. Three tiers, from read-only inspection to full dev workflow autonomy.
+
+```bash
+forge permissions                          # Show current preset and effective rules
+forge permissions --list                   # List available presets with descriptions
+forge permissions --preset full-autonomy   # Apply a preset
+forge permissions --json                   # Machine-readable output
+```
+
+| Preset | Rules | What's Auto-Approved |
+|:-------|------:|:---------------------|
+| **Ask Before Changes** | 52 | File reading, code search, git inspection, system info |
+| **Auto-Edit** | 64 | Everything above + file creation/editing, copy, move |
+| **Full Autonomy** | 200 | Everything above + git, package managers, compilers, test runners, linters, Docker, GitHub CLI, web access |
+
+All tiers exclude destructive operations (`rm`, `sudo`, force push, hard reset). The [command-guard hook](#hooks) provides runtime enforcement as a safety net.
+
+Presets are applied to `~/.claude/settings.json` under `permissions.allow`. Custom rules you add manually are preserved across preset changes — the forge only manages rules it added (tracked in the manifest).
 
 ### forge update
 
@@ -736,11 +759,11 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 ## Testing
 
-507 automated tests across two test suites, run on every push via GitHub Actions.
+555+ automated tests across two test suites, run on every push via GitHub Actions.
 
 ### CLI Tests (bats-core)
 
-372 tests using [bats-core](https://github.com/bats-core/bats-core) across macOS, Ubuntu, and Windows.
+392+ tests using [bats-core](https://github.com/bats-core/bats-core) across macOS, Ubuntu, and Windows.
 
 ```bash
 ./test/run_tests.sh              # Run all tests
@@ -753,7 +776,7 @@ On non-interactive environments (CI, pipes), the spinner and progress counter au
 
 | Suite | Files | What It Covers |
 |:------|------:|:---------------|
-| **Unit** | 20 | Hooks, CLI dispatcher, plugins, manifest, platform detection, UI library, config, dashboard, stats, export |
+| **Unit** | 21 | Hooks, CLI dispatcher, plugins, manifest, platform detection, UI library, config, dashboard, stats, export, permissions |
 | **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup/restore, switch, doctor, diff, update, build, init |
 | **Validation** | 4 | Profile schema integrity, section file coverage, settings template structure, shell completions |
 
@@ -761,7 +784,7 @@ All tests run in a sandbox (`$HOME` redirected to a temp directory) — your rea
 
 ### Desktop App Tests (Swift)
 
-135 tests using XCTest and Swift Testing.
+143+ tests using XCTest and Swift Testing.
 
 ```bash
 cd app/ForgeDesktopCore && swift test
