@@ -88,29 +88,25 @@ public struct RepoDetailView: View {
 
                     Spacer()
 
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Button { SystemActions.openInFinder(path: repo.path) } label: {
-                            Image(systemName: "folder")
-                                .frame(width: 24, height: 24)
+                            Label("Finder", systemImage: "folder")
                         }
                         .help("Open in Finder")
 
                         Button { SystemActions.openInTerminal(path: repo.path) } label: {
-                            Image(systemName: "terminal")
-                                .frame(width: 24, height: 24)
+                            Label("Terminal", systemImage: "terminal")
                         }
                         .help("Open in Terminal")
 
                         Button { SystemActions.openInEditor(path: repo.path) } label: {
-                            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                .frame(width: 24, height: 24)
+                            Label("Editor", systemImage: "chevron.left.forwardslash.chevron.right")
                         }
                         .help("Open in Editor")
 
                         if repo.claudeMd.exists, claudeService.isAvailable {
                             Button { showOnboarding = true } label: {
-                                Image(systemName: "sparkles")
-                                    .frame(width: 24, height: 24)
+                                Label("Regenerate", systemImage: "sparkles")
                             }
                             .help("Regenerate CLAUDE.md with Claude")
                         }
@@ -125,15 +121,14 @@ public struct RepoDetailView: View {
                             if isRefreshingAudit {
                                 ProgressView()
                                     .controlSize(.mini)
-                                    .frame(width: 24, height: 24)
                             } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .frame(width: 24, height: 24)
+                                Label("Re-audit", systemImage: "arrow.clockwise")
                             }
                         }
                         .disabled(isRefreshingAudit)
-                        .help("Re-audit Repository")
+                        .help("Re-audit this repository")
                     }
+                    .labelStyle(.titleAndIcon)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
@@ -738,22 +733,32 @@ struct FindingRow: View {
             }
 
             // Inline tool activity during Claude fix
-            if case .running = fixState, !fixActivities.isEmpty {
+            if case .running = fixState, usesClaudeFix {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(fixActivities) { activity in
+                    if fixActivities.isEmpty {
                         HStack(spacing: 4) {
-                            if activity.isComplete {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(.green)
-                            } else {
-                                ProgressView()
-                                    .controlSize(.mini)
-                            }
-                            Text(activity.displayLabel)
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("Connecting to Claude...")
                                 .font(.system(size: 9))
-                                .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
-                                .lineLimit(1)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ForEach(fixActivities) { activity in
+                            HStack(spacing: 4) {
+                                if activity.isComplete {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.green)
+                                } else {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                }
+                                Text(activity.displayLabel)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
