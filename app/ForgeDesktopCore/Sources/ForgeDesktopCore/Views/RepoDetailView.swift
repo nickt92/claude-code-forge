@@ -104,29 +104,31 @@ public struct RepoDetailView: View {
                         }
                         .help("Open in Editor")
 
-                        if repo.claudeMd.exists, claudeService.isAvailable {
-                            Button { showOnboarding = true } label: {
-                                Label("Regenerate", systemImage: "sparkles")
+                        Menu {
+                            if repo.claudeMd.exists, claudeService.isAvailable {
+                                Button { showOnboarding = true } label: {
+                                    Label("Regenerate CLAUDE.md", systemImage: "sparkles")
+                                }
                             }
-                            .help("Regenerate CLAUDE.md with Claude")
-                        }
-
-                        Button {
-                            isRefreshingAudit = true
-                            Task {
-                                await refreshRepoAudit()
-                                isRefreshingAudit = false
+                            Button {
+                                isRefreshingAudit = true
+                                Task {
+                                    await refreshRepoAudit()
+                                    isRefreshingAudit = false
+                                }
+                            } label: {
+                                Label("Re-audit Repository", systemImage: "arrow.clockwise")
                             }
+                            .disabled(isRefreshingAudit)
                         } label: {
                             if isRefreshingAudit {
                                 ProgressView()
                                     .controlSize(.mini)
                             } else {
-                                Label("Re-audit", systemImage: "arrow.clockwise")
+                                Label("More", systemImage: "ellipsis.circle")
                             }
                         }
-                        .disabled(isRefreshingAudit)
-                        .help("Re-audit this repository")
+                        .help("Regenerate, re-audit, and more")
                     }
                     .labelStyle(.titleAndIcon)
                     .buttonStyle(.bordered)

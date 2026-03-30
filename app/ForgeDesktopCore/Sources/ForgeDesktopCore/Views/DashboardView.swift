@@ -52,19 +52,19 @@ public struct DashboardView: View {
                 .help("Rescan all repositories (⌘R)")
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { showDoctor = true } label: {
-                    Label("Doctor", systemImage: "stethoscope")
+                Menu {
+                    Button { showDoctor = true } label: {
+                        Label("Doctor", systemImage: "stethoscope")
+                    }
+                    Button { openSettings() } label: {
+                        Label("Settings", systemImage: "gear")
+                    }
+                    .keyboardShortcut(",", modifiers: .command)
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
                         .labelStyle(.titleAndIcon)
                 }
-                .help("Run diagnostic health checks on your forge installation")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button { openSettings() } label: {
-                    Label("Settings", systemImage: "gear")
-                        .labelStyle(.titleAndIcon)
-                }
-                .keyboardShortcut(",", modifiers: .command)
-                .help("Open settings (⌘,)")
+                .help("Doctor, Settings, and more")
             }
         }
         .sheet(isPresented: $showDoctor) {
