@@ -187,19 +187,34 @@ public final class OnboardingService: Sendable {
 
         ## Instructions
 
-        Based on the context above, generate a comprehensive CLAUDE.md file. Use the Read, Glob, and \
-        Grep tools to explore the codebase deeper where the context above is insufficient.
+        You are writing a CLAUDE.md file that will be the single source of truth for Claude Code \
+        when working in this codebase. Use the Read, Glob, and Grep tools to explore the codebase \
+        deeper where the context above is insufficient.
 
-        Output ONLY the CLAUDE.md content — no explanations, no markdown code fences wrapping the \
-        whole thing. Start directly with `# CLAUDE.md` or `# <Project Name>`.
+        Output ONLY the raw CLAUDE.md content. No preamble, no explanation, no markdown code fences \
+        wrapping the output. Start directly with `# <Project Name>`.
 
-        Quality rules:
-        - Target under 200 lines — concise but comprehensive
-        - Use specific versions from actual dependency files, not "latest"
-        - Include real commands developers run
-        - Document patterns as instructions to FOLLOW
-        - Include Common Pitfalls section with real issues
-        - Do NOT read or reference .env files, secrets, or credentials
+        ## Required Sections
+
+        1. **Overview** — What it is, who it's for (3-5 lines)
+        2. **Architecture** — Directory structure tree, service communication, monorepo/app layout
+        3. **Tech Stack** — Table: `| Layer | Technology | Version |` with EXACT versions from dependency files
+        4. **Development Setup** — Step-by-step from clone to running, port table, key commands
+        5. **Key Architecture Patterns** — Auth flow, API design, DB patterns, error handling, \
+        component patterns. Write as imperatives ("Always use...", "Never...")  with code snippets.
+        6. **Testing** — Framework, file conventions, coverage targets, test helper patterns
+        7. **Git Workflow** — Branch strategy, commit format, PR process
+        8. **Deployment** — Platform, environments, CI/CD
+        9. **Common Pitfalls** — 5-10 numbered gotchas specific to THIS codebase
+
+        ## Quality Rules
+
+        - Target 150-250 lines — dense and actionable, not padded
+        - Use REAL file paths, REAL commands, REAL version numbers from the codebase
+        - Include code snippets showing actual import patterns and usage from the codebase
+        - Cross-reference sections (testing references file paths from architecture)
+        - Do NOT read or reference .env files, secrets, credentials, or API keys
+        - Do NOT include generic advice — every line must be specific to THIS project
         """
 
         return prompt
@@ -207,34 +222,77 @@ public final class OnboardingService: Sendable {
 
     private func buildGreenfieldPrompt(description: String, projectName: String) -> String {
         """
-        Generate a CLAUDE.md file for a new project.
+        You are writing a CLAUDE.md file that will be the single source of truth for Claude Code \
+        when building a new project from scratch. This file must contain every technical decision \
+        needed to start coding immediately — Claude Code will read this file and follow it exactly.
 
-        ## Project Details
+        ## Project
         - Name: \(projectName)
         - Description: \(description)
 
-        ## Instructions
+        ## Output Format
 
-        Based on the description, generate a comprehensive CLAUDE.md file that will guide \
-        Claude Code in building this project.
+        Output ONLY the raw CLAUDE.md content. No preamble, no explanation, no markdown code fences \
+        wrapping the output. Start directly with `# \(projectName)`.
 
-        Output ONLY the CLAUDE.md content — no explanations, no markdown code fences wrapping the \
-        whole thing. Start directly with `# CLAUDE.md` or `# \(projectName)`.
+        ## Required Sections (in this order)
 
-        The CLAUDE.md must include:
-        - Overview (what it is, who it's for)
-        - Tech stack table (Layer | Technology | Version — use SPECIFIC versions)
-        - Project structure (proposed directory layout)
-        - Development commands (install, dev, test, build)
-        - Key patterns (auth approach, API design, component patterns, error handling)
-        - Git workflow and deployment approach
-        - Common pitfalls for the chosen stack
+        ### 1. Overview (3-5 lines)
+        What the project is, who it's for, what problem it solves.
 
-        Quality rules:
-        - Target under 200 lines — concise but comprehensive
-        - Every section should be actionable
-        - Document patterns as instructions to FOLLOW
-        - Make ALL technical decisions based on best practices for the described use case
+        ### 2. Architecture
+        - Monorepo vs single-app decision with rationale
+        - Directory structure as a tree diagram (```code block```)
+        - Service communication diagram if multi-service
+
+        ### 3. Tech Stack
+        Table format: `| Layer | Technology | Version |`
+        - Pick SPECIFIC versions (e.g., "React 19", "Express 5", "PostgreSQL 16") — never "latest"
+        - Include package manager, runtime, ORM, test framework, linter
+        - Justify non-obvious choices in a note below the table
+
+        ### 4. Development Setup
+        - Step-by-step commands to go from clone to running app
+        - Port assignments table if multiple services
+        - Environment variables needed (with example values, never real secrets)
+        - Docker/container setup if applicable
+
+        ### 5. Key Architecture Patterns
+        Document as INSTRUCTIONS Claude Code must follow:
+        - Authentication approach (session vs JWT, flow diagram)
+        - API design (REST vs GraphQL, naming conventions, error response format)
+        - Database schema patterns (naming, relationships, migration workflow)
+        - Component/module patterns with import examples
+        - Error handling strategy with code examples
+        - State management approach
+
+        ### 6. Testing Strategy
+        - Framework and runner
+        - File location conventions
+        - Coverage targets by layer
+        - Example test patterns (with code snippets)
+
+        ### 7. Git Workflow
+        - Branch naming convention
+        - Commit message format
+        - PR process
+
+        ### 8. Deployment
+        - Target platform recommendation
+        - CI/CD approach
+        - Environment strategy (dev/staging/prod)
+
+        ### 9. Common Pitfalls
+        Numbered list of 5-10 gotchas specific to the chosen stack.
+
+        ## Quality Rules
+
+        - Target 150-250 lines — dense and actionable, not padded
+        - Every section must contain concrete decisions, not generic advice
+        - Use real file paths from the directory structure you defined
+        - Include code snippets showing exact import patterns and usage
+        - Write patterns as imperatives: "Always use...", "Never...", "Use X for Y"
+        - Cross-reference between sections (e.g., testing section references file paths from architecture)
         """
     }
 
