@@ -176,18 +176,116 @@ public final class ClaudeService: @unchecked Sendable {
         }
     }
 
+    /// Tracks accumulated tool input JSON across `input_json_delta` events.
+    /// Keyed by content block index, cleared when the block stops.
+    /// These are guarded by toolInputLock — safe for concurrent access.
+    private static let toolInputLock = NSLock()
+    nonisolated(unsafe) private static var toolInputBuffers: [Int: (name: String, json: String)] = [:]
+
     static func parseStreamLine(_ line: String) -> ClaudeStreamEvent? {
         guard let data = line.data(using: .utf8) else { return nil }
 
         do {
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            guard let json else { return nil }
+            let rawJson = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            guard let rawJson else { return nil }
+
+            // Claude CLI wraps events: {"type":"stream_event","event":{...}}
+            // Unwrap if present, otherwise treat as flat event (for backwards compat)
+            let json: [String: Any]
+            let outerType = rawJson["type"] as? String ?? ""
+
+            if outerType == "stream_event", let event = rawJson["event"] as? [String: Any] {
+                json = event
+            } else {
+                json = rawJson
+            }
 
             let type = json["type"] as? String ?? ""
 
             switch type {
+            case "content_block_start":
+                // Tool use starts here: content_block.type == "tool_use"
+                if let block = json["content_block"] as? [String: Any],
+                   let blockType = block["type"] as? String {
+                    if blockType == "tool_use" {
+                        let name = block["name"] as? String ?? "unknown"
+                        let index = json["index"] as? Int ?? -1
+                        let toolId = block["id"] as? String ?? ""
+                        // Buffer the tool name for accumulating input deltas
+                        toolInputLock.withLock { toolInputBuffers[index] = (name: name, json: "") }
+                        // Track tool name by ID for tool_result resolution
+                        if !toolId.isEmpty { trackToolName(id: toolId, name: name) }
+                        // Emit tool_use with whatever input is available now
+                        let input = serializeInput(block["input"])
+                        return .toolUse(name: name, input: input)
+                    }
+                }
+                return nil
+
+            case "content_block_delta":
+                if let delta = json["delta"] as? [String: Any] {
+                    let deltaType = delta["type"] as? String
+                    // Handle text deltas — both {"type":"text_delta","text":"..."} and legacy {"text":"..."}
+                    if deltaType == "text_delta" || deltaType == nil,
+                       let text = delta["text"] as? String {
+                        return .assistantText(text)
+                    }
+                    if deltaType == "input_json_delta", let partial = delta["partial_json"] as? String {
+                        let index = json["index"] as? Int ?? -1
+                        toolInputLock.withLock {
+                            toolInputBuffers[index]?.json.append(partial)
+                        }
+                    }
+                }
+                return nil
+
+            case "content_block_stop":
+                // Clean up tool input buffer
+                let index = json["index"] as? Int ?? -1
+                toolInputLock.withLock { _ = toolInputBuffers.removeValue(forKey: index) }
+                return nil
+
+            case "message_start":
+                // Check for tool_result in user message content
+                if let message = json["message"] as? [String: Any],
+                   let role = message["role"] as? String, role == "user",
+                   let content = message["content"] as? [[String: Any]] {
+                    for block in content {
+                        if let blockType = block["type"] as? String, blockType == "tool_result" {
+                            let toolUseId = block["tool_use_id"] as? String ?? ""
+                            // Find the tool name from our buffers or use the ID
+                            let name = resolveToolName(forId: toolUseId)
+                            let output: String
+                            if let contentStr = block["content"] as? String {
+                                output = contentStr
+                            } else if let contentArr = block["content"] as? [[String: Any]] {
+                                output = contentArr.compactMap { $0["text"] as? String }.joined()
+                            } else {
+                                output = ""
+                            }
+                            return .toolResult(name: name, output: String(output.prefix(200)))
+                        }
+                    }
+                    // Also handle assistant messages with text content
+                    if role == "assistant", let content = message["content"] as? [[String: Any]] {
+                        var text = ""
+                        for block in content {
+                            if let blockText = block["text"] as? String {
+                                text += blockText
+                            }
+                        }
+                        if !text.isEmpty {
+                            return .assistantText(text)
+                        }
+                    }
+                }
+                return nil
+
+            case "message_delta", "message_stop":
+                return nil
+
+            // Legacy flat format support (used by tests and potential future CLI changes)
             case "assistant":
-                // Text content block
                 if let message = json["message"] as? [String: Any],
                    let content = message["content"] as? [[String: Any]] {
                     var text = ""
@@ -202,27 +300,9 @@ public final class ClaudeService: @unchecked Sendable {
                 }
                 return nil
 
-            case "content_block_delta":
-                if let delta = json["delta"] as? [String: Any],
-                   let text = delta["text"] as? String {
-                    return .assistantText(text)
-                }
-                return nil
-
             case "tool_use":
                 let name = json["name"] as? String ?? "unknown"
-                let input: String
-                if let inputObj = json["input"] {
-                    if let inputData = try? JSONSerialization.data(withJSONObject: inputObj),
-                       let inputStr = String(data: inputData, encoding: .utf8) {
-                        input = inputStr
-                    } else {
-                        input = ""
-                    }
-                } else {
-                    input = ""
-                }
-                return .toolUse(name: name, input: input)
+                return .toolUse(name: name, input: serializeInput(json["input"]))
 
             case "tool_result":
                 let name = json["name"] as? String ?? "unknown"
@@ -232,7 +312,7 @@ public final class ClaudeService: @unchecked Sendable {
             case "result":
                 if let resultStr = json["result"] as? String {
                     let isError = json["is_error"] as? Bool ?? false
-                    let costUsd = json["cost_usd"] as? Double
+                    let costUsd = json["total_cost_usd"] as? Double ?? json["cost_usd"] as? Double
                     let result = ClaudeResult(result: resultStr, isError: isError, costUsd: costUsd)
                     return .result(result)
                 }
@@ -250,6 +330,26 @@ public final class ClaudeService: @unchecked Sendable {
         } catch {
             return nil
         }
+    }
+
+    private static func serializeInput(_ input: Any?) -> String {
+        guard let input else { return "" }
+        guard let data = try? JSONSerialization.data(withJSONObject: input),
+              let str = String(data: data, encoding: .utf8) else { return "" }
+        return str
+    }
+
+    /// Best-effort resolve tool name from a tool_use_id.
+    /// The CLI doesn't include the name in tool_result events, so we track it from content_block_start.
+    nonisolated(unsafe) private static var lastToolNames: [String: String] = [:]
+    private static let toolNameLock = NSLock()
+
+    static func trackToolName(id: String, name: String) {
+        toolNameLock.withLock { lastToolNames[id] = name }
+    }
+
+    static func resolveToolName(forId id: String) -> String {
+        toolNameLock.withLock { lastToolNames[id] ?? "unknown" }
     }
 
     private func parseResult(_ data: Data) throws -> ClaudeResult {

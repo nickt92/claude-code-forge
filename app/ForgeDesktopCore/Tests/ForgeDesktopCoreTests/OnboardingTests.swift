@@ -244,7 +244,7 @@ final class ClaudeStreamParsingTests: XCTestCase {
 
     func testParsesResultEvent() {
         let line = """
-        {"type":"result","result":"Done generating","is_error":false,"cost_usd":0.15}
+        {"type":"result","result":"Done generating","is_error":false,"total_cost_usd":0.15}
         """
         let event = ClaudeService.parseStreamLine(line)
 
@@ -252,6 +252,19 @@ final class ClaudeStreamParsingTests: XCTestCase {
             XCTAssertEqual(result.result, "Done generating")
             XCTAssertFalse(result.isError)
             XCTAssertEqual(result.costUsd!, 0.15, accuracy: 0.001)
+        } else {
+            XCTFail("Expected .result, got \(String(describing: event))")
+        }
+    }
+
+    func testParsesResultEventWithLegacyCostKey() {
+        let line = """
+        {"type":"result","result":"Done","is_error":false,"cost_usd":0.10}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+
+        if case .result(let result) = event {
+            XCTAssertEqual(result.costUsd!, 0.10, accuracy: 0.001)
         } else {
             XCTFail("Expected .result, got \(String(describing: event))")
         }
@@ -285,6 +298,82 @@ final class ClaudeStreamParsingTests: XCTestCase {
 
     func testReturnsNilForEmptyLine() {
         let event = ClaudeService.parseStreamLine("")
+        XCTAssertNil(event)
+    }
+
+    // MARK: - Real CLI Format (stream_event wrapper)
+
+    func testParsesWrappedTextDelta() {
+        let line = """
+        {"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello from CLI"}},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+
+        if case .assistantText(let text) = event {
+            XCTAssertEqual(text, "Hello from CLI")
+        } else {
+            XCTFail("Expected .assistantText, got \(String(describing: event))")
+        }
+    }
+
+    func testParsesWrappedToolUseStart() {
+        let line = """
+        {"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_123","name":"Read","input":{}}},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+
+        if case .toolUse(let name, _) = event {
+            XCTAssertEqual(name, "Read")
+        } else {
+            XCTFail("Expected .toolUse, got \(String(describing: event))")
+        }
+    }
+
+    func testParsesWrappedToolResult() {
+        // First register the tool name
+        ClaudeService.trackToolName(id: "toolu_456", name: "Glob")
+
+        let line = """
+        {"type":"stream_event","event":{"type":"message_start","message":{"id":"msg_1","type":"message","role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_456","content":"found 5 files"}],"model":"sonnet","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+
+        if case .toolResult(let name, let output) = event {
+            XCTAssertEqual(name, "Glob")
+            XCTAssertEqual(output, "found 5 files")
+        } else {
+            XCTFail("Expected .toolResult, got \(String(describing: event))")
+        }
+    }
+
+    func testParsesWrappedResult() {
+        let line = """
+        {"type":"stream_event","event":{"type":"result","result":"Done","is_error":false,"total_cost_usd":0.05},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+
+        if case .result(let result) = event {
+            XCTAssertEqual(result.result, "Done")
+            XCTAssertFalse(result.isError)
+            XCTAssertEqual(result.costUsd!, 0.05, accuracy: 0.001)
+        } else {
+            XCTFail("Expected .result, got \(String(describing: event))")
+        }
+    }
+
+    func testIgnoresMessageDelta() {
+        let line = """
+        {"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"end_turn"}},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
+        XCTAssertNil(event)
+    }
+
+    func testIgnoresMessageStop() {
+        let line = """
+        {"type":"stream_event","event":{"type":"message_stop"},"uuid":"abc","session_id":"xyz"}
+        """
+        let event = ClaudeService.parseStreamLine(line)
         XCTAssertNil(event)
     }
 }
