@@ -377,6 +377,19 @@ public struct SetupWizardView: View {
             }
             .padding(.horizontal, 16)
 
+            if SettingsView.isBroadScanPath(scanPath) {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 11))
+                    Text("This will scan your entire home directory, which may be slow and trigger macOS permission prompts.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16)
+            }
+
             Button {
                 setScanPath()
             } label: {

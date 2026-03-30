@@ -18,8 +18,26 @@ _discover_repos() {
     return
   fi
 
-  # Find .claude directories, then return their parent (the repo root)
-  find "$scan_path" -maxdepth "$scan_depth" -type d -name ".claude" 2>/dev/null | while IFS= read -r claude_dir; do
+  # Build prune list for macOS TCC-protected and non-code directories.
+  # These trigger permission prompts and never contain git repos.
+  local prune_args=()
+  local real_scan
+  real_scan=$(cd "$scan_path" 2>/dev/null && pwd -P) || return
+
+  if [ "$real_scan" = "$HOME" ] || [ "$real_scan" = "/" ]; then
+    local tcc_dirs=(Library Pictures Music Movies)
+    for dir in "${tcc_dirs[@]}"; do
+      local full_path="$real_scan/$dir"
+      if [ -d "$full_path" ]; then
+        prune_args+=(-path "$full_path" -prune -o)
+      fi
+    done
+  fi
+
+  # Find .claude directories, pruning non-code paths, then return their parent
+  find "$scan_path" "${prune_args[@]}" \
+    -maxdepth "$scan_depth" -type d -name ".claude" -print 2>/dev/null \
+    | while IFS= read -r claude_dir; do
     local repo_dir
     repo_dir=$(dirname "$claude_dir")
     # Skip the home directory (global config, not a project)

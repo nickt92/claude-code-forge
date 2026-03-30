@@ -87,6 +87,20 @@ public struct SettingsView: View {
                     }
                 }
 
+                if Self.isBroadScanPath(scanPath) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.system(size: 11))
+                        Text("Scanning a broad directory may be slow and trigger macOS permission prompts. Consider a specific directory like ~/code.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(8)
+                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                }
+
                 Button {
                     if !scanPath.isEmpty {
                         Task { try? await configService.setScanPath(scanPath) }
@@ -164,5 +178,11 @@ public struct SettingsView: View {
         if service.isAvailable {
             resolvedClaudePath = "claude"
         }
+    }
+
+    static func isBroadScanPath(_ path: String) -> Bool {
+        let expanded = (path as NSString).expandingTildeInPath
+        let home = NSHomeDirectory()
+        return expanded == home || expanded == "/" || expanded == "/Users"
     }
 }
