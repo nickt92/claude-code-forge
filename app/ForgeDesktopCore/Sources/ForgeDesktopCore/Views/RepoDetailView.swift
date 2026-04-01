@@ -684,6 +684,7 @@ struct FindingRow: View {
     @State private var fixState: FixState = .idle
     @State private var showClaudeResponse = false
     @State private var fixActivities: [ToolActivity] = []
+    @State private var fixStartTime: Date?
 
     enum FixState {
         case idle, running, pendingReview(before: String, after: String), success, failed(String)
@@ -761,6 +762,28 @@ struct FindingRow: View {
                                     .foregroundStyle(activity.isComplete ? .tertiary : .secondary)
                                     .lineLimit(1)
                             }
+                        }
+
+                        // Show "writing" status when all tools are done but fix is still running
+                        if fixActivities.allSatisfy(\.isComplete) {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                Text("Writing changes...")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    // Elapsed timer
+                    if let start = fixStartTime {
+                        TimelineView(.periodic(from: start, by: 1)) { context in
+                            let seconds = Int(context.date.timeIntervalSince(start))
+                            Text(seconds < 60 ? "\(seconds)s elapsed" : "\(seconds / 60)m \(seconds % 60)s elapsed")
+                                .font(.system(size: 8, design: .rounded))
+                                .foregroundStyle(.quaternary)
+                                .monospacedDigit()
                         }
                     }
                 }
@@ -849,7 +872,7 @@ struct FindingRow: View {
                     .controlSize(.mini)
                 Text(fixActivities.isEmpty
                     ? (usesClaudeFix ? "Starting Claude..." : "Fixing...")
-                    : "Claude is working...")
+                    : (fixActivities.allSatisfy(\.isComplete) ? "Claude is writing..." : "Claude is analyzing..."))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -974,6 +997,7 @@ struct FindingRow: View {
         showConfirm = false
         fixState = .running
         fixActivities = []
+        fixStartTime = usesClaudeFix ? Date() : nil
         onFixStarted?()
 
         Task {

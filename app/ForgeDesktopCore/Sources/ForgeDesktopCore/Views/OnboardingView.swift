@@ -14,6 +14,7 @@ public struct OnboardingView: View {
     @State private var contextSummary: ContextSummary?
     @State private var streamTask: Task<Void, Never>?
     @State private var detectedSections: [DetectedSection] = []
+    @State private var generationStartTime: Date?
 
     // Greenfield inputs
     @State private var projectDescription: String = ""
@@ -97,7 +98,7 @@ public struct OnboardingView: View {
         case .setup: return "New Project Setup"
         case .analyzing: return "Analyzing Codebase"
         case .generating: return "Generating CLAUDE.md"
-        case .review: return "Review CLAUDE.md"
+        case .review: return "Review Generated CLAUDE.md"
         case .saving: return "Saving..."
         case .complete: return "Complete"
         case .failed: return "Error"
@@ -339,33 +340,49 @@ public struct OnboardingView: View {
 
                 Divider()
 
-                // Progress footer
-                HStack {
+                // Progress footer with elapsed timer and line count
+                HStack(spacing: 6) {
                     ProgressView()
                         .controlSize(.mini)
                     Text(progressLabel)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    if !detectedSections.isEmpty {
-                        Text("\(detectedSections.count) sections")
+                    if generatedLineCount > 0 {
+                        Text("\(generatedLineCount) lines")
                             .font(.system(size: 10, design: .rounded))
                             .foregroundStyle(.tertiary)
+                    }
+                    if let start = generationStartTime {
+                        TimelineView(.periodic(from: start, by: 1)) { context in
+                            Text(elapsedString(from: start, to: context.date))
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundStyle(.tertiary)
+                                .monospacedDigit()
+                        }
                     }
                 }
                 .padding(10)
             }
             .frame(minWidth: 200, idealWidth: 250)
 
-            // Right pane: Live markdown preview
+            // Right pane: Live rendered markdown preview
             VStack(alignment: .leading, spacing: 0) {
-                Text("LIVE PREVIEW")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(0.5)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+                HStack {
+                    Text("LIVE PREVIEW")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.5)
+                    Spacer()
+                    if generatedLineCount > 0 {
+                        Text("\(generatedLineCount) lines")
+                            .font(.system(size: 10, design: .rounded))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -373,7 +390,7 @@ public struct OnboardingView: View {
                             VStack(spacing: 8) {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text("Waiting for Claude...")
+                                Text("Claude is reading your codebase...")
                                     .font(.system(size: 12))
                                     .foregroundStyle(.tertiary)
                             }
@@ -381,10 +398,13 @@ public struct OnboardingView: View {
                             .padding(.top, 60)
                         } else {
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(LocalizedStringKey(generatedContent))
-                                    .font(.system(size: 12))
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                MarkdownContentView(
+                                    content: generatedContent,
+                                    isStreaming: true,
+                                    fontSize: 12
+                                )
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
                                 // Typing cursor
                                 if case .generating = phase {
@@ -429,14 +449,36 @@ public struct OnboardingView: View {
         return "Writing..."
     }
 
+    private var generatedLineCount: Int {
+        guard !generatedContent.isEmpty else { return 0 }
+        return generatedContent.components(separatedBy: "\n").count
+    }
+
+    private var allToolsComplete: Bool {
+        !activities.isEmpty && activities.allSatisfy(\.isComplete)
+    }
+
     private var progressLabel: String {
         if generatedContent.isEmpty {
-            return "Starting generation..."
-        } else if detectedSections.isEmpty {
-            return "Generating content..."
+            if activities.isEmpty {
+                return "Starting generation..."
+            }
+            return "Reading codebase..."
+        } else if allToolsComplete {
+            return currentSectionLabel
         } else {
-            return "Writing sections..."
+            return "Analyzing & writing..."
         }
+    }
+
+    private func elapsedString(from start: Date, to now: Date) -> String {
+        let seconds = Int(now.timeIntervalSince(start))
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
+        let minutes = seconds / 60
+        let remainder = seconds % 60
+        return "\(minutes)m \(remainder)s"
     }
 
     // MARK: - Phase: Review
@@ -444,11 +486,14 @@ public struct OnboardingView: View {
     private func reviewView(content: String) -> some View {
         VStack(spacing: 0) {
             ScrollView {
-                Text(LocalizedStringKey(content))
-                    .font(.system(size: 12))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
+                MarkdownContentView(
+                    content: content,
+                    isStreaming: false,
+                    fontSize: 12
+                )
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
             }
 
             Divider()
@@ -558,6 +603,7 @@ public struct OnboardingView: View {
             activities = []
             detectedSections = []
             cursorOpacity = 0.0
+            generationStartTime = Date()
 
             await streamGeneration(
                 onboardingService.generateClaudeMd(context: context, persona: persona)
@@ -573,6 +619,7 @@ public struct OnboardingView: View {
         activities = []
         detectedSections = []
         cursorOpacity = 0.0
+        generationStartTime = Date()
 
         let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = projectPath
@@ -667,6 +714,7 @@ public struct OnboardingView: View {
         generatedContent = ""
         activities = []
         detectedSections = []
+        generationStartTime = Date()
 
         streamTask?.cancel()
         streamTask = Task {
