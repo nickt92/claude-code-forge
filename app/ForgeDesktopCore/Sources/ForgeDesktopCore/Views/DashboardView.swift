@@ -4,7 +4,7 @@ public struct DashboardView: View {
     @Bindable var state: ForgeState
     let onRefresh: () -> Void
     @State private var searchText = ""
-    @State private var selectedRepo: RepoData?
+    @State private var selectedRepoPath: String?
     @State private var showDoctor = false
     @State private var showPersonaSwitcher = false
     @State private var showNewProject = false
@@ -15,6 +15,14 @@ public struct DashboardView: View {
     public init(state: ForgeState, onRefresh: @escaping () -> Void) {
         self.state = state
         self.onRefresh = onRefresh
+    }
+
+    /// Derives the selected repo from ForgeState so it always reflects the latest data
+    /// (audit results, scores) after fixes and re-audits.
+    private var selectedRepo: RepoData? {
+        guard let path = selectedRepoPath,
+              case .loaded(let data) = state.loadState else { return nil }
+        return data.repos.first { $0.path == path }
     }
 
     public var body: some View {
@@ -147,7 +155,7 @@ public struct DashboardView: View {
                 Spacer()
             }
         } else {
-            List(selection: $selectedRepo) {
+            List(selection: $selectedRepoPath) {
                 Section {
                     GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
                 }
@@ -186,7 +194,7 @@ public struct DashboardView: View {
                 Section("Repositories (\(filteredRepos.count))") {
                     ForEach(filteredRepos) { repo in
                         RepoRow(repo: repo)
-                            .tag(repo)
+                            .tag(repo.path)
                     }
                 }
             }

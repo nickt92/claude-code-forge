@@ -455,6 +455,7 @@ public struct RepoDetailView: View {
                     case .pendingReview(let before, let after):
                         bulkReviewQueue.append((finding: finding, before: before, after: after))
                         bulkFixState?.completedCount += 1
+                        recomputeContentHash()
                     default:
                         bulkFixState?.failedFinding = finding.detail
                         break
