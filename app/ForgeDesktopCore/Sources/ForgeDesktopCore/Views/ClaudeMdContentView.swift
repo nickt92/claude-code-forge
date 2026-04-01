@@ -1,3 +1,4 @@
+import MarkdownUI
 import SwiftUI
 
 public struct ClaudeMdContentView: View {
@@ -8,6 +9,7 @@ public struct ClaudeMdContentView: View {
     @State private var showContent = false
     @State private var showAll = false
     @State private var fileContent: String?
+    @State private var showRendered = true
 
     private let maxCollapsedHeight: CGFloat = 300
 
@@ -57,6 +59,16 @@ public struct ClaudeMdContentView: View {
 
             Spacer()
 
+            if showContent {
+                Picker("", selection: $showRendered) {
+                    Text("Rendered").tag(true)
+                    Text("Source").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                .controlSize(.mini)
+            }
+
             Button {
                 NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
             } label: {
@@ -77,42 +89,78 @@ public struct ClaudeMdContentView: View {
     @ViewBuilder
     private var contentBody: some View {
         if let content = fileContent {
-            let annotatedLines = buildAnnotatedLines(from: content)
-
-            VStack(alignment: .leading, spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(annotatedLines.enumerated()), id: \.offset) { index, line in
-                            annotatedLineView(line, index: index)
-                        }
-
-                        missingMarkers
-                    }
-                    .padding(.vertical, 4)
-                }
-                .frame(maxHeight: showAll ? .infinity : maxCollapsedHeight)
-
-                if !showAll, annotatedLines.count > 15 {
-                    Divider()
-                    Button {
-                        withAnimation { showAll = true }
-                    } label: {
-                        Text("Show all \(annotatedLines.count) lines")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                }
+            if showRendered {
+                renderedBody(content)
+            } else {
+                sourceBody(content)
             }
-            .background(.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
         } else {
             Text("Could not read file")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 8)
+        }
+    }
+
+    private func renderedBody(_ content: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    RenderedMarkdownView(content: content, fontSize: 12)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    missingMarkers
+                }
+                .padding(12)
+            }
+            .frame(maxHeight: showAll ? .infinity : maxCollapsedHeight)
+
+            if !showAll, content.components(separatedBy: "\n").count > 15 {
+                expandButton(lineCount: content.components(separatedBy: "\n").count)
+            }
+        }
+        .background(.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+    }
+
+    private func sourceBody(_ content: String) -> some View {
+        let annotatedLines = buildAnnotatedLines(from: content)
+
+        return VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(annotatedLines.enumerated()), id: \.offset) { index, line in
+                        annotatedLineView(line, index: index)
+                    }
+
+                    missingMarkers
+                }
+                .padding(.vertical, 4)
+            }
+            .frame(maxHeight: showAll ? .infinity : maxCollapsedHeight)
+
+            if !showAll, annotatedLines.count > 15 {
+                expandButton(lineCount: annotatedLines.count)
+            }
+        }
+        .background(.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+    }
+
+    private func expandButton(lineCount: Int) -> some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button {
+                withAnimation { showAll = true }
+            } label: {
+                Text("Show all \(lineCount) lines")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.blue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
         }
     }
 

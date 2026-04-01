@@ -398,9 +398,8 @@ public struct OnboardingView: View {
                             .padding(.top, 60)
                         } else {
                             VStack(alignment: .leading, spacing: 0) {
-                                MarkdownContentView(
+                                RenderedMarkdownView(
                                     content: generatedContent,
-                                    isStreaming: true,
                                     fontSize: 12
                                 )
                                 .textSelection(.enabled)
@@ -486,9 +485,8 @@ public struct OnboardingView: View {
     private func reviewView(content: String) -> some View {
         VStack(spacing: 0) {
             ScrollView {
-                MarkdownContentView(
+                RenderedMarkdownView(
                     content: content,
-                    isStreaming: false,
                     fontSize: 12
                 )
                 .textSelection(.enabled)

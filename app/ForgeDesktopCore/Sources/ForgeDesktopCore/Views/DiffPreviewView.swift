@@ -1,3 +1,4 @@
+import MarkdownUI
 import SwiftUI
 
 public struct DiffPreviewView: View {
@@ -12,7 +13,8 @@ public struct DiffPreviewView: View {
 
     enum Tab: String, CaseIterable {
         case changes = "Changes"
-        case fullPreview = "Full Preview"
+        case rendered = "Preview"
+        case fullPreview = "Source"
     }
 
     public init(
@@ -79,6 +81,8 @@ public struct DiffPreviewView: View {
         switch selectedTab {
         case .changes:
             changesView
+        case .rendered:
+            renderedView
         case .fullPreview:
             fullPreviewView
         }
@@ -162,7 +166,19 @@ public struct DiffPreviewView: View {
         .background(backgroundColor(kind))
     }
 
-    // MARK: - Full Preview Tab
+    // MARK: - Rendered Preview Tab
+
+    private var renderedView: some View {
+        ScrollView {
+            RenderedMarkdownView(content: after, fontSize: 12)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+        }
+        .background(.background)
+    }
+
+    // MARK: - Full Preview Tab (Source)
 
     private var fullPreviewView: some View {
         let afterLines = after.components(separatedBy: "\n")

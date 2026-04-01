@@ -8,9 +8,15 @@ let package = Package(
     products: [
         .library(name: "ForgeDesktopCore", targets: ["ForgeDesktopCore"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.0"),
+    ],
     targets: [
         .target(
             name: "ForgeDesktopCore",
+            dependencies: [
+                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+            ],
             path: "Sources/ForgeDesktopCore"
         ),
         .testTarget(
