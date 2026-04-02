@@ -2,15 +2,20 @@ import Foundation
 
 public final class PermissionsService: Sendable {
     private let executor: CLIExecutor
-    private let forgePathOverride: String?
+    private let pathResolver: ForgePathResolver
 
     public init(executor: CLIExecutor = ProcessExecutor(), forgePath: String? = nil) {
         self.executor = executor
-        self.forgePathOverride = forgePath
+        self.pathResolver = ForgePathResolver(executor: executor, forgePath: forgePath)
+    }
+
+    public init(executor: CLIExecutor = ProcessExecutor(), pathResolver: ForgePathResolver) {
+        self.executor = executor
+        self.pathResolver = pathResolver
     }
 
     public func listPresets() async throws -> [PermissionPreset] {
-        let forgePath = try await resolvePath()
+        let forgePath = try await pathResolver.resolve()
         let data = try await executor.run(
             executable: forgePath,
             arguments: ["permissions", "--list", "--json"]
@@ -25,7 +30,7 @@ public final class PermissionsService: Sendable {
     }
 
     public func currentState() async throws -> PermissionsState {
-        let forgePath = try await resolvePath()
+        let forgePath = try await pathResolver.resolve()
         let data = try await executor.run(
             executable: forgePath,
             arguments: ["permissions", "--json"]
@@ -40,21 +45,10 @@ public final class PermissionsService: Sendable {
     }
 
     public func applyPreset(name: String) async throws {
-        let forgePath = try await resolvePath()
+        let forgePath = try await pathResolver.resolve()
         _ = try await executor.run(
             executable: forgePath,
             arguments: ["permissions", "--preset", name]
         )
-    }
-
-    private func resolvePath() async throws -> String {
-        if let override = forgePathOverride, !override.isEmpty {
-            guard FileManager.default.isExecutableFile(atPath: override) else {
-                throw ForgeError.cliNotFound
-            }
-            return override
-        }
-        let service = ForgeService(executor: executor)
-        return try await service.discoverForgePath()
     }
 }

@@ -6,7 +6,7 @@ public final class OnboardingService: Sendable {
 
     private let executor: CLIExecutor
     private let claudeService: ClaudeService
-    private let forgePathOverride: String?
+    private let pathResolver: ForgePathResolver
     private let fileSystem: FileSystemProtocol
 
     public init(
@@ -17,14 +17,26 @@ public final class OnboardingService: Sendable {
     ) {
         self.executor = executor
         self.claudeService = claudeService
-        self.forgePathOverride = forgePath
+        self.pathResolver = ForgePathResolver(executor: executor, forgePath: forgePath)
+        self.fileSystem = fileSystem
+    }
+
+    public init(
+        executor: CLIExecutor = ProcessExecutor(),
+        claudeService: ClaudeService,
+        pathResolver: ForgePathResolver,
+        fileSystem: FileSystemProtocol = RealFileSystem()
+    ) {
+        self.executor = executor
+        self.claudeService = claudeService
+        self.pathResolver = pathResolver
         self.fileSystem = fileSystem
     }
 
     // MARK: - Brownfield: Analyze Repo
 
     public func analyzeRepo(path: String) async throws -> CodebaseContext {
-        let forgePath = try await resolveForgePath()
+        let forgePath = try await pathResolver.resolve()
 
         Self.logger.info("Analyzing repo at \(path, privacy: .public)")
 
@@ -314,16 +326,4 @@ public final class OnboardingService: Sendable {
         }
     }
 
-    // MARK: - Path Resolution
-
-    private func resolveForgePath() async throws -> String {
-        if let override = forgePathOverride, !override.isEmpty {
-            guard FileManager.default.isExecutableFile(atPath: override) else {
-                throw ForgeError.cliNotFound
-            }
-            return override
-        }
-        let service = ForgeService(executor: executor)
-        return try await service.discoverForgePath()
-    }
 }

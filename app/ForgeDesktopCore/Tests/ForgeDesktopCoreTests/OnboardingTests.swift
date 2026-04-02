@@ -330,13 +330,14 @@ final class ClaudeStreamParsingTests: XCTestCase {
     }
 
     func testParsesWrappedToolResult() {
-        // First register the tool name
-        ClaudeService.trackToolName(id: "toolu_456", name: "Glob")
+        // Use a shared context so trackToolName persists for the result parse
+        let context = StreamParsingContext()
+        context.trackToolName(id: "toolu_456", name: "Glob")
 
         let line = """
         {"type":"stream_event","event":{"type":"message_start","message":{"id":"msg_1","type":"message","role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_456","content":"found 5 files"}],"model":"sonnet","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}},"uuid":"abc","session_id":"xyz"}
         """
-        let event = ClaudeService.parseStreamLine(line)
+        let event = ClaudeService.parseStreamLine(line, context: context)
 
         if case .toolResult(let name, let output) = event {
             XCTAssertEqual(name, "Glob")

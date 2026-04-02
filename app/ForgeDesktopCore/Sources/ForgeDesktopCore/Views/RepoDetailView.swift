@@ -6,8 +6,8 @@ public struct RepoDetailView: View {
     @State private var contentHashAtLoad: String?
     @State private var fixRunning: Bool = false
     @State private var claudeMdRefreshTrigger: Int = 0
-    @State private var bulkFixState: BulkFixState?
     @State private var showOnboarding = false
+    @State private var coordinator: BulkFixCoordinator?
     @Environment(\.fixService) private var fixService
     @Environment(\.forgeService) private var forgeService
     @Environment(\.forgeState) private var forgeState
@@ -16,6 +16,14 @@ public struct RepoDetailView: View {
 
     public init(repo: RepoData) {
         self.repo = repo
+    }
+
+    private var bulkCoordinator: BulkFixCoordinator {
+        if let existing = coordinator { return existing }
+        let new = BulkFixCoordinator(fixService: fixService, dismissalService: dismissalService)
+        // Defer mutation to avoid modifying state during view update
+        DispatchQueue.main.async { coordinator = new }
+        return new
     }
 
     public var body: some View {
@@ -47,25 +55,54 @@ public struct RepoDetailView: View {
         .navigationTitle(repo.name)
         .frame(minWidth: 450)
         .task(id: repo.path) {
+            coordinator = BulkFixCoordinator(fixService: fixService, dismissalService: dismissalService)
             if let mdPath = repo.claudeMdAudit?.locations.first {
                 contentHashAtLoad = try? fixService.contentHash(for: mdPath)
             }
             dismissedFindings = dismissalService.dismissedIds(for: repo.path)
         }
-        .sheet(isPresented: $showBulkReview, onDismiss: {
-            // User dismissed without approving — reject the current review
-            if let review = currentBulkReview {
-                handleBulkReviewReject(review.before)
+        .sheet(isPresented: Binding(
+            get: { coordinator?.showReview ?? false },
+            set: { newValue in
+                if !newValue, let review = coordinator?.currentReview {
+                    coordinator?.handleReviewReject(
+                        beforeContent: review.before,
+                        claudeMdPath: repo.claudeMdAudit?.locations.first,
+                        onContentChanged: { recomputeContentHash() },
+                        onRefresh: { await refreshRepoAudit() }
+                    )
+                }
             }
-        }) {
-            if let review = currentBulkReview {
+        )) {
+            if let review = coordinator?.currentReview {
                 DiffPreviewView(
                     before: review.before,
                     after: review.after,
                     sectionName: review.finding.section ?? review.finding.code,
-                    remaining: bulkReviewQueue.count,
-                    onApprove: { handleBulkReviewApprove(review.after, finding: review.finding) },
-                    onReject: { handleBulkReviewReject(review.before) }
+                    remaining: coordinator?.reviewQueue.count ?? 0,
+                    onApprove: {
+                        coordinator?.handleReviewApprove(
+                            afterContent: review.after,
+                            finding: review.finding,
+                            repoPath: repo.path,
+                            claudeMdPath: repo.claudeMdAudit?.locations.first,
+                            onDismissed: { id in
+                                dismissalService.dismiss(repoPath: repo.path, findingId: id)
+                                withAnimation { _ = dismissedFindings.insert(id) }
+                                claudeMdRefreshTrigger += 1
+                            },
+                            onContentChanged: { recomputeContentHash() },
+                            onRefresh: { await refreshRepoAudit() }
+                        )
+                    },
+                    onReject: {
+                        coordinator?.handleReviewReject(
+                            beforeContent: review.before,
+                            claudeMdPath: repo.claudeMdAudit?.locations.first,
+                            onContentChanged: { recomputeContentHash() },
+                            onRefresh: { await refreshRepoAudit() }
+                        )
+                    }
                 )
             }
         }
@@ -326,7 +363,23 @@ public struct RepoDetailView: View {
                     HStack(spacing: 8) {
                         if fixableCount >= 2 {
                             Button {
-                                runBulkFix(visibleFindings.filter(\.fixable))
+                                fixRunning = true
+                                coordinator?.runBulkFix(
+                                    findings: visibleFindings.filter(\.fixable),
+                                    repoPath: repo.path,
+                                    claudeMdPath: repo.claudeMdAudit?.locations.first,
+                                    contentHashAtLoad: contentHashAtLoad,
+                                    onDismissed: { id in
+                                        dismissalService.dismiss(repoPath: repo.path, findingId: id)
+                                        withAnimation { _ = dismissedFindings.insert(id) }
+                                        claudeMdRefreshTrigger += 1
+                                    },
+                                    onContentChanged: { recomputeContentHash() },
+                                    onRefresh: {
+                                        fixRunning = false
+                                        await refreshRepoAudit()
+                                    }
+                                )
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "wrench.and.screwdriver.fill")
@@ -337,7 +390,7 @@ public struct RepoDetailView: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .disabled(fixRunning || bulkFixState != nil)
+                            .disabled(fixRunning || coordinator?.isRunning == true)
                         }
 
                         if !infoFindings.isEmpty {
@@ -359,7 +412,7 @@ public struct RepoDetailView: View {
                     }
 
                     // Bulk fix progress
-                    if let bulk = bulkFixState {
+                    if let bulk = coordinator?.bulkFixState {
                         BulkFixProgressView(state: bulk)
                     }
 
@@ -371,7 +424,7 @@ public struct RepoDetailView: View {
                                 repoPath: repo.path,
                                 claudeMdPath: repo.claudeMdAudit?.locations.first,
                                 contentHashAtLoad: contentHashAtLoad,
-                                fixDisabled: fixRunning || bulkFixState != nil,
+                                fixDisabled: fixRunning || coordinator?.isRunning == true,
                                 onFixed: { [finding] in
                                     let id = finding.id
                                     dismissalService.dismiss(repoPath: repo.path, findingId: id)
@@ -404,127 +457,6 @@ public struct RepoDetailView: View {
         }
     }
 
-    @State private var bulkReviewQueue: [(finding: Finding, before: String, after: String)] = []
-    @State private var currentBulkReview: (finding: Finding, before: String, after: String)?
-    @State private var showBulkReview = false
-
-    private func handleBulkStreamEvent(_ event: ClaudeStreamEvent) {
-        switch event {
-        case .toolUse(let name, let input):
-            bulkFixState?.currentActivities.append(ToolActivity(name: name, input: input))
-        case .toolResult(let name, _):
-            if let idx = bulkFixState?.currentActivities.lastIndex(where: { $0.name == name && !$0.isComplete }) {
-                bulkFixState?.currentActivities[idx].isComplete = true
-            }
-        default:
-            break
-        }
-    }
-
-    private func runBulkFix(_ fixableFindings: [Finding]) {
-        let state = BulkFixState(total: fixableFindings.count)
-        bulkFixState = state
-        fixRunning = true
-
-        Task {
-            for (index, finding) in fixableFindings.enumerated() {
-                bulkFixState?.currentIndex = index
-                bulkFixState?.currentFinding = finding.detail
-                bulkFixState?.currentActivities = []
-
-                let usesClaudeFix = ["missing_section", "tech_gap", "low_coverage"].contains(finding.code)
-
-                do {
-                    let result = try await fixService.fix(
-                        finding: finding,
-                        repoPath: repo.path,
-                        claudeMdPath: repo.claudeMdAudit?.locations.first,
-                        contentHashAtLoad: contentHashAtLoad,
-                        onEvent: usesClaudeFix ? handleBulkStreamEvent : nil
-                    )
-
-                    switch result {
-                    case .success:
-                        bulkFixState?.completedCount += 1
-                        dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
-                        _ = withAnimation {
-                            dismissedFindings.insert(finding.id)
-                        }
-                        claudeMdRefreshTrigger += 1
-                        recomputeContentHash()
-                    case .pendingReview(let before, let after):
-                        bulkReviewQueue.append((finding: finding, before: before, after: after))
-                        bulkFixState?.completedCount += 1
-                        recomputeContentHash()
-                    default:
-                        bulkFixState?.failedFinding = finding.detail
-                        break
-                    }
-                } catch {
-                    bulkFixState?.failedFinding = finding.detail
-                    break
-                }
-
-                if bulkFixState?.failedFinding != nil { break }
-            }
-
-            fixRunning = false
-
-            // Clear bulk progress after a delay
-            try? await Task.sleep(for: .seconds(1))
-            bulkFixState = nil
-
-            // Present queued reviews one at a time
-            if !bulkReviewQueue.isEmpty {
-                currentBulkReview = bulkReviewQueue.removeFirst()
-                showBulkReview = true
-            } else {
-                await refreshRepoAudit()
-            }
-        }
-    }
-
-    private func handleBulkReviewApprove(_ afterContent: String, finding: Finding) {
-        showBulkReview = false
-        guard let mdPath = repo.claudeMdAudit?.locations.first else {
-            advanceBulkReview()
-            return
-        }
-        do {
-            let consistent = try fixService.approveChange(mdPath: mdPath, expectedAfterContent: afterContent)
-            if consistent {
-                dismissalService.dismiss(repoPath: repo.path, findingId: finding.id)
-                withAnimation { _ = dismissedFindings.insert(finding.id) }
-                claudeMdRefreshTrigger += 1
-                recomputeContentHash()
-            }
-        } catch {
-            // Approval failed — the file remains as-is on disk
-        }
-        advanceBulkReview()
-    }
-
-    private func handleBulkReviewReject(_ beforeContent: String) {
-        showBulkReview = false
-        guard let mdPath = repo.claudeMdAudit?.locations.first else {
-            advanceBulkReview()
-            return
-        }
-        try? fixService.rejectChange(mdPath: mdPath, originalContent: beforeContent)
-        recomputeContentHash()
-        advanceBulkReview()
-    }
-
-    private func advanceBulkReview() {
-        if bulkReviewQueue.isEmpty {
-            currentBulkReview = nil
-            Task { await refreshRepoAudit() }
-        } else {
-            currentBulkReview = bulkReviewQueue.removeFirst()
-            showBulkReview = true
-        }
-    }
-
     private func recomputeContentHash() {
         if let mdPath = repo.claudeMdAudit?.locations.first {
             contentHashAtLoad = try? fixService.contentHash(for: mdPath)
@@ -542,4 +474,3 @@ public struct RepoDetailView: View {
         }
     }
 }
-
