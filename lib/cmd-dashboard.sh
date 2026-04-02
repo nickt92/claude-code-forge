@@ -54,19 +54,19 @@ cmd_dashboard() {
   global_score=$(score_global "$global_json")
 
   # Score each repo and attach scores to repo JSON
-  local scored_repos='[]'
-  local i=0
-  local total_repos
-  total_repos=$(echo "$repos_json" | jq 'length')
-  while [ "$i" -lt "$total_repos" ]; do
-    local repo_data
-    repo_data=$(echo "$repos_json" | jq ".[$i]")
+  local scored_repos_parts=()
+  while IFS= read -r repo_data; do
+    [ -z "$repo_data" ] && continue
     local repo_score
     repo_score=$(score_repo "$repo_data")
-    repo_data=$(echo "$repo_data" | jq --argjson s "$repo_score" '. + {score: $s}')
-    scored_repos=$(echo "$scored_repos" | jq --argjson r "$repo_data" '. + [$r]')
-    i=$((i + 1))
-  done
+    scored_repos_parts+=("$(echo "$repo_data" | jq -c --argjson s "$repo_score" '. + {score: $s}')")
+  done < <(echo "$repos_json" | jq -c '.[]')
+  local scored_repos
+  if [ ${#scored_repos_parts[@]} -eq 0 ]; then
+    scored_repos='[]'
+  else
+    scored_repos=$(printf '%s\n' "${scored_repos_parts[@]}" | jq -s '.')
+  fi
 
   # ── Assemble and output JSON ─────────────────────────────
   local generated_at
