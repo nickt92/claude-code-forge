@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1000001 /* ForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* ForgeApp.swift */; };
 		A1000002 /* ForgeDesktopCore in Frameworks */ = {isa = PBXBuildFile; productRef = A4000001 /* ForgeDesktopCore */; };
+		A1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000030 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -16,6 +17,7 @@
 		A2000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000010 /* ForgeDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000020 /* ForgeDesktopCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = ForgeDesktopCore; path = ForgeDesktopCore; sourceTree = "<group>"; };
+		A2000030 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +46,7 @@
 			children = (
 				A2000001 /* ForgeApp.swift */,
 				A2000002 /* Info.plist */,
+				A2000030 /* Assets.xcassets */,
 			);
 			path = ForgeDesktop;
 			sourceTree = "<group>";
@@ -65,6 +68,7 @@
 			buildPhases = (
 				A7000001 /* Sources */,
 				A3000001 /* Frameworks */,
+				A7000002 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -107,6 +111,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A7000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A7000001 /* Sources */ = {

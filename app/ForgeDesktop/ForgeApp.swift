@@ -42,7 +42,7 @@ struct ForgeApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Forge", systemImage: menuBarIcon) {
+        MenuBarExtra("Forge", image: "AnvilIcon") {
             MenuBarView(
                 state: forgeState,
                 onRefresh: { refresh() },
@@ -118,13 +118,6 @@ struct ForgeApp: App {
                 .keyboardShortcut("n", modifiers: .command)
             }
         }
-    }
-
-    private var menuBarIcon: String {
-        if #available(macOS 15.0, *) {
-            return "anvil"
-        }
-        return "hammer.fill"
     }
 
     private func onDashboardAppear() {
