@@ -61,7 +61,7 @@ C_CACHE=$(fg 71)          # green — cache indicator
 C_GOLD=$(fg 179)          # gold — cost
 C_ADD=$(fg 114)           # green — lines added
 C_DEL=$(fg 203)           # red — lines removed
-C_BAR_FRAME=$(fg 60)      # muted indigo — bar frame
+C_BAR_FRAME=$(fg 243)     # neutral gray — bar frame, doesn't compete with gradient
 C_BAR_TRACK=$(fg 237)     # dark gray — empty bar
 
 # Bar gradient (precomputed — avoids subshell per character)
@@ -146,8 +146,9 @@ lines_removed_int=$(to_int "$lines_removed")
 dur_int=$(to_int "$duration_ms")
 rate_5h_int=$(to_int "$rate_5h_pct")
 rate_5h_resets_int=$(to_int "$rate_5h_resets")
-cost_cents=$(awk -v c="${cost_usd:-0}" 'BEGIN { printf "%.0f", c * 100 }')
-cost_positive=$(awk -v c="${cost_usd:-0}" 'BEGIN { print (c > 0) ? 1 : 0 }')
+read -r cost_cents cost_positive < <(
+  awk -v c="${cost_usd:-0}" 'BEGIN { printf "%.0f %d", c * 100, (c > 0) ? 1 : 0 }'
+)
 
 # ── Context percentage ────────────────────────────────────────
 # Priority: remaining_percentage (reflects effective context including
@@ -169,9 +170,10 @@ fi
 fmt_tokens() {
   local n=$1
   if [ "$n" -ge 1000000 ]; then
-    awk -v n="$n" 'BEGIN { printf "%.1fM", n/1000000 }'
+    local whole=$(( n / 1000000 )) frac=$(( (n % 1000000) / 100000 ))
+    echo "${whole}.${frac}M"
   elif [ "$n" -ge 1000 ]; then
-    awk -v n="$n" 'BEGIN { printf "%.0fk", n/1000 }'
+    echo "$(( n / 1000 ))k"
   else
     echo "$n"
   fi
@@ -181,11 +183,13 @@ fmt_tokens() {
 # This avoids subshell spawning inside the bar loop
 declare -a BAR_COLORS
 
+# ── Epoch (single fork, reused for speed + rate countdown) ────
+now_sec=$(date +%s)
+
 # ── Token speed (rolling, via state file) ─────────────────────
 tok_speed=""
 if [ -n "$session_id" ] && [ "$total_output_int" -gt 0 ]; then
   state_file="/tmp/forge-sl-${session_id}"
-  now_sec=$(date +%s)
   if [ -f "$state_file" ]; then
     IFS='|' read -r prev_ts prev_out < "$state_file"
     delta_sec=$(( now_sec - $(to_int "$prev_ts") ))
@@ -199,8 +203,8 @@ if [ -n "$session_id" ] && [ "$total_output_int" -gt 0 ]; then
 fi
 
 # ── Separators ───────────────────────────────────────────────
-SEP="  ${C_DIM}║${RST}  "        # zone delimiter: generous padding
-DOT="  ${C_DIM}·${RST}  "       # within-zone separator: breathing room
+SEP=" ${C_DIM}║${RST} "        # zone delimiter
+DOT=" ${C_DIM}·${RST} "        # within-zone separator
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 1: Git Context
@@ -278,7 +282,7 @@ else
     stash_count=$(git -C "$cwd" stash list 2>/dev/null | tr -d '\r' | head -100 | wc -l | tr -d ' ')
 
     # Assemble
-    git_seg="${bc}${tree_icon} ${BOLD}${display_branch}${RST}"
+    git_seg="${tree_icon} ${bc}${BOLD}${display_branch}${RST}"
     [ "$dirty_count" -ge 50 ] && git_seg="${git_seg} ${C_DIRTY}✦${dirty_count}+${RST}"
     [ "$dirty_count" -gt 0 ] && [ "$dirty_count" -lt 50 ] && git_seg="${git_seg} ${C_DIRTY}✦${dirty_count}${RST}"
     [ "$ahead" -gt 0 ]       && git_seg="${git_seg} ${C_AHEAD}↑${ahead}${RST}"
@@ -302,9 +306,9 @@ fi
 
 agent_seg=""
 if [[ -n "$agent_name" ]] && [[ "$agent_name" != "null" ]]; then
-    agent_seg="  🤖 ${C_AGENT}${agent_name}${RST}"
+    agent_seg=" 🤖 ${C_AGENT}${agent_name}${RST}"
 elif [[ -n "$wt_name" ]] && [[ "$wt_name" != "null" ]]; then
-    agent_seg="  🌲 ${C_WORKTREE}${wt_name}${RST}"
+    agent_seg=" 🌲 ${C_WORKTREE}${wt_name}${RST}"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -332,9 +336,9 @@ done
 
 # Percentage color matches gradient at fill edge
 if   [ "$used_int" -ge 90 ]; then pct_color="${BOLD}${C_BAR_3}"
-elif [ "$used_int" -ge 70 ]; then pct_color=$C_BAR_2
-elif [ "$used_int" -ge 40 ]; then pct_color=$C_BAR_1
-else                               pct_color=$C_BAR_0
+elif [ "$used_int" -ge 70 ]; then pct_color="${BOLD}${C_BAR_2}"
+elif [ "$used_int" -ge 40 ]; then pct_color="${BOLD}${C_BAR_1}"
+else                               pct_color="${BOLD}${C_BAR_0}"
 fi
 
 # Build gradient bar using precomputed colors (zero subshells)
@@ -351,8 +355,8 @@ fi
 
 # Empty track (single color run, no per-char reset needed)
 if [ "$empty_chars" -gt 0 ]; then
-    empty_str=""
-    for ((i=0; i<empty_chars; i++)); do empty_str="${empty_str}░"; done
+    printf -v empty_str '%*s' "$empty_chars" ''
+    empty_str="${empty_str// /░}"
     bar="${bar}${C_BAR_TRACK}${empty_str}${RST}"
 fi
 
@@ -375,14 +379,14 @@ fi
 cache_seg=""
 if [ "$ctx_cache_read_int" -gt 0 ] && [ "$ctx_input_int" -gt 0 ]; then
     cache_ratio=$(( ctx_cache_read_int * 100 / (ctx_input_int + ctx_cache_read_int) ))
-    [ "$cache_ratio" -gt 0 ] && cache_seg="  ${C_CACHE}🔄 ${cache_ratio}%${RST}"
+    [ "$cache_ratio" -gt 0 ] && cache_seg=" ${C_CACHE}🔄${cache_ratio}%${RST}"
 fi
 
 # Warning
 ctx_warning=""
 [[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠${RST}"
 
-ctx_seg="${C_CTX_ICON}◈${RST}  ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST}  ${pct_color}${used_int}%${RST}${cache_seg}${ctx_warning}"
+ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST}  ${pct_color}${used_int}%${RST}${cache_seg}${ctx_warning}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 4: Limits + Speed
@@ -397,8 +401,7 @@ if [ "$rate_5h_int" -ge 0 ]; then
         rate_display="${C_RATE_HIGH}🔋 ${rate_5h_int}%${RST}"
         # Countdown when critical
         if [ "$rate_5h_resets_int" -gt 0 ]; then
-            now_epoch=$(date +%s)
-            rsec=$(( rate_5h_resets_int - now_epoch ))
+            rsec=$(( rate_5h_resets_int - now_sec ))
             if [ "$rsec" -gt 0 ]; then
                 if [ "$rsec" -ge 3600 ]; then
                     rfmt="$(( rsec / 3600 ))h$(( (rsec % 3600) / 60 ))m"
@@ -418,22 +421,24 @@ if [ "$rate_5h_int" -ge 0 ]; then
     [ -n "$rate_display" ] && limits_parts+=("$rate_display")
 fi
 
-# Token speed (hide below 5 — that's idle noise, not useful)
+# Token speed — always show to prevent layout jitter
 if [ -n "$tok_speed" ] && [ "$tok_speed" -ge 5 ]; then
     if [ "$tok_speed" -ge 100 ]; then
-        limits_parts+=("${C_SPEED_FAST}⚡ ${tok_speed}t/s${RST}")
+        limits_parts+=("${C_SPEED_FAST}⚡${tok_speed}t/s${RST}")
     elif [ "$tok_speed" -ge 30 ]; then
-        limits_parts+=("${C_RATE_MID}⚡ ${tok_speed}t/s${RST}")
+        limits_parts+=("${C_RATE_MID}⚡${tok_speed}t/s${RST}")
     else
-        limits_parts+=("${C_SPEED_SLOW}⚡ ${tok_speed}t/s${RST}")
+        limits_parts+=("${C_SPEED_SLOW}⚡${tok_speed}t/s${RST}")
     fi
+elif [ "$total_output_int" -gt 0 ]; then
+    limits_parts+=("${C_DIM}⚡ —${RST}")
 fi
 
 limits_seg=""
 if [ ${#limits_parts[@]} -gt 0 ]; then
     limits_seg="${SEP}"
     for i in "${!limits_parts[@]}"; do
-        [ "$i" -gt 0 ] && limits_seg="${limits_seg}  "
+        [ "$i" -gt 0 ] && limits_seg="${limits_seg}${DOT}"
         limits_seg="${limits_seg}${limits_parts[$i]}"
     done
 fi
@@ -452,13 +457,7 @@ if [ "$cost_positive" -eq 1 ]; then
     else
         cost_fmt="<1¢"
     fi
-    if [ "$cost_cents" -ge 500 ]; then
-        session_parts+=("${BOLD}${C_DEL}💰 ${cost_fmt}${RST}")
-    elif [ "$cost_cents" -ge 100 ]; then
-        session_parts+=("${C_GOLD}💰 ${cost_fmt}${RST}")
-    else
-        session_parts+=("${C_MUTED}💰 ${cost_fmt}${RST}")
-    fi
+    session_parts+=("${C_GOLD}💰 ${cost_fmt}${RST}")
 fi
 
 # Lines changed
@@ -476,7 +475,7 @@ if [ "$dur_int" -gt 0 ]; then
     else
         dur_fmt="${dur_sec}s"
     fi
-    session_parts+=("${C_MUTED}⏱️  ${dur_fmt}${RST}")
+    session_parts+=("${C_MUTED}⏱️ ${dur_fmt}${RST}")
 fi
 
 # Vim mode
