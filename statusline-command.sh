@@ -156,13 +156,33 @@ read -r cost_cents cost_positive < <(
 # system prompts and output buffer) > used_percentage > token calculation.
 # remaining_percentage is what Claude's UI uses for "X% context remaining"
 # and drives compaction decisions, so it's the most accurate source.
+#
+# effective_capacity: the usable token budget (window minus output reservation).
+# When remaining_percentage is available we back-calculate it so the token
+# display (e.g. "173k/180k") is consistent with the percentage shown.
+effective_capacity=$ctx_size_int
 if [ "$remaining_int" -ge 0 ]; then
   # Primary: derive from remaining (most accurate — effective context)
   used_int=$(( 100 - remaining_int ))
-elif [ "$used_int" -le 0 ] && [ "$ctx_size_int" -gt 0 ]; then
-  # Fallback: compute from raw token counts
+  # Back-calculate effective capacity so token display matches percentage
   ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-  [ "$ctx_tokens" -gt 0 ] && used_int=$(( ctx_tokens * 100 / ctx_size_int ))
+  if [ "$ctx_tokens" -gt 0 ] && [ "$used_int" -gt 0 ]; then
+    effective_capacity=$(( ctx_tokens * 100 / used_int ))
+  fi
+elif [ "$used_int" -le 0 ] && [ "$ctx_size_int" -gt 0 ]; then
+  # Fallback: estimate effective capacity with output reservation
+  if [ "$ctx_size_int" -ge 150000 ]; then
+    output_reserve=32000
+  elif [ "$ctx_size_int" -ge 100000 ]; then
+    output_reserve=16000
+  else
+    output_reserve=8000
+  fi
+  effective_capacity=$(( ctx_size_int - output_reserve ))
+  ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
+  if [ "$ctx_tokens" -gt 0 ]; then
+    used_int=$(( ctx_tokens * 100 / effective_capacity ))
+  fi
 fi
 [ "$used_int" -gt 100 ] && used_int=100
 [ "$used_int" -lt 0 ] && used_int=0
@@ -373,7 +393,7 @@ if [ "$ctx_size_int" -gt 0 ]; then
         current_tokens=0
     fi
     if [ "$current_tokens" -gt 0 ] || [ "$used_int" -gt 0 ]; then
-        token_seg="${C_TEXT}$(fmt_tokens "$current_tokens")/${C_MUTED}$(fmt_tokens "$ctx_size_int")${RST} "
+        token_seg="${C_TEXT}$(fmt_tokens "$current_tokens")/${C_MUTED}$(fmt_tokens "$effective_capacity")${RST} "
     fi
 fi
 
