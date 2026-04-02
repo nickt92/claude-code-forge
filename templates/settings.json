@@ -72,6 +72,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/plan-checkpoint.sh",
+            "timeout": 3
+          }
+        ]
       }
     ],
     "PreCompact": [
