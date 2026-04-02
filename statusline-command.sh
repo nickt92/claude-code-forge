@@ -51,7 +51,6 @@ C_AHEAD=$(fg 117)         # bright cyan — ahead
 C_BEHIND=$(fg 203)        # red — behind
 C_STASH=$(fg 102)         # gray — stashes
 C_DIM=$(fg 239)           # dark gray — delimiters, low-priority
-C_DIMMER=$(fg 237)        # very dark — bar track
 C_TEXT=$(fg 188)           # light gray — data values
 C_MUTED=$(fg 102)         # gray — secondary text
 C_AGENT=$(fg 146)         # lavender — agent name
@@ -95,7 +94,7 @@ IFS='|' read -r cwd model_id model_display cost_usd duration_ms \
   lines_added lines_removed vim_mode exceeds_200k used_pct agent_name \
   ctx_size ctx_input ctx_output ctx_cache_create ctx_cache_read \
   remaining_pct rate_5h_pct rate_5h_resets session_id \
-  wt_name total_input total_output < <(
+  wt_name total_output session_name rate_7d_pct rate_7d_resets < <(
   jq -r '[
     .workspace.current_dir // ".",
     .model.id // "",
@@ -118,8 +117,10 @@ IFS='|' read -r cwd model_id model_display cost_usd duration_ms \
     (.rate_limits.five_hour.resets_at // 0 | tostring),
     .session_id // "",
     .worktree.name // "",
-    (.context_window.total_input_tokens // 0 | tostring),
-    (.context_window.total_output_tokens // 0 | tostring)
+    (.context_window.total_output_tokens // 0 | tostring),
+    .session_name // "",
+    (.rate_limits.seven_day.used_percentage // -1 | tostring),
+    (.rate_limits.seven_day.resets_at // 0 | tostring)
   ] | join("|")' <<< "$input" | tr -d '\r'
 )
 
@@ -130,17 +131,17 @@ if [[ -z "$model_id" ]] && [[ -z "$model_display" ]]; then
 fi
 
 # ── Sanitize numeric inputs ─────────────────────────────────
-to_int() { local v="${1%%.*}"; v="${v//[!0-9-]/}"; echo "${v:-0}"; }
+to_int() { local v="${1%%.*}"; v="${v//[!0-9-]/}"; [[ "$v" =~ ^(-?[0-9]+) ]] && echo "${BASH_REMATCH[1]}" || echo 0; }
 
 used_int=$(to_int "$used_pct")
 remaining_int=$(to_int "$remaining_pct")
 ctx_size_int=$(to_int "$ctx_size")
 ctx_input_int=$(to_int "$ctx_input")
-ctx_output_int=$(to_int "$ctx_output")
 ctx_cache_create_int=$(to_int "$ctx_cache_create")
 ctx_cache_read_int=$(to_int "$ctx_cache_read")
-total_input_int=$(to_int "$total_input")
 total_output_int=$(to_int "$total_output")
+rate_7d_int=$(to_int "$rate_7d_pct")
+rate_7d_resets_int=$(to_int "$rate_7d_resets")
 lines_added_int=$(to_int "$lines_added")
 lines_removed_int=$(to_int "$lines_removed")
 dur_int=$(to_int "$duration_ms")
@@ -189,7 +190,8 @@ now_sec=$(date +%s)
 # ── Token speed (rolling, via state file) ─────────────────────
 tok_speed=""
 if [ -n "$session_id" ] && [ "$total_output_int" -gt 0 ]; then
-  state_file="/tmp/forge-sl-${session_id}"
+  safe_sid="${session_id//[^a-zA-Z0-9_-]/_}"
+  state_file="/tmp/forge-sl-${safe_sid}"
   if [ -f "$state_file" ]; then
     IFS='|' read -r prev_ts prev_out < "$state_file"
     delta_sec=$(( now_sec - $(to_int "$prev_ts") ))
@@ -209,10 +211,10 @@ DOT=" ${C_DIM}·${RST} "        # within-zone separator
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 1: Git Context
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-git_status_output=$(git -C "$cwd" status --porcelain --branch 2>/dev/null | tr -d '\r' | head -51)
+git_status_output=$(git -C "$cwd" status --porcelain --branch 2>/dev/null | tr -d '\r' | head -52)
 
 if [ -z "$git_status_output" ]; then
-    git_seg="${C_DIM}🌿 —${RST}"
+    git_seg="${C_DIM}📂 $(basename "$cwd")${RST}"
 else
     branch_line="${git_status_output%%$'\n'*}"
     git_branch="${branch_line#\#\# }"
@@ -252,7 +254,7 @@ else
     if [[ "$git_branch" == "main" ]] || [[ "$git_branch" == "master" ]] || [[ "$git_branch" == @* ]]; then
         bc=$C_DEL  # red
     elif [[ "$git_branch" == "develop" ]]; then
-        bc=$'\033[38;5;221m'  # yellow
+        bc=$'\033[38;5;208m'  # orange — distinct from dirty amber (215)
     else
         bc=$C_BRANCH
     fi
@@ -283,8 +285,8 @@ else
 
     # Assemble
     git_seg="${tree_icon} ${bc}${BOLD}${display_branch}${RST}"
-    [ "$dirty_count" -ge 50 ] && git_seg="${git_seg} ${C_DIRTY}✦${dirty_count}+${RST}"
-    [ "$dirty_count" -gt 0 ] && [ "$dirty_count" -lt 50 ] && git_seg="${git_seg} ${C_DIRTY}✦${dirty_count}${RST}"
+    [ "$dirty_count" -gt 50 ] && git_seg="${git_seg} ${C_DIRTY}✦50+${RST}"
+    [ "$dirty_count" -gt 0 ] && [ "$dirty_count" -le 50 ] && git_seg="${git_seg} ${C_DIRTY}✦${dirty_count}${RST}"
     [ "$ahead" -gt 0 ]       && git_seg="${git_seg} ${C_AHEAD}↑${ahead}${RST}"
     [ "$behind" -gt 0 ]      && git_seg="${git_seg} ${C_BEHIND}↓${behind}${RST}"
     [ "$stash_count" -gt 0 ] && git_seg="${git_seg} ${C_STASH}📦${stash_count}${RST}"
@@ -379,14 +381,15 @@ fi
 cache_seg=""
 if [ "$ctx_cache_read_int" -gt 0 ] && [ "$ctx_input_int" -gt 0 ]; then
     cache_ratio=$(( ctx_cache_read_int * 100 / (ctx_input_int + ctx_cache_read_int) ))
-    [ "$cache_ratio" -gt 0 ] && cache_seg=" ${C_CACHE}🔄${cache_ratio}%${RST}"
+    [ "$cache_ratio" -gt 0 ] && cache_seg="  ${C_CACHE}💾 ${cache_ratio}%${RST}"
 fi
 
 # Warning
 ctx_warning=""
-[[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠${RST}"
+[[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠ 200k+${RST}"
 
-ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST}  ${pct_color}${used_int}%${RST}${cache_seg}${ctx_warning}"
+printf -v pct_str '%3d%%' "$used_int"
+ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST} ${pct_color}${pct_str}${RST}${cache_seg}${ctx_warning}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 4: Limits + Speed
@@ -421,14 +424,25 @@ if [ "$rate_5h_int" -ge 0 ]; then
     [ -n "$rate_display" ] && limits_parts+=("$rate_display")
 fi
 
+# 7-day rate limit (Max plans) — show when >= 50% or when 5h is not available
+if [ "$rate_7d_int" -ge 0 ] && [ "$rate_7d_int" -ge 50 ]; then
+    if [ "$rate_7d_int" -ge 90 ]; then
+        limits_parts+=("${C_RATE_CRIT}📅 7d ${rate_7d_int}%${RST}")
+    elif [ "$rate_7d_int" -ge 80 ]; then
+        limits_parts+=("${C_RATE_HIGH}📅 7d ${rate_7d_int}%${RST}")
+    else
+        limits_parts+=("${C_RATE_MID}📅 7d ${rate_7d_int}%${RST}")
+    fi
+fi
+
 # Token speed — always show to prevent layout jitter
 if [ -n "$tok_speed" ] && [ "$tok_speed" -ge 5 ]; then
     if [ "$tok_speed" -ge 100 ]; then
-        limits_parts+=("${C_SPEED_FAST}⚡${tok_speed}t/s${RST}")
+        limits_parts+=("${C_SPEED_FAST}⚡ ${tok_speed}t/s${RST}")
     elif [ "$tok_speed" -ge 30 ]; then
-        limits_parts+=("${C_RATE_MID}⚡${tok_speed}t/s${RST}")
+        limits_parts+=("${C_SPEED_MID}⚡ ${tok_speed}t/s${RST}")
     else
-        limits_parts+=("${C_SPEED_SLOW}⚡${tok_speed}t/s${RST}")
+        limits_parts+=("${C_SPEED_SLOW}⚡ ${tok_speed}t/s${RST}")
     fi
 elif [ "$total_output_int" -gt 0 ]; then
     limits_parts+=("${C_DIM}⚡ —${RST}")
@@ -448,10 +462,18 @@ fi
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 session_parts=()
 
+# Session name (set via /rename or --name)
+if [[ -n "$session_name" ]] && [[ "$session_name" != "null" ]]; then
+    # Truncate long names
+    display_name="$session_name"
+    [ ${#session_name} -gt 20 ] && display_name="${session_name:0:18}…"
+    session_parts+=("${C_TEXT}📝 ${display_name}${RST}")
+fi
+
 # Cost
 if [ "$cost_positive" -eq 1 ]; then
     if [ "$cost_cents" -ge 100 ]; then
-        cost_fmt=$(awk -v c="${cost_usd:-0}" 'BEGIN { printf "$%.2f", c }')
+        printf -v cost_fmt '$%d.%02d' "$(( cost_cents / 100 ))" "$(( cost_cents % 100 ))"
     elif [ "$cost_cents" -gt 0 ]; then
         cost_fmt="${cost_cents}¢"
     else
