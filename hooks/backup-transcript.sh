@@ -23,6 +23,10 @@ INPUT=$(cat)
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id')
 TRIGGER=$(echo "$INPUT" | jq -r '.trigger // "unknown"')
+
+# Sanitize to prevent path traversal in backup filename
+SESSION_ID="${SESSION_ID//[^a-zA-Z0-9_-]/_}"
+TRIGGER="${TRIGGER//[^a-zA-Z0-9_-]/_}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
 if [ -f "$TRANSCRIPT_PATH" ]; then

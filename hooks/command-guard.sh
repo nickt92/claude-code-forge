@@ -61,7 +61,7 @@ _rm_has_force() {
   echo "$1" | grep -qE '(^|\s)(-[a-zA-Z]*f[a-zA-Z]*\s|--force(\s|$))' ||
   echo "$1" | grep -qE '(^|\s)-[a-zA-Z]*f[a-zA-Z]*$'
 }
-if echo "$COMMAND" | grep -qE '^\s*rm\s' ; then
+if echo "$COMMAND" | grep -qE '^\s*(sudo\s+)?(command\s+)?rm\s' ; then
   rm_args="${COMMAND#*rm}"
   if _rm_targets_critical_path "$rm_args" && _rm_has_recursive "$rm_args" && _rm_has_force "$rm_args"; then
     echo "BLOCKED: Destructive deletion detected. The command attempts to recursively force-delete a critical path (/, ~, \$HOME, or current directory). Use targeted paths instead." >&2
@@ -84,7 +84,7 @@ fi
 
 # ── Command injection ────────────────────────────────────────
 # Block eval $(, bash -c "$(curl
-if echo "$COMMAND" | grep -qE 'eval\s+\$\('; then
+if echo "$COMMAND" | grep -qE 'eval\s+(\$\(|"\$\()'; then
   echo "BLOCKED: Command injection risk. eval \$(...) can execute arbitrary code from subcommand output." >&2
   exit 2
 fi

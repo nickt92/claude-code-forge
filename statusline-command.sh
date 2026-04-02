@@ -152,40 +152,23 @@ read -r cost_cents cost_positive < <(
 )
 
 # ── Context percentage ────────────────────────────────────────
-# Priority: remaining_percentage (reflects effective context including
-# system prompts and output buffer) > used_percentage > token calculation.
-# remaining_percentage is what Claude's UI uses for "X% context remaining"
-# and drives compaction decisions, so it's the most accurate source.
-#
-# effective_capacity: the usable token budget (window minus output reservation).
-# When remaining_percentage is available we back-calculate it so the token
-# display (e.g. "173k/180k") is consistent with the percentage shown.
-# Compute effective capacity (window minus output/system reservation).
-# Claude Code reserves ~24% of 200k windows for output + system overhead.
-if [ "$ctx_size_int" -ge 150000 ]; then
-  effective_capacity=$(( ctx_size_int * 76 / 100 ))
-elif [ "$ctx_size_int" -ge 100000 ]; then
+# Claude Code's JSON percentage fields (used_percentage, remaining_percentage)
+# are naive — based on full window size, not usable capacity. Claude Code
+# auto-compacts at ~80% of the window, so effective capacity = maxTokens * 0.8.
+# Always compute from raw token counts against effective capacity.
+# Matches ccstatusline's approach: tokens / (maxTokens * 0.8) * 100.
+ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
+if [ "$ctx_size_int" -gt 0 ]; then
   effective_capacity=$(( ctx_size_int * 80 / 100 ))
-elif [ "$ctx_size_int" -gt 0 ]; then
-  effective_capacity=$(( ctx_size_int * 85 / 100 ))
 else
   effective_capacity=0
 fi
 
-if [ "$remaining_int" -ge 0 ]; then
-  # Primary: derive from remaining (most accurate — from Claude Code itself)
+if [ "$ctx_tokens" -gt 0 ] && [ "$effective_capacity" -gt 0 ]; then
+  used_int=$(( ctx_tokens * 100 / effective_capacity ))
+elif [ "$remaining_int" -ge 0 ]; then
+  # Fallback if no token data: use remaining_percentage (still naive, but best we have)
   used_int=$(( 100 - remaining_int ))
-  # Back-calculate effective capacity so token display matches percentage
-  ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-  if [ "$ctx_tokens" -gt 0 ] && [ "$used_int" -gt 0 ]; then
-    effective_capacity=$(( ctx_tokens * 100 / used_int ))
-  fi
-elif [ "$effective_capacity" -gt 0 ]; then
-  # Recompute used_int against effective capacity (not raw window)
-  ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-  if [ "$ctx_tokens" -gt 0 ]; then
-    used_int=$(( ctx_tokens * 100 / effective_capacity ))
-  fi
 fi
 [ "$used_int" -gt 100 ] && used_int=100
 [ "$used_int" -lt 0 ] && used_int=0
@@ -214,7 +197,7 @@ now_sec=$(date +%s)
 tok_speed=""
 if [ -n "$session_id" ] && [ "$total_output_int" -gt 0 ]; then
   safe_sid="${session_id//[^a-zA-Z0-9_-]/_}"
-  state_file="/tmp/forge-sl-${safe_sid}"
+  state_file="${TMPDIR:-/tmp}/forge-sl-${safe_sid}"
   if [ -f "$state_file" ]; then
     IFS='|' read -r prev_ts prev_out < "$state_file"
     delta_sec=$(( now_sec - $(to_int "$prev_ts") ))
@@ -304,7 +287,7 @@ else
     fi
 
     # Stash count
-    stash_count=$(git -C "$cwd" stash list 2>/dev/null | tr -d '\r' | head -100 | wc -l | tr -d ' ')
+    stash_count=$(git -C "$cwd" rev-list --walk-reflogs --count refs/stash 2>/dev/null || echo 0)
 
     # Assemble
     git_seg="${tree_icon} ${bc}${BOLD}${display_branch}${RST}"

@@ -31,9 +31,14 @@ assemble_claude_md() {
   depth=$(jq -r '.axes.depth' "$profile_file")
   persona_name=$(jq -r '.persona' "$profile_file")
 
-  # Read quality array
-  local quals
-  quals=$(jq -r '.quality[]' "$profile_file")
+  # Validate axis values — prevent path traversal in section filenames
+  local _axis_val
+  for _axis_val in "$comm" "$auto" "$work" "$depth"; do
+    if ! [[ "$_axis_val" =~ ^[a-z]+(-[a-z]+)*$ ]]; then
+      echo "Invalid axis value: $_axis_val" >&2
+      return 1
+    fi
+  done
 
   # Assemble by concatenating section files
   {
@@ -50,11 +55,12 @@ assemble_claude_md() {
     cat "$SECTIONS_DIR/workflow-${work}.md"
     echo ""
     cat "$SECTIONS_DIR/quality-core.md"
-    for q in $quals; do
+    while IFS= read -r q; do
+      [ -z "$q" ] && continue
       if [ "$q" != "core" ] && [ -f "$SECTIONS_DIR/quality-${q}.md" ]; then
         echo ""
         cat "$SECTIONS_DIR/quality-${q}.md"
       fi
-    done
+    done < <(jq -r '.quality[]' "$profile_file")
   } > "$output_file"
 }

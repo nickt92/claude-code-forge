@@ -111,6 +111,9 @@ _analyze_json() {
   dir_structure_file="$(mktemp)"
   echo "$dir_structure" > "$dir_structure_file"
 
+  # Clean up temp files on exit (covers all return paths)
+  trap 'rm -f "$claude_md_file" "$dir_structure_file"' EXIT
+
   # Build final JSON
   local has_claude_md=false
   if [ -s "$claude_md_file" ]; then
@@ -170,7 +173,6 @@ _analyze_json() {
       }'
   fi
 
-  rm -f "$claude_md_file" "$dir_structure_file"
 }
 
 # ── Directory Structure ─────────────────────────────────────
@@ -286,19 +288,11 @@ _analyze_git() {
     local default_branch
     default_branch="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "")"
 
-    local commits_json="[]"
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      commits_json=$(echo "$commits_json" | jq --arg c "$line" '. + [$c]')
-    done < <(git log --oneline -20 2>/dev/null)
+    local commits_json
+    commits_json=$(git log --oneline -20 2>/dev/null | jq -R -s 'split("\n") | map(select(. != ""))')
 
-    local contributors_json="[]"
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      local trimmed
-      trimmed="$(echo "$line" | sed 's/^[[:space:]]*//')"
-      contributors_json=$(echo "$contributors_json" | jq --arg c "$trimmed" '. + [$c]')
-    done < <(git shortlog -sn --no-merges HEAD 2>/dev/null | head -10)
+    local contributors_json
+    contributors_json=$(git shortlog -sn --no-merges HEAD 2>/dev/null | head -10 | sed 's/^[[:space:]]*//' | jq -R -s 'split("\n") | map(select(. != ""))')
 
     jq -n \
       --argjson is_repo true \
@@ -320,37 +314,21 @@ _analyze_git() {
 
 _analyze_test_files() {
   local dir="$1"
-  local result="[]"
-  local rel_path
 
-  while IFS= read -r found; do
-    [ -z "$found" ] && continue
-    rel_path="${found#$dir/}"
-    result=$(echo "$result" | jq --arg f "$rel_path" '. + [$f]')
-  done < <(find "$dir" -type f \
+  find "$dir" -type f \
     \( -name "*.test.*" -o -name "*.spec.*" -o -name "test_*.py" -o -name "*_test.go" \
        -o -name "*Tests.swift" -o -name "*Test.java" -o -name "*_test.rb" \) \
     -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' \
     -not -path '*/build/*' -not -path '*/.cache/*' \
-    2>/dev/null | head -30)
-
-  echo "$result"
+    2>/dev/null | head -30 | sed "s|^$dir/||" | jq -R -s 'split("\n") | map(select(. != ""))'
 }
 
 # ── Scripts ─────────────────────────────────────────────────
 
 _analyze_scripts() {
   local dir="$1"
-  local result="[]"
-  local rel_path
 
-  while IFS= read -r found; do
-    [ -z "$found" ] && continue
-    rel_path="${found#$dir/}"
-    result=$(echo "$result" | jq --arg f "$rel_path" '. + [$f]')
-  done < <(find "$dir" -maxdepth 2 -name "*.sh" \
+  find "$dir" -maxdepth 2 -name "*.sh" \
     -not -path '*/.git/*' -not -path '*/node_modules/*' \
-    2>/dev/null | head -20)
-
-  echo "$result"
+    2>/dev/null | head -20 | sed "s|^$dir/||" | jq -R -s 'split("\n") | map(select(. != ""))'
 }
