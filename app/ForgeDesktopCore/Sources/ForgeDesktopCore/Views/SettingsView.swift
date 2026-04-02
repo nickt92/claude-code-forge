@@ -15,6 +15,7 @@ public struct SettingsView: View {
     @State private var showPermissionPicker = false
     @State private var applyingPreset = false
     @State private var presetError: String?
+    @State private var showStatuslineLegend = false
     @Environment(\.configService) private var configService
     @Environment(\.permissionsService) private var permissionsService
 
@@ -178,6 +179,14 @@ public struct SettingsView: View {
 
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
+                Button("Statusline Guide...") {
+                    showStatuslineLegend = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .sheet(isPresented: $showStatuslineLegend) {
+                StatuslineLegendView()
             }
         }
         .formStyle(.grouped)

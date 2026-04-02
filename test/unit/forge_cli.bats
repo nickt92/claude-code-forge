@@ -19,7 +19,7 @@ teardown() {
   run "$SCRIPT_DIR/forge" version
   assert_success
   assert_output --partial "forge"
-  assert_output --partial "1.2.0"
+  assert_output --partial "1.2.1"
 }
 
 @test "forge --version prints version number" {

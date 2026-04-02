@@ -33,79 +33,104 @@ Claude Code reads instructions — but doesn't always follow them. Through empir
 
 ## Quick Start
 
-### Prerequisites
-
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
-- macOS, Linux, or Windows (Git Bash — ships with [Git for Windows](https://gitforwindows.org/))
-
-### Install
+**Prerequisites:** [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), `jq` (`brew install jq`), macOS / Linux / Windows ([Git Bash](https://gitforwindows.org/))
 
 ```bash
 git clone https://github.com/nickt92/claude-code-forge.git
-cd claude-code-forge
-chmod +x install.sh
-./install.sh
+cd claude-code-forge && ./install.sh      # Interactive persona wizard
+forge doctor                               # Verify installation
 ```
 
-The installer walks you through persona selection, then:
+Add `~/.claude/bin` to your PATH so `forge` is available anywhere: `export PATH="$HOME/.claude/bin:$PATH"`
 
-1. Assembles a tailored CLAUDE.md from section files (verified under 200 lines)
-2. Backs up your existing `~/.claude/` configuration automatically
-3. Copies rules files, hooks, scripts, and status line
-4. Merges settings additively — your existing hooks and plugins are preserved
-5. Installs specialist plugins for your chosen plugin group
-6. Runs health checks and assembly smoke tests
-7. Symlinks the `forge` CLI to `~/.claude/bin/forge`
+## What You Get
 
-### Verify
+### Status Line
 
-```bash
-forge doctor        # Health check
-claude              # Start a new session
-/memory             # Confirm files are loaded
+A rich, 5-zone status line that shows everything about your Claude Code session at a glance:
+
+```
+🌿 feat/thing ✦3 ↑2 ║ 🧠 Opus ║ ◈ 124k/200k ▐████████░░░░▌ 62% 💾 46% ║ 🔋 48% ⚡ 342t/s ║ 💰 $2.87 · ✏️ +342/−89 · ⏱️ 32m
 ```
 
-### PATH Setup (optional but recommended)
+| Zone | What It Shows |
+|:-----|:-------------|
+| **Git** | Branch, uncommitted changes, ahead/behind, stashes, rebase/merge state |
+| **Model** | Active model with color-coded badge (Opus/Sonnet/Haiku), active subagent |
+| **Context** | Token usage with gradient bar (blue→cyan→amber→red), cache hit ratio |
+| **Limits** | 5-hour and 7-day rate limits, token generation speed |
+| **Session** | Name, cost, lines changed, duration, vim mode |
 
-Add `~/.claude/bin` to your PATH so `forge` is available anywhere:
+Run `forge statusline` for an interactive legend with every icon explained, or open **Settings → Statusline Guide** in the desktop app.
 
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-export PATH="$HOME/.claude/bin:$PATH"
-```
+### Feature Highlights
 
-## Forge Desktop (macOS)
+| | |
+|:--|:--|
+| **12 Personas** | Same quality, different communication — from vibe coder to CTO |
+| **8 Hooks** | Enforce rules at write time — architect gate, commit validator, secret filter |
+| **8 Rules Files** | Quality engineering, scope discipline, agent orchestration, and more |
+| **3 Plugin Groups** | Full (18), standard (16), or minimal (6) — matched to your persona |
+| **3 Permission Presets** | Ask Before Changes → Auto-Edit → Full Autonomy (223 curated rules) |
+| **Desktop App** | Native macOS menu bar app — dashboard, doctor, persona switcher, onboarding |
+| **Project Onboarding** | Generate project-specific CLAUDE.md from real codebase analysis |
+| **555+ Tests** | CLI (bats-core) + desktop (Swift), run on every push via GitHub Actions |
 
-A native macOS menu bar app that gives you a visual dashboard over all your forge-managed repositories. Built with SwiftUI, requires macOS 14 (Sonoma) or later.
+## Persona System
 
-### What It Does
+Every persona enforces the same quality standards. What changes is how Claude **talks to you**.
 
-- **Menu bar icon** with aggregate health score across all repos
-- **Dashboard window** with searchable, filterable repository list sorted by score, name, or findings
-- **Repo detail view** showing audit breakdown, CLAUDE.md content, score dimensions, and quick-fix actions
-- **Claude-powered onboarding** — analyze an existing codebase or set up a new project, with streaming split-view UX showing tool activity and live markdown preview
-- **Persona switcher** — switch personas without touching the terminal
-- **Doctor view** — visual health diagnostics
-- **Permission presets** — three-tier autonomy system (Ask Before Changes / Auto-Edit / Full Autonomy) with 200 curated rules across 15+ language ecosystems
-- **Setup wizard** — five-step onboarding: CLI detection, Claude detection, permission setup, scan path, initial load
+**Non-technical** — plain language, step-by-step guidance
 
-### Data Flow
+| Persona | Communication Style |
+|:--------|:-------------------|
+| **Product Manager** | Business language, trade-off framing |
+| **Executive** | High-level summaries, strategic context |
+| **Vibe Coder** | Casual, minimal jargon, just results |
 
-The desktop app shells out to the `forge` CLI and parses JSON output. It does not duplicate CLI logic — the CLI is the single source of truth. The app requires `forge` to be installed.
+**Technical** — domain terminology, balanced guidance
 
-### Building
+| Persona | Communication Style |
+|:--------|:-------------------|
+| **Designer (UI/UX)** | Design-aware, accessibility context |
+| **Data Analyst** | Analytical reasoning, data terminology |
+| **Data Scientist** | Statistical/ML vocabulary |
+| **Junior Developer** | Explanatory, more "why" behind decisions |
+| **Hobbyist** | Approachable, patterns explained as they appear |
 
-```bash
-cd app
-xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean build
-```
+**Engineering** — expert shorthand, high autonomy, full workflow visible
 
-Or open `app/ForgeDesktop.xcodeproj` in Xcode.
+| Persona | Communication Style |
+|:--------|:-------------------|
+| **Senior Engineer** | Peer-level, terse, leads with recommendations |
+| **CTO / Architect** | Architectural framing, trade-off analysis |
+| **DevOps / Platform** | Infra-native terminology, operational context |
+| **Data Engineer** | Pipeline/systems vocabulary, engineering depth |
 
-## forge CLI
+Or run `forge build` to create your own persona from the 4 behavioral axes.
 
-The `forge` CLI is a command dispatcher with dedicated subcommands. Each subcommand lives in `lib/cmd-<name>.sh` and is auto-sourced by the dispatcher.
+## Credits
+
+Built through iterative testing and refinement with Claude Code itself — patterns that survived contact with actual codebases, not theoretical best practices.
+
+### Agent Plugins
+
+**[agents](https://github.com/wshobson/agents)** by [Seth Hobson](https://github.com/wshobson) — 72 plugins providing 112+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
+
+**[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
+- `context7` — real-time library documentation lookup
+- `frontend-design` — UI/UX design quality for frontend work
+
+### Tools
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic
+
+---
+
+<details>
+<summary><strong>CLI Reference</strong></summary>
+
+The `forge` CLI is a command dispatcher. Each subcommand lives in `lib/cmd-<name>.sh` and is auto-discovered.
 
 ```
 forge <command> [options]
@@ -129,7 +154,8 @@ Diagnostics
   audit       Audit CLAUDE.md files for quality issues
   analyze     Extract codebase context as structured JSON
 
-Utilities
+Info
+  statusline  Interactive status line legend
   stats       Installation statistics and security event summary
   export      Package installation into portable tar.gz
   version     Show forge version
@@ -140,8 +166,6 @@ Run `forge <command> --help` for command-specific options.
 
 ### forge install
 
-Full install or reinstall. Runs the persona wizard when called interactively; accepts flags for scripted use.
-
 ```bash
 forge install                              # Interactive wizard
 forge install --profile senior-engineer   # Non-interactive
@@ -151,176 +175,67 @@ forge install --uninstall                 # Remove forge, restore backups
 forge install --check                     # Health checks only (no changes)
 forge install --dry-run --profile senior-engineer  # Preview without changes
 forge install --quiet --profile vibe-coder  # Minimal output (CI-friendly)
-forge install --debug                     # Verbose trace
-
-# install.sh delegates to forge install — same flags work:
-./install.sh --profile senior-engineer
 ```
-
-**`--check`** runs health checks against the existing `~/.claude/` installation without modifying anything. Useful after pulling repo changes to see what's out of date.
-
-**`--reconfigure`** always runs the wizard, even if a profile is already installed.
-
-**`--uninstall`** shows a preview before prompting for confirmation. Optionally removes plugins too.
-
-**`--dry-run`** shows exactly what would be installed — profile, rules, hooks, plugins — without creating or modifying any files.
-
-**`--plugins <group>`** overrides the persona's default plugin group. See [Plugin Groups](#plugin-groups) below.
 
 ### forge switch
 
-Switch persona without a full reinstall. Reassembles `~/.claude/CLAUDE.md` and updates `profile.json` in seconds. Hooks read `profile.json` at runtime — the new persona takes effect on the next `claude` session.
+Switch persona without a full reinstall. Reassembles CLAUDE.md and updates profile.json in seconds.
 
 ```bash
 forge switch senior-engineer
 forge switch vibe-coder
-forge switch custom-my-team    # Custom personas from forge build
+forge switch custom-my-team
 forge switch                   # List available personas
 ```
 
 ### forge doctor
 
-Diagnostic health checks across 7 categories. Shows pass/warn/fail per check with actionable messages.
+Diagnostic health checks across 7 categories: manifest, file integrity, hook configuration, CLAUDE.md, plugins, CLI.
 
 ```bash
 forge doctor
-forge doctor --json            # Structured output for tooling
-```
-
-Categories checked:
-
-| Category | What It Checks |
-|:---------|:---------------|
-| **Manifest** | Validity, version match, schema version |
-| **File Integrity** | Rules, hooks, scripts, lib, statusline present and unmodified |
-| **Hook Configuration** | All 8 hooks wired in settings.json |
-| **CLAUDE.md** | Matches current profile (content diff against live assembly) |
-| **Plugins** | Count matches expected for installed plugin group |
-| **CLI** | forge symlink valid and executable |
-
-### forge dashboard
-
-Outputs a JSON health dashboard covering all forge-managed repositories. This is the data source for the desktop app.
-
-```bash
-forge dashboard                # JSON to stdout
-```
-
-### forge analyze
-
-Extracts structured codebase context from a repository — directory tree, dependencies, configs, git history, test files, scripts, and existing CLAUDE.md. Used by the desktop app's onboarding flow to feed Claude real context about a project.
-
-```bash
-forge analyze /path/to/repo --json
-```
-
-### forge audit
-
-Audits CLAUDE.md files for quality issues — missing sections, stale content, formatting problems.
-
-```bash
-forge audit /path/to/repo
-forge audit /path/to/repo --json
-```
-
-### forge config
-
-Get or set forge configuration values.
-
-```bash
-forge config get scan_path
-forge config set scan_path ~/projects
+forge doctor --json
 ```
 
 ### forge permissions
 
-Manage Claude Code permission presets — curated sets of auto-approve rules that control what Claude can do without prompting. Three tiers, from read-only inspection to full dev workflow autonomy.
+Three-tier permission presets controlling what Claude can do without prompting.
 
 ```bash
-forge permissions                          # Show current preset and effective rules
-forge permissions --list                   # List available presets with descriptions
+forge permissions                          # Show current preset
 forge permissions --preset full-autonomy   # Apply a preset
-forge permissions --json                   # Machine-readable output
+forge permissions --json
 ```
 
 | Preset | Rules | What's Auto-Approved |
 |:-------|------:|:---------------------|
-| **Ask Before Changes** | 60 | File reading, code search, git inspection, system info, checksums |
-| **Auto-Edit** | 70 | Everything above + file creation/editing, copy, move |
-| **Full Autonomy** | 223 | Everything above + git (incl. `-C`/`-c`), package managers, compilers, shell scripts, test runners, linters, Docker, GitHub CLI, web access |
+| **Ask Before Changes** | 60 | File reading, code search, git inspection |
+| **Auto-Edit** | 70 | Everything above + file creation/editing |
+| **Full Autonomy** | 223 | Everything above + git, package managers, compilers, Docker, GitHub CLI |
 
-All tiers exclude destructive operations (`rm`, `sudo`, force push, hard reset). The [command-guard hook](#hooks) provides runtime enforcement as a safety net.
+All tiers exclude destructive operations. The command-guard hook provides runtime enforcement.
 
-Presets are applied to `~/.claude/settings.json` under `permissions.allow`. Custom rules you add manually are preserved across preset changes — the forge only manages rules it added (tracked in the manifest).
+### Other Commands
 
-### forge update
+- `forge update` — Pull latest, fast-forward merge, reinstall
+- `forge status` / `forge status --json` — Current persona, version, hooks
+- `forge diff` — Preview what update would change
+- `forge build` — Interactive custom persona wizard
+- `forge init` — Per-project Claude config (`.claude/CLAUDE.md` + rules)
+- `forge config get|set <key>` — Get/set forge settings
+- `forge dashboard` — JSON health dashboard (data source for desktop app)
+- `forge analyze /path/to/repo --json` — Extract codebase context
+- `forge audit /path/to/repo` — Audit CLAUDE.md quality
+- `forge stats` — Installation overview, security events, backup metrics
+- `forge export` — Package installation into portable tar.gz
+- `forge statusline` — Interactive status line legend with all icons explained
 
-Fetches from origin, fast-forward merges, then reinstalls with your current persona and plugin group. Fails safely on diverged history or uncommitted changes in the source repo.
+</details>
 
-```bash
-forge update
-```
+<details>
+<summary><strong>Plugin Groups</strong></summary>
 
-### forge status
-
-Shows current installation status at a glance — persona, plugin group, version, hooks, install timestamp, and source directory.
-
-```bash
-forge status
-forge status --json
-```
-
-### forge diff
-
-Compares source tree against installed `~/.claude/` files. Shows added, changed, and removed files by category (Rules, Hooks, Scripts, Root Files, Lib Files, CLAUDE.md). Use this to preview what `forge update` will change.
-
-```bash
-forge diff
-```
-
-### forge build
-
-Interactive wizard to create a custom persona profile. Walks through the 4 behavioral axes, quality standards, and plugin group selection. Saves the profile to `~/.claude/profiles/custom-<name>.json` and optionally switches to it immediately.
-
-```bash
-forge build
-```
-
-Custom profiles are usable immediately with `forge switch` and `forge install --profile`.
-
-### forge init
-
-Per-project configuration. Creates a `.claude/` directory in the current working directory with an assembled CLAUDE.md and rules files. Does **not** modify `~/.claude/` or install hooks (hooks are global).
-
-```bash
-forge init                           # Uses current global persona
-forge init --persona senior-engineer # Specify a persona
-forge init --dir /path/to/project    # Target a specific directory
-forge init --docs                    # Scaffold document chain only
-forge init --skip-docs               # Skip document chain prompt
-```
-
-Useful for monorepos or projects where you want project-level Claude instructions committed alongside the code.
-
-### forge stats
-
-Installation overview — hook counts, security event summary, backup metrics, and plugin inventory.
-
-```bash
-forge stats
-```
-
-### forge export
-
-Package your current forge installation into a portable `tar.gz` archive for sharing or backup.
-
-```bash
-forge export
-```
-
-## Plugin Groups
-
-Each persona has a default plugin group; you can override it with `--plugins` at install time.
+Each persona has a default plugin group; override with `--plugins` at install time.
 
 | Group | Plugins | Default for |
 |:------|--------:|:------------|
@@ -328,162 +243,65 @@ Each persona has a default plugin group; you can override it with `--plugins` at
 | **standard** | 16 | analyst, junior-dev, designer (drops HR/legal and startup plugins) |
 | **minimal** | 6 | vibe-coder, hobbyist, executive, product-manager |
 
-**full** includes every plugin in the workflow suite plus both Anthropic plugins.
-
-**standard** drops `hr-legal-compliance` and `startup-business-analyst` — not useful for most day-to-day engineering work.
-
-**minimal** includes only the essential six: `debugging-toolkit`, `comprehensive-review`, `error-debugging`, `code-refactoring`, `context7`, and `frontend-design`.
-
-Override at install time:
-
 ```bash
 forge install --profile senior-engineer --plugins standard
 forge install --profile vibe-coder --plugins full
 ```
 
-The installed group is recorded in the manifest. `forge doctor` and `forge update` use it to validate and reinstall the correct set.
+</details>
 
-## What Gets Installed
+<details>
+<summary><strong>What Gets Installed</strong></summary>
 
-The forge writes only to `~/.claude/`. Before touching anything, it snapshots your existing configuration to `~/.claude/forge-backup/`. `forge install --uninstall` reads that snapshot and restores exactly what was there before.
+The forge writes only to `~/.claude/`. Existing configuration is backed up to `~/.claude/forge-backup/` before any changes.
 
 ```
 ~/.claude/
-├── CLAUDE.md                     # Assembled from your persona (replaces existing)
-├── profile.json                  # Your persona config (hooks read this at runtime)
+├── CLAUDE.md                     # Assembled from your persona
+├── profile.json                  # Persona config (hooks read at runtime)
 ├── statusline-command.sh         # Status line script
-├── settings.json                 # Forge hooks + plugins merged into existing config
-├── bin/
-│   └── forge -> <source>/forge   # Symlink — always current, no copy to go stale
-├── rules/
-│   ├── agent-orchestration.md   # 4-phase workflow, specialist routing table
-│   ├── commit-and-delivery.md   # Commit format, dependency policy
-│   ├── context-and-memory.md    # Session resumption, compaction protection
-│   ├── project-setup.md         # Document chain, project onboarding
-│   ├── pull-requests.md         # PR format standards
-│   ├── quality-engineering.md   # Testing pyramid, coverage targets, accessibility
-│   ├── scope-discipline.md      # Task classification guard rails
-│   └── security-overrides.md    # forge-override usage rules for security hooks
-├── hooks/
-│   ├── session-init.sh          # First-prompt nudge (persona-aware)
-│   ├── architect-gate.sh        # Blocks plan files without architect review
-│   ├── commit-validator.sh      # Blocks AI attribution, warns on bad format
-│   ├── backup-transcript.sh     # Saves transcript before context compaction
-│   ├── command-guard.sh         # Blocks destructive commands
-│   ├── secret-filter.sh         # Detects credentials in commands
-│   ├── db-guard.sh              # Blocks destructive SQL
-│   └── forge-update-check.sh    # Advisory version check
-├── scripts/
-│   ├── generate-project-claude.sh  # Brownfield project onboarding
-│   └── init-project-claude.sh      # Greenfield project setup
-├── completions/
-│   ├── forge.bash               # Bash tab completion
-│   └── forge.zsh                # Zsh tab completion
-├── profiles/                    # User-space custom personas (from forge build)
-├── lib/
-│   └── ui.sh                    # Shared output library (used by scripts and forge)
-└── forge-backup/
-    ├── manifest.json             # What was backed up and what was installed
-    ├── CLAUDE.md                 # Your original CLAUDE.md (if any)
-    ├── settings.json             # Your original settings.json (if any)
-    └── rules/, hooks/, ...       # Any pre-existing files in these directories
+├── settings.json                 # Forge hooks + plugins merged in
+├── bin/forge -> <source>/forge   # Symlink — always current
+├── rules/                        # 8 rules files
+├── hooks/                        # 8 enforcement hooks
+├── scripts/                      # Onboarding scripts
+├── completions/                  # Bash + Zsh tab completion
+├── profiles/                     # Custom personas (from forge build)
+├── lib/ui.sh                     # Shared output library
+└── forge-backup/                 # Pre-forge snapshot for clean uninstall
 ```
 
-**The forge symlink** — `~/.claude/bin/forge` points directly to the source tree. When you pull new changes, `forge` is immediately updated without reinstalling. `forge diff` and `forge update` use this to compare installed files against the current source.
+The symlink means `forge` is always current after `git pull`. Settings merge is additive — your existing hooks and plugins are never removed. Uninstall is clean and manifest-driven.
 
-**Settings merge strategy** — Hooks and plugins are added additively. The forge never removes your existing hooks or plugins. `statusLine` and `alwaysThinkingEnabled` are set by the template. All other keys in your `settings.json` are preserved unchanged.
+</details>
 
-**Uninstall is clean.** The manifest records exactly which files were installed and which were pre-existing. `forge install --uninstall` restores pre-existing files, removes forge-only files, and surgically unmerges forge additions from `settings.json` — including any plugins or hooks you added after installation.
+<details>
+<summary><strong>Persona System Deep Dive</strong></summary>
 
-## Persona System
-
-The forge uses an **axis-based persona system**. Each persona selects values from 4 behavioral axes. The installer reads the selection and assembles a tailored CLAUDE.md from reusable section files — 15 section files serve any number of personas without content drift.
-
-### The 4 Axes
+The forge uses an **axis-based persona system** with 4 behavioral axes:
 
 | Axis | Values | What It Controls |
 |:-----|:-------|:----------------|
-| **Communication** | `plain` · `technical` · `expert` | Jargon level, explanation depth, analogies |
+| **Communication** | `plain` · `technical` · `expert` | Jargon level, explanation depth |
 | **Autonomy** | `guided` · `moderate` · `high` | How often Claude asks vs proceeds |
 | **Workflow** | `simplified` · `standard` · `advanced` | Internal ceremony visibility |
-| **Depth** | `conceptual` · `practical` · `engineering` | Code-level detail in explanations |
+| **Depth** | `conceptual` · `practical` · `engineering` | Code-level detail |
 
-### 12 Personas
+15 section files serve any number of personas without content drift. Adding a persona is one JSON file.
 
-Every persona enforces the same quality standards — the same architect reviews, security audits, and testing gates run regardless of which persona you pick. What changes is how Claude **talks to you**: the jargon level, how much it explains its process, and whether it surfaces internal workflow details or keeps them behind the scenes.
-
-> **Important:** The forge controls Claude's *instructions*, not the Claude Code client. You'll still see the same tool calls, permission prompts, and file diffs regardless of persona — that's the Claude Code runtime UI and can't be changed. What changes is how Claude explains and narrates its work in its text responses.
-
-**Non-technical** — plain language, step-by-step guidance, internal workflow translated into everyday terms
-
-| Persona | How Claude communicates |
-|:--------|:-----------------------|
-| **Product Manager** | Business language, decisions framed as trade-offs |
-| **Executive** | High-level summaries, strategic framing |
-| **Vibe Coder** | Casual, minimal jargon, just shows results |
-
-**Technical** — domain terminology, balanced guidance, workflow visible but not verbose
-
-| Persona | How Claude communicates |
-|:--------|:-----------------------|
-| **Designer (UI/UX)** | Design-aware language, accessibility context |
-| **Data Analyst** | Data terminology, explains analytical reasoning |
-| **Data Scientist** | Statistical/ML vocabulary, engineering detail |
-| **Junior Developer** | Technical but explanatory, more "why" behind decisions |
-| **Hobbyist** | Approachable, explains patterns as they come up |
-
-**Engineering** — expert shorthand, high autonomy, full workflow and agent orchestration visible
-
-| Persona | How Claude communicates |
-|:--------|:-----------------------|
-| **Senior Engineer** | Peer-level, terse, leads with recommendations |
-| **CTO / Architect** | Architectural framing, trade-off analysis |
-| **DevOps / Platform** | Infra-native terminology, operational context |
-| **Data Engineer** | Pipeline/systems vocabulary, engineering depth |
-
-> Personas sharing identical axis values produce the same CLAUDE.md — the label is for wizard UX. Pick the one that fits. Or run `forge build` to create your own.
-
-### The Key Insight: Interpretation Directive
-
-For non-technical personas, the workflow section includes an **interpretation directive** — Claude follows the same engineering rules internally but adapts how it communicates:
+**Interpretation Directive** — For non-technical personas, Claude follows the same engineering rules internally but adapts communication:
 
 | What happens internally | What the vibe coder sees |
 |:------------------------|:-------------------------|
 | "Significant-tier task, Phase 1 design gate" | "Here's my proposed approach" |
 | "Invoking security-auditor agent" | "I'm reviewing this for security" |
-| "Architect review approved with changes" | "I've refined the approach — here's what changed" |
 
 Quality is identical. Jargon is not.
 
-### Adding a Persona
-
-Create one JSON file in `templates/profiles/`. If existing axis values cover the behavior, zero section changes are needed.
-
-<details>
-<summary><strong>Example: custom persona JSON</strong></summary>
-
-```json
-{
-  "schema_version": 1,
-  "persona": "custom-ml-engineer",
-  "label": "ML Engineer (Custom)",
-  "description": "Custom persona built with forge build",
-  "axes": {
-    "communication": "expert",
-    "autonomy": "high",
-    "workflow": "advanced",
-    "depth": "engineering"
-  },
-  "quality": ["core", "engineering"],
-  "default_plugin_group": "full"
-}
-```
-
 </details>
 
-Or use `forge build` for an interactive wizard that generates the JSON and validates it.
-
-## The 4-Phase Workflow
+<details>
+<summary><strong>4-Phase Workflow</strong></summary>
 
 Every task follows a structured workflow, with rigor proportional to complexity:
 
@@ -494,15 +312,16 @@ Phase 3 — Review     (all tasks, scope varies by tier)
 Phase 4 — React      (on-demand: errors, incidents, debugging)
 ```
 
-### 3-Tier Task Classification
-
 | Tier | Criteria | What Happens |
 |:-----|:---------|:-------------|
 | **Trivial** | Single-file, clear requirements | Implement directly, code review before commit |
 | **Moderate** | Multi-file, well-understood domain | Implement, domain architect + code review |
 | **Significant** | New service, auth, architecture | Plan mode → architect review → approval → implement |
 
-### Hooks
+</details>
+
+<details>
+<summary><strong>Hooks</strong></summary>
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
@@ -517,377 +336,183 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 
 See [SECURITY.md](SECURITY.md) for the security model and known limitations.
 
-## Status Line
+</details>
 
-```
-🌿 feat/thing ✦3 ↑2 │ 🧠 Opus │ ▐████░░░░▌ 42% │ 💰 38¢ │ ✏️ +156 −23 │ ⏱️ 12m
-```
+<details>
+<summary><strong>Status Line</strong></summary>
 
-| Segment | What It Shows |
-|:--------|:-------------|
-| **Branch** | Git branch, dirty count, ahead/behind, stashes |
-| **Model** | Active model (color-coded: Opus=red, Sonnet=cyan, Haiku=green) |
-| **Context** | Context window usage bar (green <70%, yellow 70-90%, red >90%) |
-| **Cost** | Session cost |
-| **Changes** | Lines added/removed |
-| **Time** | Session duration |
+The status line has 5 zones with 20+ icons. Here's the full reference:
 
-## Project Onboarding
+**Zone 1: Git** — 🌿 branch, 🌲 worktree, 📂 directory, ✦N dirty, ↑N ahead, ↓N behind, 📦N stashes, REBASING/MERGING/CHERRY-PICK state
 
-### From the Desktop App
+**Zone 2: Model + Agent** — 🧠 model with colored badge (Opus=magenta, Sonnet=blue, Haiku=teal), 🤖 active subagent
 
-The desktop app provides a visual onboarding experience for both new and existing projects:
+**Zone 3: Context Window** — ◈ marker, token count/limit, gradient bar (blue→cyan→amber→red), usage %, 💾 cache hit ratio, ⚠ 200k+ warning
 
-- **Existing projects:** Open a repo in the dashboard → click "Generate CLAUDE.md" → watch Claude analyze your codebase in a streaming split-view (tool activity on the left, live markdown preview on the right) → review and save
-- **New projects:** Click "New Project" (or ⌘N) → pick a directory → describe what you're building → Claude generates a project-specific CLAUDE.md
+**Zone 4: Limits + Speed** — 🔋 5-hour rate limit (green/yellow/red), 📅 7-day rate limit (shown ≥50%), ⚡ token speed
 
-Both flows adapt to your current persona and use Claude's tool-use capabilities (Read, Glob, Grep) to analyze real code, not just templates.
+**Zone 5: Session** — 📝 session name, 💰 cost, ✏️ lines +/−, ⏱️ duration, ◆ vim mode
 
-### From the CLI
+**Colors:** green = all clear, yellow = attention, red = critical, bold = important values
 
-**Brownfield (existing projects)** — analyzes your codebase and generates a project-level CLAUDE.md with real analysis of your architecture, tech stack, patterns, and pitfalls:
+Run `forge statusline` for a colorful interactive legend in the terminal.
 
-```bash
-cd /path/to/your-existing-project
-~/.claude/scripts/generate-project-claude.sh
-```
+</details>
 
-**Greenfield (new projects)** — interactive setup that helps you make architectural decisions and generates the CLAUDE.md before the first line of code:
+<details>
+<summary><strong>Project Onboarding</strong></summary>
+
+### Desktop App
+
+- **Existing projects:** Dashboard → "Generate CLAUDE.md" → streaming split-view analysis
+- **New projects:** ⌘N → pick directory → describe project → Claude generates CLAUDE.md
+
+### CLI
 
 ```bash
-mkdir my-new-project && cd my-new-project && git init
-~/.claude/scripts/init-project-claude.sh
+# Existing project — analyzes architecture, tech stack, patterns
+cd /path/to/project && ~/.claude/scripts/generate-project-claude.sh
+
+# New project — interactive setup with architectural decisions
+mkdir my-project && cd my-project && git init && ~/.claude/scripts/init-project-claude.sh
+
+# Per-project config (version-controlled)
+forge init                             # Uses current persona
+forge init --persona senior-engineer  # Specify persona
+forge init --docs                     # Scaffold document chain
 ```
 
-**Per-project with `forge init`** — for projects where you want Claude instructions version-controlled alongside the code:
+### Document Chain
 
-```bash
-cd /path/to/project
-forge init                             # Uses your current global persona
-forge init --persona senior-engineer  # Or specify one explicitly
-forge init --dir /path/to/project     # Target a specific directory
-```
-
-This creates `.claude/CLAUDE.md` and `.claude/rules/` in your project directory. Hooks and plugins remain global — only the instructions and rules are project-scoped.
-
-### Document Chain (Optional)
-
-For multi-session or multi-phase projects, the forge supports a **document chain** — structured files that give Claude persistent context about your project's vision, requirements, and progress:
+For multi-phase projects, the forge supports structured context files:
 
 ```
 your-project/
-├── CLAUDE.md         # Project-level Claude instructions (always)
-├── PROJECT.md        # Vision, goals, constraints, stakeholders
+├── CLAUDE.md         # Project-level instructions
+├── PROJECT.md        # Vision, goals, constraints
 ├── REQUIREMENTS.md   # Scoped requirements with acceptance criteria
 └── ROADMAP.md        # Phased plan with progress tracking
 ```
 
-Run `forge init --docs` to scaffold these from templates, or `forge init --skip-docs` to dismiss. The forge nudges you about them once per project if it detects a non-trivial codebase. Use `forge doctor` to check document chain status.
-
-## Customization
-
-<details>
-<summary><strong>Adjusting Quality Standards</strong></summary>
-
-Edit `templates/rules/quality-engineering.md`:
-- Change coverage targets (default: 85%)
-- Add or remove accessibility requirements
-- Adjust performance checklists
-
-Then run `forge install` to install the updated rules.
-
 </details>
 
 <details>
-<summary><strong>Project-Level Overrides</strong></summary>
+<summary><strong>Desktop App (macOS)</strong></summary>
 
-Copy `examples/project-CLAUDE.md` to your project root as `CLAUDE.md`. Project-level instructions override global for project-specific concerns (tech stack, patterns, conventions). The global `~/.claude/CLAUDE.md` still applies for everything not overridden.
+A native macOS menu bar app (SwiftUI, macOS 14+) providing:
 
-</details>
+- **Menu bar icon** with aggregate health score
+- **Dashboard** with searchable, filterable repository list
+- **Repo detail view** with audit breakdown, CLAUDE.md content, quick-fix actions
+- **Claude-powered onboarding** with streaming split-view UX
+- **Persona switcher** — switch without terminal
+- **Doctor view** — visual health diagnostics
+- **Permission presets** — three-tier autonomy system
+- **Setup wizard** — five-step onboarding
+- **Statusline Guide** — visual legend (Settings → About → Statusline Guide)
 
-<details>
-<summary><strong>Adding Custom Agents</strong></summary>
-
-The plugin system supports any specialist. Add agents to `templates/rules/agent-orchestration.md` in the appropriate phase and update the domain architect routing table. Run `forge install` to propagate changes.
-
-</details>
-
-<details>
-<summary><strong>Building a Custom Persona</strong></summary>
+The app shells out to the `forge` CLI and parses JSON — it does not duplicate CLI logic.
 
 ```bash
-forge build
+cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean build
 ```
 
-This walks you through the 4 axes, quality settings, and plugin group selection, then saves a `custom-<name>.json` profile. Switch to it immediately or install it later:
+</details>
+
+<details>
+<summary><strong>Customization</strong></summary>
+
+**Quality Standards** — Edit `templates/rules/quality-engineering.md` (coverage targets, accessibility, performance). Run `forge install` to propagate.
+
+**Project-Level Overrides** — Copy `examples/project-CLAUDE.md` to your project root. Project-level instructions override global for project-specific concerns.
+
+**Custom Agents** — Add agents to `templates/rules/agent-orchestration.md` and run `forge install`.
+
+**Custom Personas** — `forge build` walks through axes, quality settings, and plugin group. Use immediately with `forge switch custom-<name>`.
+
+</details>
+
+<details>
+<summary><strong>Troubleshooting</strong></summary>
+
+**Health check fails** — Run `forge doctor`. Common causes: missing hooks (`forge install`), plugin count mismatch (retry install), version mismatch (`forge update`).
+
+**Claude ignoring rules** — Run `/memory` to confirm files are loaded. Check: `~/.claude/CLAUDE.md` exists and is under 200 lines, `~/.claude/rules/` has 8 files, Claude Code ≥1.0. Start a fresh session if context is stale.
+
+**`forge: command not found`** — Add `export PATH="$HOME/.claude/bin:$PATH"` to your shell profile, or call `~/.claude/bin/forge` directly.
+
+**architect-gate blocking** — Add `## Architect Review` section to your plan file. Only applies to files in `~/.claude/plans/`.
+
+**commit-validator blocking** — Remove AI attribution (`Co-Authored-By: Claude`, etc.). Non-conventional format warnings are informational only.
+
+**command-guard/db-guard blocking** — Tell Claude to proceed; it retries with a logged override. All overrides go to `~/.claude/security.log`. See [SECURITY.md](SECURITY.md).
+
+**Existing hooks/plugins** — Settings merge is additive. Check `~/.claude/forge-backup/manifest.json` for exactly what was added.
+
+**Colors broken (WSL/Linux)** — Use `NO_COLOR=1 forge install --profile senior-engineer`. Non-TTY environments auto-fallback to plain text.
+
+</details>
+
+<details>
+<summary><strong>Testing</strong></summary>
+
+555+ automated tests across two suites, run on every push via GitHub Actions.
+
+**CLI (bats-core)** — 392+ tests across macOS, Ubuntu, and Windows:
 
 ```bash
-forge switch custom-my-team
-forge install --profile custom-my-team
-```
-
-</details>
-
-## Troubleshooting
-
-<details>
-<summary><strong>Health check fails after install</strong></summary>
-
-Run `forge doctor` to see exactly which checks are failing. Common causes:
-
-- **Missing hooks or rules files** — run `forge install` to reinstall
-- **Hooks not executable** — the installer sets `chmod +x` on all hooks; if this fails, set manually: `chmod +x ~/.claude/hooks/*.sh`
-- **Plugin count below expected** — the `claude plugins add` command occasionally fails silently on a bad network. Run `forge install` to retry plugin installation
-- **Version mismatch** — if `forge doctor` shows installed ≠ source, run `forge update` or `forge install` to sync
-
-</details>
-
-<details>
-<summary><strong>Claude doesn't seem to be following the rules</strong></summary>
-
-Run `/memory` at the start of a Claude session. If `~/.claude/CLAUDE.md` and the rules files are not listed, Claude isn't loading them.
-
-Three things to verify:
-1. `~/.claude/CLAUDE.md` exists and is under 200 lines (`wc -l ~/.claude/CLAUDE.md`)
-2. `~/.claude/rules/` contains the 8 rules files
-3. Claude Code version is 1.0 or newer (`claude --version`)
-
-If the files are loaded but rules aren't followed, check that you're at the start of a fresh session. Long-running sessions accumulate context and can lose instruction adherence — start a new session with `/clear` or open a new terminal.
-
-</details>
-
-<details>
-<summary><strong>forge: command not found</strong></summary>
-
-The forge symlink is installed at `~/.claude/bin/forge`. Add that directory to your PATH:
-
-```bash
-export PATH="$HOME/.claude/bin:$PATH"
-```
-
-Or call it directly:
-
-```bash
-~/.claude/bin/forge doctor
-```
-
-You can also run `forge` from the source directory directly — the `forge` script at the root of the repo works standalone.
-
-</details>
-
-<details>
-<summary><strong>The architect-gate hook is blocking my file</strong></summary>
-
-The hook blocks writes to `~/.claude/plans/` that don't include an `## Architect Review` section. This is intentional — the gate enforces that you run the domain architect agent before finalizing a plan.
-
-To pass the gate, add the section to your plan file:
-
-```markdown
-## Architect Review
-- **Reviewer:** backend-development:backend-architect
-- **Verdict:** approved
-- **Key findings:** ...
-- **Adjustments:** none
-```
-
-If you're writing a plan outside `~/.claude/plans/`, the hook doesn't apply.
-
-</details>
-
-<details>
-<summary><strong>commit-validator is blocking my commit</strong></summary>
-
-The validator blocks commits containing AI attribution (`Co-Authored-By: Claude`, `Generated with Claude Code`, etc.). Remove the attribution and commit again.
-
-It also warns (but does not block) on non-conventional commit format. The expected format is:
-
-```
-feat(scope): description
-fix(auth): description
-chore(deps): description
-```
-
-If you see a warning but want to proceed, the commit still goes through — the warning is informational.
-
-</details>
-
-<details>
-<summary><strong>command-guard or db-guard is blocking a command I need to run</strong></summary>
-
-These hooks block destructive commands by default. If you intentionally need to run a blocked command, tell Claude to proceed — it will retry with a `# forge-override: <reason>` token that bypasses the hook. Claude Code's permission prompt still shows the full command for your approval.
-
-All overrides are logged to `~/.claude/security.log` for audit purposes.
-
-See [SECURITY.md](SECURITY.md) for the full override mechanism, what can and cannot be overridden, and the security model.
-
-</details>
-
-<details>
-<summary><strong>I already have hooks or plugins configured</strong></summary>
-
-The settings merge is additive. The forge appends its hooks to your existing hook arrays and adds its plugins to your existing plugin object. Your hooks and plugins are never removed.
-
-If you're concerned about conflicts, check `~/.claude/forge-backup/manifest.json` — the `installed.settings_additions` field shows exactly what the forge added to your `settings.json`.
-
-</details>
-
-<details>
-<summary><strong>--uninstall didn't restore my original settings.json</strong></summary>
-
-Uninstall reads `~/.claude/forge-backup/manifest.json` to determine what to restore. If the manifest is missing (e.g., it was deleted manually), uninstall falls back to best-effort removal using the known forge file list.
-
-If you had a custom `settings.json` before installing, the original is in `~/.claude/forge-backup/settings.json`. You can restore it manually:
-
-```bash
-cp ~/.claude/forge-backup/settings.json ~/.claude/settings.json
-```
-
-</details>
-
-<details>
-<summary><strong>WSL or Linux: colors or spinner look broken</strong></summary>
-
-The UI library auto-detects TTY and color support. If output looks garbled, disable colors:
-
-```bash
-NO_COLOR=1 forge install --profile senior-engineer
-```
-
-On non-interactive environments (CI, pipes), the spinner and progress counter automatically fall back to plain text output.
-
-</details>
-
-## Testing
-
-555+ automated tests across two test suites, run on every push via GitHub Actions.
-
-### CLI Tests (bats-core)
-
-392+ tests using [bats-core](https://github.com/bats-core/bats-core) across macOS, Ubuntu, and Windows.
-
-```bash
-./test/run_tests.sh              # Run all tests
+./test/run_tests.sh              # All tests
 ./test/run_tests.sh unit         # Hook and CLI unit tests
-./test/run_tests.sh integration  # Assembly, merge, install flow, subcommands
+./test/run_tests.sh integration  # Assembly, merge, install flow
 ./test/run_tests.sh validation   # Profile schema, section coverage
 ```
 
-> **Note:** bats-core is included as a git submodule. If the test runner fails to find it, run `git submodule update --init --recursive` first.
+| Suite | Files | Covers |
+|:------|------:|:-------|
+| **Unit** | 21 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats, export, permissions |
+| **Integration** | 10 | Assembly, settings merge/unmerge, install, backup/restore, switch, doctor, diff, update, build, init |
+| **Validation** | 4 | Profile schema, section coverage, settings template, completions |
 
-| Suite | Files | What It Covers |
-|:------|------:|:---------------|
-| **Unit** | 21 | Hooks, CLI dispatcher, plugins, manifest, platform detection, UI library, config, dashboard, stats, export, permissions |
-| **Integration** | 10 | Assembly pipeline, settings merge/unmerge, install flow, backup/restore, switch, doctor, diff, update, build, init |
-| **Validation** | 4 | Profile schema integrity, section file coverage, settings template structure, shell completions |
+All tests run in a sandbox — your real `~/.claude/` is never touched.
 
-All tests run in a sandbox (`$HOME` redirected to a temp directory) — your real `~/.claude/` is never touched.
-
-### Desktop App Tests (Swift)
-
-143+ tests using XCTest and Swift Testing.
+**Desktop (Swift)** — 143+ tests (XCTest + Swift Testing):
 
 ```bash
 cd app/ForgeDesktopCore && swift test
 ```
 
-Covers service logic, model decoding, streaming infrastructure, line buffering, diff engine, doctor diagnostics, and onboarding flows.
-
-## Design Decisions
+</details>
 
 <details>
-<summary><strong>Why a forge CLI instead of just install.sh flags?</strong></summary>
+<summary><strong>Design Decisions</strong></summary>
 
-`install.sh` flags worked for a single command, but as operations multiplied (switch persona, run doctor, compare files, update, build custom personas), a flat flag namespace became unmanageable. The `forge` CLI groups related operations, provides consistent `--help` per subcommand, and is extensible — adding a new command is one `lib/cmd-<name>.sh` file.
-
-`install.sh` is kept as a compatibility wrapper so existing documentation, scripts, and muscle memory continue to work.
+- **Why a forge CLI?** — `install.sh` flags became unmanageable. The CLI groups operations, provides per-command `--help`, and is extensible (one file per command).
+- **Why a native desktop app?** — Always-on via menu bar, instant launch, first-class macOS citizen. CLI remains the cross-platform interface.
+- **Why shell out from the app?** — Single source of truth. CLI gains capabilities, app gets them for free.
+- **Why a symlink?** — `forge` is always current after `git pull`, no reinstall needed.
+- **Why plugin groups?** — 18 plugins is right for engineering, excessive for a vibe coder.
+- **Why hooks over instructions?** — Instructions suggest. Hooks enforce.
+- **Why under 200 lines?** — Anthropic recommends it. Testing confirmed content past line 200 gets ignored.
+- **Why axis-based personas?** — 15 section files serve unlimited personas. One JSON file per persona.
+- **Why manifest-based backups?** — Single snapshot, no accumulation, surgical uninstall.
 
 </details>
 
 <details>
-<summary><strong>Why a native desktop app instead of a web UI?</strong></summary>
-
-The first attempt was a web UI (Node.js server, HTML dashboard). It worked but added a runtime dependency, a localhost port, and a process to manage. A native SwiftUI app is always-on via the menu bar, launches instantly, and feels like a first-class macOS citizen. The tradeoff is macOS-only — the CLI remains the cross-platform interface.
-
-</details>
-
-<details>
-<summary><strong>Why does the desktop app shell out to the CLI?</strong></summary>
-
-Single source of truth. The CLI already knows how to gather dashboard data, run doctor checks, switch personas, and analyze codebases. Duplicating that logic in Swift would create divergence. The app calls `forge dashboard --json`, `forge doctor --json`, etc. and parses the structured output. When the CLI gains new capabilities, the app gets them for free.
-
-</details>
-
-<details>
-<summary><strong>Why a symlink instead of copying the forge binary?</strong></summary>
-
-A symlink to the source tree means `forge` is always the current version after a `git pull`, without requiring a reinstall to pick up CLI changes. `forge diff` detects when installed *files* differ from source, but the CLI itself is always current. The tradeoff is that the source repo must remain at the same path — relocating it requires a `forge install` to refresh the symlink.
-
-</details>
-
-<details>
-<summary><strong>Why plugin groups instead of all-or-nothing?</strong></summary>
-
-18 plugins is the right set for an engineering persona. It's excessive for a vibe coder who just wants to build things without managing HR compliance agents. Tiered groups let each persona install what it actually needs, keep `claude plugins` clean, and reduce the chance of irrelevant agents surfacing in completions.
-
-</details>
-
-<details>
-<summary><strong>Why hooks instead of just instructions?</strong></summary>
-
-Instructions tell Claude what to do. Hooks enforce it. The `architect-gate` hook literally blocks plan file writes that don't include an `## Architect Review` section. Claude can't skip the step even if it wants to. The `commit-validator` hook blocks AI attribution at the moment of commit — not as a reminder to remember later.
-
-</details>
-
-<details>
-<summary><strong>Why under 200 lines per CLAUDE.md?</strong></summary>
-
-Anthropic recommends it. Our testing showed content at line 200+ was frequently ignored in long sessions. The persona system guarantees every assembled CLAUDE.md stays under the limit — the health check verifies all profiles at install time.
-
-</details>
-
-<details>
-<summary><strong>Why axis-based personas instead of separate templates?</strong></summary>
-
-15 section files serve any number of personas. Adding a persona is one JSON file, not duplicating and maintaining a full CLAUDE.md template. When you update a section file, every persona that uses it gets the update automatically on the next install.
-
-</details>
-
-<details>
-<summary><strong>Why is the backup manifest-based instead of timestamped copies?</strong></summary>
-
-Timestamped backups accumulate and require manual cleanup. The manifest takes a single snapshot on first install and freezes it — reinstalls don't overwrite the original backup, so you always have a clean restore point regardless of how many times you update. The manifest also records what the forge added to `settings.json` so uninstall can be surgical rather than destructive.
-
-</details>
-
-## Maintenance
+<summary><strong>Maintenance</strong></summary>
 
 ```bash
-forge status                              # Current persona, version, hooks at a glance
-forge stats                               # Installation overview, security events, backup metrics
-forge doctor                              # Check current installation health
-forge diff                                # Preview what forge update would change
-forge update                              # Pull latest and reinstall
-forge switch <persona>                    # Change persona without full reinstall
-forge export                              # Package installation into portable tar.gz
-forge install --check                     # Health checks only
-claude plugins update                     # Update plugins independently
+forge status          # Persona, version, hooks
+forge stats           # Security events, backup metrics
+forge doctor          # Health check
+forge diff            # Preview changes
+forge update          # Pull latest and reinstall
+forge switch <name>   # Change persona
+forge export          # Portable archive
+forge install --check # Health checks only
 ```
 
-## Credits
-
-Built through iterative testing and refinement with Claude Code itself — patterns that survived contact with actual codebases, not theoretical best practices.
-
-### Agent Plugins
-
-**[agents](https://github.com/wshobson/agents)** by [Seth Hobson](https://github.com/wshobson) — 72 plugins providing 112+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
-
-**[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
-- `context7` — real-time library documentation lookup
-- `frontend-design` — UI/UX design quality for frontend work
-
-### Tools
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic
+</details>
 
 ## License
 

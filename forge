@@ -80,6 +80,7 @@ cmd_help() {
   printf "  ${_C_BOLD}permissions${_C_RST} Manage Claude Code permission presets\n"
 
   printf "\n${_C_BOLD}Info${_C_RST}\n"
+  printf "  ${_C_BOLD}statusline${_C_RST}  Interactive status line legend\n"
   printf "  ${_C_BOLD}version${_C_RST}     Show forge version\n"
   printf "  ${_C_BOLD}help${_C_RST}        Show this help\n"
 
