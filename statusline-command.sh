@@ -170,13 +170,15 @@ if [ "$remaining_int" -ge 0 ]; then
     effective_capacity=$(( ctx_tokens * 100 / used_int ))
   fi
 elif [ "$used_int" -le 0 ] && [ "$ctx_size_int" -gt 0 ]; then
-  # Fallback: estimate effective capacity with output reservation
+  # Fallback: estimate effective capacity with output reservation.
+  # Claude Code reserves a significant chunk for output + system overhead.
+  # Empirical: 200k window has ~152k effective capacity (~24% reserved).
   if [ "$ctx_size_int" -ge 150000 ]; then
-    output_reserve=32000
+    output_reserve=$(( ctx_size_int * 24 / 100 ))
   elif [ "$ctx_size_int" -ge 100000 ]; then
-    output_reserve=16000
+    output_reserve=$(( ctx_size_int * 20 / 100 ))
   else
-    output_reserve=8000
+    output_reserve=$(( ctx_size_int * 15 / 100 ))
   fi
   effective_capacity=$(( ctx_size_int - output_reserve ))
   ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
