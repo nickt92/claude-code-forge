@@ -160,27 +160,28 @@ read -r cost_cents cost_positive < <(
 # effective_capacity: the usable token budget (window minus output reservation).
 # When remaining_percentage is available we back-calculate it so the token
 # display (e.g. "173k/180k") is consistent with the percentage shown.
-effective_capacity=$ctx_size_int
+# Compute effective capacity (window minus output/system reservation).
+# Claude Code reserves ~24% of 200k windows for output + system overhead.
+if [ "$ctx_size_int" -ge 150000 ]; then
+  effective_capacity=$(( ctx_size_int * 76 / 100 ))
+elif [ "$ctx_size_int" -ge 100000 ]; then
+  effective_capacity=$(( ctx_size_int * 80 / 100 ))
+elif [ "$ctx_size_int" -gt 0 ]; then
+  effective_capacity=$(( ctx_size_int * 85 / 100 ))
+else
+  effective_capacity=0
+fi
+
 if [ "$remaining_int" -ge 0 ]; then
-  # Primary: derive from remaining (most accurate — effective context)
+  # Primary: derive from remaining (most accurate — from Claude Code itself)
   used_int=$(( 100 - remaining_int ))
   # Back-calculate effective capacity so token display matches percentage
   ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
   if [ "$ctx_tokens" -gt 0 ] && [ "$used_int" -gt 0 ]; then
     effective_capacity=$(( ctx_tokens * 100 / used_int ))
   fi
-elif [ "$used_int" -le 0 ] && [ "$ctx_size_int" -gt 0 ]; then
-  # Fallback: estimate effective capacity with output reservation.
-  # Claude Code reserves a significant chunk for output + system overhead.
-  # Empirical: 200k window has ~152k effective capacity (~24% reserved).
-  if [ "$ctx_size_int" -ge 150000 ]; then
-    output_reserve=$(( ctx_size_int * 24 / 100 ))
-  elif [ "$ctx_size_int" -ge 100000 ]; then
-    output_reserve=$(( ctx_size_int * 20 / 100 ))
-  else
-    output_reserve=$(( ctx_size_int * 15 / 100 ))
-  fi
-  effective_capacity=$(( ctx_size_int - output_reserve ))
+elif [ "$effective_capacity" -gt 0 ]; then
+  # Recompute used_int against effective capacity (not raw window)
   ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
   if [ "$ctx_tokens" -gt 0 ]; then
     used_int=$(( ctx_tokens * 100 / effective_capacity ))
