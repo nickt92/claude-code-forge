@@ -177,7 +177,7 @@ public struct Finding: Codable, Sendable, Identifiable {
     public let section: String?
     public let fixable: Bool
 
-    public var id: String { "\(code)-\(detail)" }
+    public var id: String { "\(code)-\(section ?? "")-\(detail)" }
 }
 
 // MARK: - Severity Helpers

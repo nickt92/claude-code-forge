@@ -145,7 +145,7 @@ public struct PersonaSwitcherView: View {
     }
 
     private func axisCapsule(_ value: String, label: String) -> some View {
-        Text(value)
+        Text("\(label): \(value)")
             .font(.system(size: 9, weight: .medium))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

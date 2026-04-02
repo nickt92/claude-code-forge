@@ -14,6 +14,7 @@ public struct SetupWizardView: View {
     @State private var applyingPreset: Bool = false
     @State private var presetError: String?
     @State private var expandedPreset: String?
+    @AppStorage("claudeBinaryPath") private var claudeBinaryPath: String = ""
 
     @Environment(\.permissionsService) private var permissionsService
 
@@ -256,7 +257,7 @@ public struct SetupWizardView: View {
                 }
 
                 Button {
-                    UserDefaults.standard.set(path, forKey: "claudeBinaryPath")
+                    claudeBinaryPath = path
                     state.claudeAvailable = true
                     state.setupPhase = .configurePermissions
                 } label: {

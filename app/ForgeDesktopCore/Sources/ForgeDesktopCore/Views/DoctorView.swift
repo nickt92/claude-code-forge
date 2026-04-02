@@ -4,6 +4,7 @@ public struct DoctorView: View {
     @Bindable var state: ForgeState
     @Environment(\.doctorService) private var doctorService
     @Environment(\.dismiss) private var dismiss
+    @State private var doctorError: String?
 
     public init(state: ForgeState) {
         self.state = state
@@ -64,6 +65,15 @@ public struct DoctorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let result = state.doctorResult {
             resultContent(result)
+        } else if let doctorError {
+            ContentUnavailableView {
+                Label("Diagnostics Failed", systemImage: "exclamationmark.triangle.fill")
+            } description: {
+                Text(doctorError)
+            } actions: {
+                Button("Retry") { runDoctor() }
+                    .buttonStyle(.bordered)
+            }
         } else {
             ContentUnavailableView(
                 "No Results",
@@ -213,7 +223,7 @@ public struct DoctorView: View {
     }
 
     private func formatCategory(_ category: String) -> String {
-        category.replacingOccurrences(of: "_", with: " ").capitalized
+        category.formattedAsTitle
     }
 
     private func runDoctorIfNeeded() {
@@ -225,12 +235,13 @@ public struct DoctorView: View {
     private func runDoctor() {
         state.doctorLoading = true
         state.doctorResult = nil
+        doctorError = nil
         Task {
             do {
                 let result = try await doctorService.runDoctor()
                 state.doctorResult = result
             } catch {
-                // Doctor failed — result stays nil, user sees empty state
+                doctorError = error.localizedDescription
             }
             state.doctorLoading = false
         }

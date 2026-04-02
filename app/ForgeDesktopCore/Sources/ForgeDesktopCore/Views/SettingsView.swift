@@ -5,7 +5,8 @@ public struct SettingsView: View {
     @AppStorage("claudeBinaryPath") private var claudePath: String = ""
     @State private var resolvedPath: String = ""
     @State private var resolvedClaudePath: String = ""
-    @State private var isResolving = false
+    @State private var isResolvingForge = false
+    @State private var isResolvingClaude = false
     @State private var scanPath: String = ""
     @State private var scanPathLoaded = false
     @State private var isRescanning = false
@@ -13,6 +14,7 @@ public struct SettingsView: View {
     @State private var permissionsLoaded = false
     @State private var showPermissionPicker = false
     @State private var applyingPreset = false
+    @State private var presetError: String?
     @Environment(\.configService) private var configService
     @Environment(\.permissionsService) private var permissionsService
 
@@ -35,7 +37,7 @@ public struct SettingsView: View {
                 }
 
                 if forgePath.isEmpty {
-                    autoDetectStatus(isResolving: isResolving, resolvedPath: resolvedPath, label: "Forge CLI")
+                    autoDetectStatus(isResolving: isResolvingForge, resolvedPath: resolvedPath, label: "Forge CLI")
                         .task { await resolveAutoPath() }
                 }
             } header: {
@@ -57,7 +59,7 @@ public struct SettingsView: View {
                 }
 
                 if claudePath.isEmpty {
-                    autoDetectStatus(isResolving: isResolving, resolvedPath: resolvedClaudePath, label: "Claude Code CLI")
+                    autoDetectStatus(isResolving: isResolvingClaude, resolvedPath: resolvedClaudePath, label: "Claude Code CLI")
                         .task { await resolveClaudePath() }
                 }
             } header: {
@@ -97,6 +99,12 @@ public struct SettingsView: View {
                 if showPermissionPicker {
                     permissionPickerRows
                 }
+
+                if let presetError {
+                    Text(presetError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Permissions")
             } footer: {
@@ -109,6 +117,11 @@ public struct SettingsView: View {
                 HStack {
                     TextField("Scan path", text: $scanPath, prompt: Text("~/code"))
                         .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            if !scanPath.isEmpty {
+                                Task { try? await configService.setScanPath(scanPath) }
+                            }
+                        }
 
                     Button("Browse...") {
                         let panel = NSOpenPanel()
@@ -168,7 +181,8 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 500)
+        .frame(width: 500)
+        .frame(minHeight: 400, idealHeight: 520)
     }
 
     private func autoDetectStatus(isResolving: Bool, resolvedPath: String, label: String) -> some View {
@@ -206,8 +220,8 @@ public struct SettingsView: View {
     }
 
     private func resolveAutoPath() async {
-        isResolving = true
-        defer { isResolving = false }
+        isResolvingForge = true
+        defer { isResolvingForge = false }
 
         let service = ForgeService()
         if let path = try? await service.discoverForgePath() {
@@ -216,6 +230,8 @@ public struct SettingsView: View {
     }
 
     private func resolveClaudePath() async {
+        isResolvingClaude = true
+        defer { isResolvingClaude = false }
         let service = ClaudeService()
         if service.isAvailable {
             resolvedClaudePath = "claude"
@@ -305,12 +321,13 @@ public struct SettingsView: View {
 
     private func applyPreset(_ name: String) {
         applyingPreset = true
+        presetError = nil
         Task {
             do {
                 try await permissionsService.applyPreset(name: name)
                 currentPresetName = name
             } catch {
-                // Silently fail — user can retry
+                presetError = "Failed to apply preset: \(error.localizedDescription)"
             }
             applyingPreset = false
         }

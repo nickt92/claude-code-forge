@@ -259,10 +259,7 @@ public struct ClaudeMdContentView: View {
     }
 
     private func formatSectionName(_ section: String) -> String {
-        section.replacingOccurrences(of: "-", with: " ")
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        section.formattedAsTitle
     }
 
     private func loadFile() {

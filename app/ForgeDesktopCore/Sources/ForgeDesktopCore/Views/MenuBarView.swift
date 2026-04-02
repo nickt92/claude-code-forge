@@ -133,7 +133,7 @@ public struct MenuBarView: View {
             let needsAttention = data.repos
                 .sorted { ($0.score?.total ?? 0) < ($1.score?.total ?? 0) }
                 .prefix(3)
-                .filter { ($0.score?.total ?? 100) < 100 }
+                .filter { ($0.score?.total ?? 100) < 80 }
 
             if !needsAttention.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

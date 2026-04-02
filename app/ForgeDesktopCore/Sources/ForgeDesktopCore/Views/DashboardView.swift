@@ -5,6 +5,7 @@ public struct DashboardView: View {
     let onRefresh: () -> Void
     @State private var searchText = ""
     @State private var selectedRepoPath: String?
+    @State private var lastSelectedRepo: RepoData?
     @State private var showDoctor = false
     @State private var showPersonaSwitcher = false
     @State private var showNewProject = false
@@ -19,10 +20,15 @@ public struct DashboardView: View {
 
     /// Derives the selected repo from ForgeState so it always reflects the latest data
     /// (audit results, scores) after fixes and re-audits.
+    /// Falls back to `lastSelectedRepo` during loading to prevent detail pane flicker.
     private var selectedRepo: RepoData? {
-        guard let path = selectedRepoPath,
-              case .loaded(let data) = state.loadState else { return nil }
-        return data.repos.first { $0.path == path }
+        guard let path = selectedRepoPath else { return nil }
+        if case .loaded(let data) = state.loadState {
+            let repo = data.repos.first { $0.path == path }
+            if let repo { lastSelectedRepo = repo }
+            return repo
+        }
+        return lastSelectedRepo
     }
 
     public var body: some View {
@@ -379,7 +385,7 @@ struct DimensionBars: View {
     }
 
     private func formatDimensionName(_ key: String) -> String {
-        key.replacingOccurrences(of: "_", with: " ").capitalized
+        key.formattedAsTitle
     }
 }
 

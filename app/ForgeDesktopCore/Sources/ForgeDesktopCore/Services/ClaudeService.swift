@@ -167,8 +167,10 @@ public final class ClaudeService: @unchecked Sendable {
                             continuation.yield(event)
                         }
                     }
+                    Self.clearStreamState()
                     continuation.finish()
                 } catch {
+                    Self.clearStreamState()
                     Self.logger.error("Stream error: \(error.localizedDescription, privacy: .public)")
                     continuation.finish(throwing: error)
                 }
@@ -350,6 +352,14 @@ public final class ClaudeService: @unchecked Sendable {
 
     static func resolveToolName(forId id: String) -> String {
         toolNameLock.withLock { lastToolNames[id] ?? "unknown" }
+    }
+
+    /// Clears accumulated stream parsing state. Call when a stream completes or is cancelled
+    /// to prevent memory leaks from `lastToolNames` and `toolInputBuffers` accumulating entries
+    /// across many fix/generation sessions in a long-running app.
+    static func clearStreamState() {
+        toolNameLock.withLock { lastToolNames.removeAll() }
+        toolInputLock.withLock { toolInputBuffers.removeAll() }
     }
 
     private func parseResult(_ data: Data) throws -> ClaudeResult {

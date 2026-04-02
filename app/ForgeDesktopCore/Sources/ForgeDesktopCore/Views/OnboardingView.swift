@@ -15,6 +15,7 @@ public struct OnboardingView: View {
     @State private var streamTask: Task<Void, Never>?
     @State private var detectedSections: [DetectedSection] = []
     @State private var generationStartTime: Date?
+    @State private var hasStarted = false
 
     // Greenfield inputs
     @State private var projectDescription: String = ""
@@ -581,6 +582,8 @@ public struct OnboardingView: View {
     // MARK: - Workflows
 
     private func startBrownfield(repoPath: String) async {
+        guard !hasStarted else { return }
+        hasStarted = true
         phase = .analyzing
         do {
             let context = try await onboardingService.analyzeRepo(path: repoPath)
@@ -612,6 +615,8 @@ public struct OnboardingView: View {
     }
 
     private func startGreenfield() {
+        guard !hasStarted else { return }
+        hasStarted = true
         phase = .generating
         generatedContent = ""
         activities = []
@@ -713,6 +718,7 @@ public struct OnboardingView: View {
         activities = []
         detectedSections = []
         generationStartTime = Date()
+        hasStarted = false
 
         streamTask?.cancel()
         streamTask = Task {

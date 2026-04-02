@@ -10,6 +10,7 @@ public struct DiffPreviewView: View {
     let onReject: () -> Void
 
     @State private var selectedTab: Tab = .changes
+    @State private var diffLines: [DiffLine] = []
 
     enum Tab: String, CaseIterable {
         case changes = "Changes"
@@ -42,6 +43,7 @@ public struct DiffPreviewView: View {
             footer
         }
         .frame(minWidth: 600, minHeight: 400)
+        .task { diffLines = DiffEngine.diff(before: before, after: after) }
     }
 
     // MARK: - Header
@@ -91,9 +93,7 @@ public struct DiffPreviewView: View {
     // MARK: - Changes Tab (Unified Diff)
 
     private var changesView: some View {
-        let diffLines = DiffEngine.diff(before: before, after: after)
-
-        return ScrollView {
+        ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if diffLines.isEmpty {
                     Text("No changes detected")
@@ -242,12 +242,14 @@ public struct DiffPreviewView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
+            .keyboardShortcut(.escape, modifiers: [])
 
             Button("Approve Changes") {
                 onApprove()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.regular)
+            .keyboardShortcut(.return, modifiers: .command)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
