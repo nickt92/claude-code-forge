@@ -80,7 +80,13 @@ cmd_init() {
     return $?
   fi
 
-  # Default to current global persona
+  # Default to: --persona flag > .forge/defaults.json > global profile
+  if [ -z "$persona" ]; then
+    local defaults_file="${project_dir}/.forge/defaults.json"
+    if [ -f "$defaults_file" ] && jq empty "$defaults_file" 2>/dev/null; then
+      persona=$(jq -r '.persona // empty' "$defaults_file" 2>/dev/null)
+    fi
+  fi
   if [ -z "$persona" ]; then
     if [ -f "$CLAUDE_DIR/profile.json" ]; then
       persona=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null)

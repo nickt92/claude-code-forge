@@ -28,9 +28,36 @@ _cmd_install_load_deps() {
   source "$FORGE_SOURCE_DIR/lib/install-checks.sh"
 }
 
+# ── Project defaults ──────────────────────────────────────────
+# Reads .forge/defaults.json from the current directory if present.
+# Returns defaults via global variables: _DEFAULT_PERSONA, _DEFAULT_PLUGINS,
+# _DEFAULT_PERMISSIONS, _DEFAULT_PLANNING_ENFORCEMENT.
+# Missing file or malformed JSON = no-op.
+_read_project_defaults() {
+  _DEFAULT_PERSONA=""
+  _DEFAULT_PLUGINS=""
+  _DEFAULT_PERMISSIONS=""
+  _DEFAULT_PLANNING_ENFORCEMENT=""
+
+  local defaults_file
+  defaults_file="$(pwd)/.forge/defaults.json"
+  [ -f "$defaults_file" ] || return 0
+
+  # Validate JSON before reading
+  jq empty "$defaults_file" 2>/dev/null || return 0
+
+  _DEFAULT_PERSONA=$(jq -r '.persona // empty' "$defaults_file" 2>/dev/null)
+  _DEFAULT_PLUGINS=$(jq -r '.plugins // empty' "$defaults_file" 2>/dev/null)
+  _DEFAULT_PERMISSIONS=$(jq -r '.permissions // empty' "$defaults_file" 2>/dev/null)
+  _DEFAULT_PLANNING_ENFORCEMENT=$(jq -r '.planning_enforcement // empty' "$defaults_file" 2>/dev/null)
+}
+
 # ── Main install command ──────────────────────────────────────
 cmd_install() {
   _cmd_install_load_deps
+
+  # Read project defaults early (before argument parsing)
+  _read_project_defaults
 
   # Parse arguments
   local PROFILE_ARG=""
@@ -141,6 +168,11 @@ cmd_install() {
   fi
 
   # ── Persona selection ──
+  # Apply project default persona when no CLI flag provided
+  if [ -z "$PROFILE_ARG" ] && [ -n "$_DEFAULT_PERSONA" ]; then
+    PROFILE_ARG="$_DEFAULT_PERSONA"
+  fi
+
   if [ -z "$PROFILE_ARG" ] && [ "$RECONFIGURE" = false ]; then
     if [ -f "$CLAUDE_DIR/profile.json" ] && [ -f "$CLAUDE_DIR/CLAUDE.md" ]; then
       local existing_persona
@@ -205,8 +237,11 @@ cmd_install() {
     PROFILE_FILE="$CLAUDE_DIR/profiles/${SELECTED_PERSONA}.json"
   fi
 
-  # Resolve plugin group: CLI flag > profile default > "full"
+  # Resolve plugin group: CLI flag > project default > profile default > "full"
   local PLUGIN_GROUP="$PLUGINS_ARG"
+  if [ -z "$PLUGIN_GROUP" ] && [ -n "$_DEFAULT_PLUGINS" ]; then
+    PLUGIN_GROUP="$_DEFAULT_PLUGINS"
+  fi
   if [ -z "$PLUGIN_GROUP" ]; then
     PLUGIN_GROUP=$(get_default_plugin_group "$PROFILE_FILE")
   fi
