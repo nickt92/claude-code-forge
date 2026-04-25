@@ -265,6 +265,62 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   refute_output --partial "7d"
 }
 
+# ── Workflow State Indicator ──────────────────────────────────
+
+@test "shows plan indicator when phase=planning" {
+  # Wrapper so PPID matches between state file and statusline script
+  local wrapper="$TEST_SANDBOX/wf-plan.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=significant\nphase=planning\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '$MINIMAL_JSON' | bash "$STATUSLINE"
+rm -f "\${_TMPDIR}/forge-session-state-\$\$"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  assert_output --partial "plan"
+}
+
+@test "shows impl indicator when phase=implementation" {
+  local wrapper="$TEST_SANDBOX/wf-impl.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=significant\nphase=implementation\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '$MINIMAL_JSON' | bash "$STATUSLINE"
+rm -f "\${_TMPDIR}/forge-session-state-\$\$"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  assert_output --partial "impl"
+}
+
+@test "shows no workflow indicator when no state file" {
+  run run_sl "$MINIMAL_JSON"
+  assert_success
+  refute_output --partial "plan"
+  refute_output --partial "impl"
+}
+
+@test "shows no workflow indicator when state file has no phase" {
+  local wrapper="$TEST_SANDBOX/wf-nophase.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=unknown\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '$MINIMAL_JSON' | bash "$STATUSLINE"
+rm -f "\${_TMPDIR}/forge-session-state-\$\$"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  refute_output --partial "plan"
+  refute_output --partial "impl"
+}
+
 # ── Session Name Removed (v1.3.0) ────────────────────────────
 
 @test "does not show session_name (removed in v1.3.0)" {

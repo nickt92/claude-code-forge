@@ -320,6 +320,17 @@ elif [[ -n "$wt_name" ]] && [[ "$wt_name" != "null" ]]; then
     agent_seg=" 🌲 ${C_WORKTREE}${wt_name}${RST}"
 fi
 
+# Workflow state indicator — reads session state file from hooks
+workflow_seg=""
+_state_file="${TMPDIR:-/tmp}/forge-session-state-${PPID}"
+if [ -f "$_state_file" ]; then
+    _phase=$(grep '^phase=' "$_state_file" 2>/dev/null | tail -1 | cut -d= -f2)
+    case "$_phase" in
+        planning)        workflow_seg=" $(fg 75)📋 plan${RST}" ;;
+        implementation)  workflow_seg=" $(fg 114)🔨 impl${RST}" ;;
+    esac
+fi
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 3: Context Window (hero section)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -514,11 +525,12 @@ fi
 ctx_with_sep=""
 [ -n "$ctx_seg" ] && ctx_with_sep="${SEP}${ctx_seg}"
 
-printf " %s%s%s%s%s%s%s\n" \
+printf " %s%s%s%s%s%s%s%s\n" \
     "$git_seg" \
     "$SEP" \
     "$model_seg" \
     "$effort_seg" \
     "$agent_seg" \
+    "$workflow_seg" \
     "$ctx_with_sep" \
     "${limits_seg}${session_seg}"
