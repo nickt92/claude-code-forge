@@ -60,8 +60,6 @@ public struct StatuslineLegendView: View {
             separator
             Text("◈")
                 .foregroundStyle(.blue)
-            Text("124k/200k")
-                .foregroundStyle(.secondary)
             gradientBar
             Text("62%")
                 .fontWeight(.bold)
@@ -144,6 +142,7 @@ public struct StatuslineLegendView: View {
                     .font(.system(size: 11, design: .monospaced))
             }
             .padding(.bottom, 4)
+            iconRow("⬆ high", label: "Effort level", desc: "Reasoning depth: high / med / low")
             iconRow("🤖 name", label: "Active subagent", desc: "Shown during agent delegation")
         }
     }
@@ -151,7 +150,6 @@ public struct StatuslineLegendView: View {
     private var zoneContext: some View {
         zoneSection("Zone 3: Context Window", icon: "gauge.with.dots.needle.33percent") {
             iconRow("◈", label: "Context section", desc: "Marker for context zone")
-            iconRow("124k/200k", label: "Token usage", desc: "Current tokens / window size")
             HStack(spacing: 8) {
                 gradientBar
                 Text("Gradient bar")

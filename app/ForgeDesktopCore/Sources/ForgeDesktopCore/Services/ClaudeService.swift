@@ -313,24 +313,25 @@ public final class StreamParsingContext {
 
             case "message_start":
                 if let message = json["message"] as? [String: Any],
-                   let role = message["role"] as? String, role == "user",
+                   let role = message["role"] as? String,
                    let content = message["content"] as? [[String: Any]] {
-                    for block in content {
-                        if let blockType = block["type"] as? String, blockType == "tool_result" {
-                            let toolUseId = block["tool_use_id"] as? String ?? ""
-                            let name = resolveToolName(forId: toolUseId)
-                            let output: String
-                            if let contentStr = block["content"] as? String {
-                                output = contentStr
-                            } else if let contentArr = block["content"] as? [[String: Any]] {
-                                output = contentArr.compactMap { $0["text"] as? String }.joined()
-                            } else {
-                                output = ""
+                    if role == "user" {
+                        for block in content {
+                            if let blockType = block["type"] as? String, blockType == "tool_result" {
+                                let toolUseId = block["tool_use_id"] as? String ?? ""
+                                let name = resolveToolName(forId: toolUseId)
+                                let output: String
+                                if let contentStr = block["content"] as? String {
+                                    output = contentStr
+                                } else if let contentArr = block["content"] as? [[String: Any]] {
+                                    output = contentArr.compactMap { $0["text"] as? String }.joined()
+                                } else {
+                                    output = ""
+                                }
+                                return .toolResult(name: name, output: String(output.prefix(200)))
                             }
-                            return .toolResult(name: name, output: String(output.prefix(200)))
                         }
-                    }
-                    if role == "assistant", let content = message["content"] as? [[String: Any]] {
+                    } else if role == "assistant" {
                         var text = ""
                         for block in content {
                             if let blockText = block["text"] as? String {

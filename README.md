@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **8 Hooks** · **8 Rules Files** · **555+ Tests**
+**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **810+ Tests**
 
 </div>
 
@@ -38,10 +38,12 @@ Claude Code reads instructions — but doesn't always follow them. Through empir
 ```bash
 git clone https://github.com/nickt92/claude-code-forge.git
 cd claude-code-forge && ./install.sh      # Interactive persona wizard
+
+# Add forge to your PATH (add to ~/.zshrc or ~/.bashrc for persistence)
+export PATH="$HOME/.claude/bin:$PATH"
+
 forge doctor                               # Verify installation
 ```
-
-Add `~/.claude/bin` to your PATH so `forge` is available anywhere: `export PATH="$HOME/.claude/bin:$PATH"`
 
 ## What You Get
 
@@ -50,14 +52,14 @@ Add `~/.claude/bin` to your PATH so `forge` is available anywhere: `export PATH=
 A rich, 5-zone status line that shows everything about your Claude Code session at a glance:
 
 ```
-🌿 feat/thing ✦3 ↑2 ║ 🧠 Opus ║ ◈ 124k/200k ▐████████░░░░▌ 62% 💾 46% ║ 🔋 48% ⚡ 342t/s ║ 💰 $2.87 · ✏️ +342/−89 · ⏱️ 32m
+🌿 feat/thing ✦3 ↑2 ║ 🧠 Opus ⬆ high 🤖 architect ║ ◈ ▐████████░░░░▌ 62% 💾 46% ║ 🔋 48% ⚡ 342t/s ║ 💰 $2.87 · ✏️ +342/−89 · ⏱️ 32m
 ```
 
 | Zone | What It Shows |
 |:-----|:-------------|
 | **Git** | Branch, uncommitted changes, ahead/behind, stashes, rebase/merge state |
-| **Model** | Active model with color-coded badge (Opus/Sonnet/Haiku), active subagent |
-| **Context** | Token usage with gradient bar (blue→cyan→amber→red), cache hit ratio |
+| **Model** | Active model with color-coded badge (Opus/Sonnet/Haiku), effort level, active subagent |
+| **Context** | Gradient bar (blue→cyan→amber→red) with usage %, cache hit ratio |
 | **Limits** | 5-hour and 7-day rate limits, token generation speed |
 | **Session** | Name, cost, lines changed, duration, vim mode |
 
@@ -68,13 +70,13 @@ Run `forge statusline` for an interactive legend with every icon explained, or o
 | | |
 |:--|:--|
 | **12 Personas** | Same quality, different communication — from vibe coder to CTO |
-| **8 Hooks** | Enforce rules at write time — architect gate, commit validator, secret filter |
+| **9 Hooks** | Enforce rules at write time — architect gate, commit validator, secret filter, context guardian |
 | **8 Rules Files** | Quality engineering, scope discipline, agent orchestration, and more |
 | **3 Plugin Groups** | Full (18), standard (16), or minimal (6) — matched to your persona |
 | **3 Permission Presets** | Ask Before Changes → Auto-Edit → Full Autonomy (223 curated rules) |
 | **Desktop App** | Native macOS menu bar app — dashboard, doctor, persona switcher, onboarding |
 | **Project Onboarding** | Generate project-specific CLAUDE.md from real codebase analysis |
-| **555+ Tests** | CLI (bats-core) + desktop (Swift), run on every push via GitHub Actions |
+| **810+ Tests** | CLI (bats-core) + desktop (Swift), run on every push via GitHub Actions |
 
 ## Persona System
 
@@ -108,24 +110,6 @@ Every persona enforces the same quality standards. What changes is how Claude **
 | **Data Engineer** | Pipeline/systems vocabulary, engineering depth |
 
 Or run `forge build` to create your own persona from the 4 behavioral axes.
-
-## Credits
-
-Built through iterative testing and refinement with Claude Code itself — patterns that survived contact with actual codebases, not theoretical best practices.
-
-### Agent Plugins
-
-**[agents](https://github.com/wshobson/agents)** by [Seth Hobson](https://github.com/wshobson) — 72 plugins providing 112+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
-
-**[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
-- `context7` — real-time library documentation lookup
-- `frontend-design` — UI/UX design quality for frontend work
-
-### Tools
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic
-
----
 
 <details>
 <summary><strong>CLI Reference</strong></summary>
@@ -190,7 +174,7 @@ forge switch                   # List available personas
 
 ### forge doctor
 
-Diagnostic health checks across 7 categories: manifest, file integrity, hook configuration, CLAUDE.md, plugins, CLI.
+Diagnostic health checks across 6 categories: manifest, file integrity, hook configuration, CLAUDE.md, plugins, CLI.
 
 ```bash
 forge doctor
@@ -263,7 +247,7 @@ The forge writes only to `~/.claude/`. Existing configuration is backed up to `~
 ├── settings.json                 # Forge hooks + plugins merged in
 ├── bin/forge -> <source>/forge   # Symlink — always current
 ├── rules/                        # 8 rules files
-├── hooks/                        # 8 enforcement hooks
+├── hooks/                        # 9 enforcement hooks
 ├── scripts/                      # Onboarding scripts
 ├── completions/                  # Bash + Zsh tab completion
 ├── profiles/                     # Custom personas (from forge build)
@@ -325,13 +309,14 @@ Phase 4 — React      (on-demand: errors, incidents, debugging)
 
 | Hook | Trigger | What It Does |
 |:-----|:--------|:-------------|
-| `session-init.sh` | First prompt per session | Persona-aware classification nudge |
+| `session-init.sh` | First prompt per session | Task classification nudge adapted to autonomy level |
 | `architect-gate.sh` | Write/Edit tools | Blocks plan files without `## Architect Review` section |
 | `commit-validator.sh` | Bash tool (git commit) | Blocks AI attribution, warns on non-conventional format |
+| `context-guardian.sh` | ExitPlanMode / PreCompact | Blocks compaction after plan approval, suggests `/clear` |
 | `backup-transcript.sh` | Before compaction | Saves full transcript to `~/.claude/backups/` |
-| `command-guard.sh` | Bash tool | Blocks destructive commands (`rm -rf /`, `docker --privileged`) |
-| `secret-filter.sh` | Bash tool | Detects credentials in commands (AWS keys, tokens) |
-| `db-guard.sh` | Bash tool | Blocks destructive SQL (`DROP TABLE`, `DELETE` without `WHERE`) |
+| `command-guard.sh` | Bash tool | Blocks destructive commands (`rm -rf /`, shell wrappers) |
+| `secret-filter.sh` | After tool use | Detects credentials in output (API keys, JWTs, database URLs) |
+| `db-guard.sh` | Bash tool (database CLIs) | Blocks destructive SQL (`DROP TABLE`, `DELETE` without `WHERE`) |
 | `forge-update-check.sh` | First prompt per session | Advisory notice when forge version is outdated |
 
 See [SECURITY.md](SECURITY.md) for the security model and known limitations.
@@ -345,9 +330,9 @@ The status line has 5 zones with 20+ icons. Here's the full reference:
 
 **Zone 1: Git** — 🌿 branch, 🌲 worktree, 📂 directory, ✦N dirty, ↑N ahead, ↓N behind, 📦N stashes, REBASING/MERGING/CHERRY-PICK state
 
-**Zone 2: Model + Agent** — 🧠 model with colored badge (Opus=magenta, Sonnet=blue, Haiku=teal), 🤖 active subagent
+**Zone 2: Model + Agent** — 🧠 model with colored badge (Opus=magenta, Sonnet=blue, Haiku=teal), ⬆/⬛/⬇ effort level, 🤖 active subagent
 
-**Zone 3: Context Window** — ◈ marker, token count/limit, gradient bar (blue→cyan→amber→red), usage %, 💾 cache hit ratio, ⚠ 200k+ warning
+**Zone 3: Context Window** — ◈ marker, gradient bar (blue→cyan→amber→red), usage %, 💾 cache hit ratio, ⚠ 200k+ warning
 
 **Zone 4: Limits + Speed** — 🔋 5-hour rate limit (green/yellow/red), 📅 7-day rate limit (shown ≥50%), ⚡ token speed
 
@@ -456,9 +441,9 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 <details>
 <summary><strong>Testing</strong></summary>
 
-555+ automated tests across two suites, run on every push via GitHub Actions.
+810+ automated tests across two suites, run on every push via GitHub Actions.
 
-**CLI (bats-core)** — 392+ tests across macOS, Ubuntu, and Windows:
+**CLI (bats-core)** — 650+ tests across macOS, Ubuntu, and Windows:
 
 ```bash
 ./test/run_tests.sh              # All tests
@@ -469,13 +454,13 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 
 | Suite | Files | Covers |
 |:------|------:|:-------|
-| **Unit** | 21 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats, export, permissions |
-| **Integration** | 10 | Assembly, settings merge/unmerge, install, backup/restore, switch, doctor, diff, update, build, init |
+| **Unit** | 26 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats, export, permissions |
+| **Integration** | 11 | Assembly, settings merge/unmerge, install, backup/restore, switch, doctor, diff, update, build, init |
 | **Validation** | 4 | Profile schema, section coverage, settings template, completions |
 
 All tests run in a sandbox — your real `~/.claude/` is never touched.
 
-**Desktop (Swift)** — 143+ tests (XCTest + Swift Testing):
+**Desktop (Swift)** — 159+ tests (XCTest + Swift Testing):
 
 ```bash
 cd app/ForgeDesktopCore && swift test
@@ -513,6 +498,22 @@ forge install --check # Health checks only
 ```
 
 </details>
+
+## Credits
+
+Built through iterative testing and refinement with Claude Code itself — patterns that survived contact with actual codebases, not theoretical best practices.
+
+### Agent Plugins
+
+**[agents](https://github.com/wshobson/agents)** by [Seth Hobson](https://github.com/wshobson) — 72 plugins providing 112+ specialist agents that make the 4-phase workflow possible. Without this project, there would be no architect review gate, no domain-specific routing, no code reviewer quality gate.
+
+**[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic — official plugins:
+- `context7` — real-time library documentation lookup
+- `frontend-design` — UI/UX design quality for frontend work
+
+### Tools
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by Anthropic
 
 ## License
 

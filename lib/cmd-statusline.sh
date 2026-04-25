@@ -104,10 +104,10 @@ cmd_statusline() {
   banner "Statusline Guide"
   printf "\n"
   printf "  ┌─────────────────────────────────────────────────────────────────────────────────┐\n"
-  printf "  │ %s🌿 feat/thing %s✦3 %s↑2%s  %s  %s %s Opus %s  %s🤖 architect%s  %s  %s◈ %s124k/200k %s▐%s████%s████%s████%s▍░░░░░░░░%s▌ %s%s62%%%s  %s💾 46%%%s  %s  %s🔋 48%% %s⚡ 342t/s%s  %s  %s💰 %s\$2.87%s · %s✏️  +342%s/%s−89%s · %s⏱️  32m%s │\n" \
+  printf "  │ %s🌿 feat/thing %s✦3 %s↑2%s  %s  %s %s Opus %s %s⬆ high%s  %s🤖 architect%s  %s  %s◈ %s▐%s████%s████%s████%s▍░░░░░░░░%s▌ %s%s62%%%s  %s💾 46%%%s  %s  %s🔋 48%% %s⚡ 342t/s%s  %s  %s💰 %s\$2.87%s · %s✏️  +342%s/%s−89%s · %s⏱️  32m%s │\n" \
     "${C_BRANCH}" "${C_DIRTY}" "${C_AHEAD}" "${_SL_RST}" \
-    "${SEP}" "${BG_OPUS}" "" "${_SL_RST}" "${C_AGENT}" "${_SL_RST}" \
-    "${SEP}" "${C_CTX}" "${C_TEXT}" "${C_BAR_FRAME}" "${C_BAR_0}" "${C_BAR_1}" "${C_BAR_2}" "${C_BAR_3}" "${C_BAR_TRACK}" "${C_BAR_FRAME}" "${_SL_BOLD}${C_BAR_1}" "${_SL_RST}" "${C_CACHE}" "${_SL_RST}" \
+    "${SEP}" "${BG_OPUS}" "" "${_SL_RST}" "${C_MUTED}" "${_SL_RST}" "${C_AGENT}" "${_SL_RST}" \
+    "${SEP}" "${C_CTX}" "${C_BAR_FRAME}" "${C_BAR_0}" "${C_BAR_1}" "${C_BAR_2}" "${C_BAR_3}" "${C_BAR_TRACK}" "${C_BAR_FRAME}" "${_SL_BOLD}${C_BAR_1}" "${_SL_RST}" "${C_CACHE}" "${_SL_RST}" \
     "${SEP}" "${C_RATE_OK}" "${C_SPEED}" "${_SL_RST}" \
     "${SEP}" "${C_GOLD}" "${_SL_BOLD}" "${_SL_RST}" "${C_ADD}" "${_SL_RST}" "${C_DEL}" "${_SL_RST}" "${C_MUTED}" "${_SL_RST}"
   printf "  └─────────────────────────────────────────────────────────────────────────────────┘\n"
@@ -128,12 +128,12 @@ cmd_statusline() {
   _sl_icon_bg "${BG_OPUS}" "🧠 Opus" "Opus model" "background: magenta"
   _sl_icon_bg "${BG_SONNET}" "🧠 Sonnet" "Sonnet model" "background: blue"
   _sl_icon_bg "${BG_HAIKU}" "🧠 Haiku" "Haiku model" "background: teal"
+  _sl_icon "${C_MUTED}" "⬆ high" "Effort level" "reasoning depth: high / med / low"
   _sl_icon "${C_AGENT}" "🤖 name" "Active subagent" "shown during agent delegation"
 
   # ── Zone 3: Context Window ─────────────────────────────────
   banner "Zone 3: Context Window"
   _sl_icon "${C_CTX}" "◈" "Context section" "marker for context zone"
-  _sl_icon "${C_TEXT}" "124k/200k" "Token usage" "current tokens / window size"
   printf "  %s▐%s████%s████%s██%s░░░░░░░░%s▌%s   Gradient bar       — blue→cyan→amber→red as usage increases\n" \
     "${C_BAR_FRAME}" "${C_BAR_0}" "${C_BAR_1}" "${C_BAR_2}" "${C_BAR_TRACK}" "${C_BAR_FRAME}" "${_SL_RST}"
   _sl_icon "${_SL_BOLD}" "62%" "Context used" "bold, color matches bar edge"

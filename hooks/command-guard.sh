@@ -38,10 +38,10 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 if echo "$COMMAND" | head -1 | grep -qE '^# forge-override: .+'; then
   _OVERRIDE_REASON=$(echo "$COMMAND" | head -1 | sed 's/^# forge-override: //')
   _OVERRIDE_REASON=${_OVERRIDE_REASON//\"/\\\"}
-  _OVERRIDE_CMD=$(echo "$COMMAND" | tail -n +2 | head -1)
-  _OVERRIDE_LINES=$(echo "$COMMAND" | tail -n +2 | wc -l | tr -d ' ')
-  [ "$_OVERRIDE_LINES" -gt 1 ] && _OVERRIDE_CMD="${_OVERRIDE_CMD} [+$((_OVERRIDE_LINES - 1)) lines]"
+  _OVERRIDE_CMD=$(echo "$COMMAND" | tail -n +2)
   _OVERRIDE_CMD=${_OVERRIDE_CMD//\"/\\\"}
+  # Truncate at 500 chars for log readability but preserve full command visibility
+  [ ${#_OVERRIDE_CMD} -gt 500 ] && _OVERRIDE_CMD="${_OVERRIDE_CMD:0:500}...[truncated]"
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) OVERRIDE_CONFIRMED reason=\"$_OVERRIDE_REASON\" command=\"$_OVERRIDE_CMD\"" \
     >> "$HOME/.claude/security.log"
   exit 0
@@ -143,6 +143,30 @@ fi
 if echo "$COMMAND" | grep -qE 'kill\s+-9\s+1(\s|$)'; then
   echo "BLOCKED: System damage risk. Killing PID 1 (init/systemd) will crash the system." >&2
   exit 2
+fi
+
+# ── Deep scan: destructive patterns inside shell wrappers ─────
+# Catches patterns like: bash -c 'rm -rf /', sh -c "dd of=/dev/sda"
+# These bypass prefix-based checks above when wrapped in a shell invocation.
+if echo "$COMMAND" | grep -qE '(bash|sh|zsh)\s+-c\s'; then
+  _INNER=$(echo "$COMMAND" | sed -E "s/.*((bash|sh|zsh)\s+-c\s+['\"]?)//" | sed -E "s/['\"]?\s*$//")
+  # Destructive rm on critical paths
+  if echo "$_INNER" | grep -qE 'rm\s+' && echo "$_INNER" | grep -qE '(\s/\s*$|\s/\*|\s~|\s\$HOME|\s\.)(\s|$)'; then
+    if echo "$_INNER" | grep -qE '(-[a-zA-Z]*r|--recursive)' && echo "$_INNER" | grep -qE '(-[a-zA-Z]*f|--force)'; then
+      echo "BLOCKED: Destructive deletion detected inside shell wrapper. The command attempts to recursively force-delete a critical path." >&2
+      exit 2
+    fi
+  fi
+  # mkfs inside wrapper
+  if echo "$_INNER" | grep -qE '(^|\s)mkfs'; then
+    echo "BLOCKED: System damage risk detected inside shell wrapper." >&2
+    exit 2
+  fi
+  # dd to /dev/ inside wrapper
+  if echo "$_INNER" | grep -qE 'dd\s+.*of=/dev/'; then
+    echo "BLOCKED: System damage risk detected inside shell wrapper." >&2
+    exit 2
+  fi
 fi
 
 exit 0

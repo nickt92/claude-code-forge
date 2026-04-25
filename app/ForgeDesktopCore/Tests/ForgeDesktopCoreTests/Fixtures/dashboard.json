@@ -60,6 +60,20 @@
         "name": "db-guard"
       },
       {
+        "event": "PostToolUse",
+        "matcher": "ExitPlanMode",
+        "command": "bash ~/.claude/hooks/context-guardian.sh exitplan",
+        "timeout": 3,
+        "name": "context-guardian"
+      },
+      {
+        "event": "PreCompact",
+        "matcher": "",
+        "command": "bash ~/.claude/hooks/context-guardian.sh precompact",
+        "timeout": null,
+        "name": "context-guardian"
+      },
+      {
         "event": "PreCompact",
         "matcher": "",
         "command": "bash ~/.claude/hooks/backup-transcript.sh",
