@@ -35,15 +35,57 @@ if [[ "$FILE_PATH" == *".claude/plans/"* ]]; then
   exit 0
 fi
 
-# --- Gate 2: One-time nudge on first source file edit ---
-# Skip non-source files (configs, docs, claude files, lock files)
+# --- Shared: skip non-source files --------------------------------
 [[ "$FILE_PATH" == *".claude/"* ]] && exit 0
 [[ "$FILE_PATH" == *".md" ]] && exit 0
 [[ "$FILE_PATH" == *".json" && "$FILE_PATH" != *"/src/"* ]] && exit 0
 [[ "$FILE_PATH" == *".lock" ]] && exit 0
 [[ "$FILE_PATH" == *"node_modules"* ]] && exit 0
 
-MARKER="${TMPDIR:-/tmp}/claude-code-classified-${PPID}"
+# --- Gate 0: Plan enforcement (blocks unplanned significant work) ---
+_TMPDIR="${TMPDIR:-/tmp}"
+STATE_FILE="${_TMPDIR}/forge-session-state-${PPID}"
+_CLASSIFICATION="unknown"
+_PHASE=""
+
+if [ -f "$STATE_FILE" ]; then
+  _CLASSIFICATION=$(grep '^classification=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2)
+  _PHASE=$(grep '^phase=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2)
+  [ -z "$_CLASSIFICATION" ] && _CLASSIFICATION="unknown"
+fi
+
+# If already past planning, allow through
+[ "$_PHASE" = "implementation" ] && exit 0
+
+# Read planning enforcement level from profile (default: nudge)
+PROFILE="$HOME/.claude/profile.json"
+_ENFORCEMENT="nudge"
+if [ -f "$PROFILE" ]; then
+  _PE=$(jq -r '.planning_enforcement // empty' "$PROFILE" 2>/dev/null)
+  [ -n "$_PE" ] && _ENFORCEMENT="$_PE"
+fi
+
+# enforcement=off → skip gate entirely
+[ "$_ENFORCEMENT" = "off" ] && exit 0
+
+# Check for existing plan files
+_HAS_PLAN=false
+if [ -d "$HOME/.claude/plans" ]; then
+  for _pf in "$HOME/.claude/plans"/*.md; do
+    [ -f "$_pf" ] && { _HAS_PLAN=true; break; }
+  done
+fi
+
+if [ "$_CLASSIFICATION" = "unknown" ] && [ "$_HAS_PLAN" = false ]; then
+  if [ "$_ENFORCEMENT" = "enforce" ]; then
+    echo "BLOCKED: No plan file found and task is unclassified. Classify the task first — if significant, use EnterPlanMode and invoke the domain architect before editing source files." >&2
+    exit 2
+  fi
+  # enforcement=nudge falls through to Gate 2 below
+fi
+
+# --- Gate 2: One-time nudge on first source file edit ---
+MARKER="${_TMPDIR}/claude-code-classified-${PPID}"
 if [ ! -f "$MARKER" ]; then
   touch "$MARKER"
   echo "REMINDER: Have you classified this task? Significant tasks require EnterPlanMode and a domain architect review before implementation. If this is trivial/moderate, proceed." >&2
