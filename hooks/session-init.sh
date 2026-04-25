@@ -20,11 +20,12 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
 
 # One nudge per session — PPID is tied to the parent shell
 _TMPDIR="${TMPDIR:-/tmp}"
 MARKER="${_TMPDIR}/claude-code-prompted-${PPID}"
-[ -f "$MARKER" ] && exit 0
+[ -f "$MARKER" ] && exit 0  # already fired — skip logging for repeat invocations
 
 # New session — clean up stale markers from old sessions (>24h)
 # Also cleans architect-gate classified markers (created by architect-gate.sh)
@@ -68,5 +69,9 @@ jq -n --arg ctx "SYSTEM: ${NUDGE} ${BRANCH_REMINDER}" '{
     additionalContext: $ctx
   }
 }'
+
+_dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+printf '%s|session-init|%s|allow\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+printf '%s|session-init|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
 
 exit 0

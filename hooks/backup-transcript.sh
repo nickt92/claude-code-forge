@@ -17,6 +17,8 @@ mkdir -p "$BACKUP_DIR"
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
+
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id')
 TRIGGER=$(echo "$INPUT" | jq -r '.trigger // "unknown"')
@@ -29,5 +31,10 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 if [ -f "$TRANSCRIPT_PATH" ]; then
   cp "$TRANSCRIPT_PATH" "$BACKUP_DIR/${SESSION_ID}-${TRIGGER}-${TIMESTAMP}.jsonl"
 fi
+
+_BT_TMPDIR="${TMPDIR:-/tmp}"
+_dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+printf '%s|backup-transcript|%s|allow\n' "$(date +%s)" "$_dur" >> "${_BT_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+printf '%s|backup-transcript|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
 
 exit 0

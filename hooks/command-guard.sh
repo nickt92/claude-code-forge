@@ -24,10 +24,19 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
+_CG_TMPDIR="${TMPDIR:-/tmp}"
+
+_cg_log() {
+  local dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+  printf '%s|command-guard|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "${_CG_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+  printf '%s|command-guard|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
+}
+
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
 # Empty command — nothing to guard
-[ -z "$COMMAND" ] && exit 0
+[ -z "$COMMAND" ] && { _cg_log allow; exit 0; }
 
 # ── forge-override: user-confirmed bypass ─────────────────────
 # Requires non-empty reason. Bare "# forge-override" is rejected.
@@ -44,7 +53,7 @@ if echo "$COMMAND" | head -1 | grep -qE '^# forge-override: .+'; then
   [ ${#_OVERRIDE_CMD} -gt 500 ] && _OVERRIDE_CMD="${_OVERRIDE_CMD:0:500}...[truncated]"
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) OVERRIDE_CONFIRMED reason=\"$_OVERRIDE_REASON\" command=\"$_OVERRIDE_CMD\"" \
     >> "$HOME/.claude/security.log"
-  exit 0
+  _cg_log override; exit 0
 fi
 
 # ── Destructive deletion ──────────────────────────────────────
@@ -65,6 +74,7 @@ if echo "$COMMAND" | grep -qE '^\s*(sudo\s+)?(command\s+)?rm\s' ; then
   rm_args="${COMMAND#*rm}"
   if _rm_targets_critical_path "$rm_args" && _rm_has_recursive "$rm_args" && _rm_has_force "$rm_args"; then
     echo "BLOCKED: Destructive deletion detected. The command attempts to recursively force-delete a critical path (/, ~, \$HOME, or current directory). Use targeted paths instead." >&2
+    _cg_log block
     exit 2
   fi
 fi
@@ -72,6 +82,7 @@ fi
 # ── Fork bombs ────────────────────────────────────────────────
 if echo "$COMMAND" | grep -qE ':\(\)\s*\{.*:\|:.*\}'; then
   echo "BLOCKED: Fork bomb detected. This command would exhaust system resources." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -79,6 +90,7 @@ fi
 # Block curl/wget piped to bash/sh/zsh
 if echo "$COMMAND" | grep -qE '(curl|wget)\s+.*\|\s*(bash|sh|zsh)'; then
   echo "BLOCKED: Remote code execution detected. Piping downloaded content directly to a shell is dangerous. Download first, review, then execute." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -86,17 +98,20 @@ fi
 # Block eval $(, bash -c "$(curl
 if echo "$COMMAND" | grep -qE 'eval\s+(\$\(|"\$\()'; then
   echo "BLOCKED: Command injection risk. eval \$(...) can execute arbitrary code from subcommand output." >&2
+  _cg_log block
   exit 2
 fi
 
 if echo "$COMMAND" | grep -qE 'bash\s+-c\s+.*\$\(\s*(curl|wget)'; then
   echo "BLOCKED: Command injection risk. bash -c with embedded curl/wget can execute arbitrary remote code." >&2
+  _cg_log block
   exit 2
 fi
 
 # Block piping to bash/sh/zsh (general pattern, not just curl/wget)
 if echo "$COMMAND" | grep -qE '\|\s*(bash|sh|zsh)\s*$'; then
   echo "BLOCKED: Piping output to a shell interpreter is dangerous. Review the output first." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -104,18 +119,21 @@ fi
 # Block env/printenv piped (leak all environment variables)
 if echo "$COMMAND" | grep -qE '(^|\s)(env|printenv)\s*\|'; then
   echo "BLOCKED: Secret leakage risk. Piping env/printenv output may expose secrets. Access specific variables instead." >&2
+  _cg_log block
   exit 2
 fi
 
 # Block cat .env / .env.* piped
 if echo "$COMMAND" | grep -qE 'cat\s+\.env[.a-zA-Z0-9_-]*\s*\|'; then
   echo "BLOCKED: Secret leakage risk. Piping .env contents may expose secrets." >&2
+  _cg_log block
   exit 2
 fi
 
 # Block cat ~/.ssh/* piped
 if echo "$COMMAND" | grep -qE 'cat\s+~/\.ssh/\S+\s*\|'; then
   echo "BLOCKED: Secret leakage risk. Piping SSH key contents may expose private keys." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -123,6 +141,7 @@ fi
 # Block chmod 777 or chmod -R/--recursive 777 on system paths
 if echo "$COMMAND" | grep -qE 'chmod\s+(--recursive\s+|-R\s+)?777\s+/'; then
   echo "BLOCKED: Privilege escalation risk. chmod 777 on system paths creates security vulnerabilities. Use specific permissions (e.g., 755, 644)." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -130,18 +149,21 @@ fi
 # Block mkfs (format filesystems)
 if echo "$COMMAND" | grep -qE '(^|\s)mkfs'; then
   echo "BLOCKED: System damage risk. mkfs formats filesystems and destroys all data on the target device." >&2
+  _cg_log block
   exit 2
 fi
 
 # Block dd to /dev/ (raw device writes)
 if echo "$COMMAND" | grep -qE 'dd\s+.*of=/dev/'; then
   echo "BLOCKED: System damage risk. dd writing to /dev/ devices can destroy data or damage the system." >&2
+  _cg_log block
   exit 2
 fi
 
 # Block kill -9 1 (init process)
 if echo "$COMMAND" | grep -qE 'kill\s+-9\s+1(\s|$)'; then
   echo "BLOCKED: System damage risk. Killing PID 1 (init/systemd) will crash the system." >&2
+  _cg_log block
   exit 2
 fi
 
@@ -154,19 +176,23 @@ if echo "$COMMAND" | grep -qE '(bash|sh|zsh)\s+-c\s'; then
   if echo "$_INNER" | grep -qE 'rm\s+' && echo "$_INNER" | grep -qE '(\s/\s*$|\s/\*|\s~|\s\$HOME|\s\.)(\s|$)'; then
     if echo "$_INNER" | grep -qE '(-[a-zA-Z]*r|--recursive)' && echo "$_INNER" | grep -qE '(-[a-zA-Z]*f|--force)'; then
       echo "BLOCKED: Destructive deletion detected inside shell wrapper. The command attempts to recursively force-delete a critical path." >&2
+      _cg_log block
       exit 2
     fi
   fi
   # mkfs inside wrapper
   if echo "$_INNER" | grep -qE '(^|\s)mkfs'; then
     echo "BLOCKED: System damage risk detected inside shell wrapper." >&2
+    _cg_log block
     exit 2
   fi
   # dd to /dev/ inside wrapper
   if echo "$_INNER" | grep -qE 'dd\s+.*of=/dev/'; then
     echo "BLOCKED: System damage risk detected inside shell wrapper." >&2
+    _cg_log block
     exit 2
   fi
 fi
 
+_cg_log allow
 exit 0

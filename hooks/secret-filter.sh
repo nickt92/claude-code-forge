@@ -31,10 +31,19 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
+_SF_TMPDIR="${TMPDIR:-/tmp}"
+
+_sf_log() {
+  local dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "${_SF_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
+}
+
 TOOL_RESPONSE=$(echo "$INPUT" | jq -r '.tool_response // empty')
 
 # No response to scan
-[ -z "$TOOL_RESPONSE" ] && exit 0
+[ -z "$TOOL_RESPONSE" ] && { _sf_log allow; exit 0; }
 
 # ── Pattern matching ──────────────────────────────────────────
 DETECTED=""
@@ -103,7 +112,7 @@ if echo "$TOOL_RESPONSE" | grep -qE '[A-Z_]+(KEY|SECRET|TOKEN|PASSWORD)=[^[:spac
 fi
 
 # No secrets found — pass through silently
-[ -z "$DETECTED" ] && exit 0
+[ -z "$DETECTED" ] && { _sf_log allow; exit 0; }
 
 # Trim trailing comma-space
 DETECTED="${DETECTED%, }"
@@ -122,4 +131,4 @@ jq -n --arg types "$DETECTED" '{
   }
 }'
 
-exit 0
+_sf_log detect; exit 0

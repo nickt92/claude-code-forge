@@ -21,6 +21,7 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
 
 MODE="${1:-precompact}"
 _TMPDIR="${TMPDIR:-/tmp}"
@@ -45,6 +46,9 @@ case "$MODE" in
         additionalContext: $ctx
       }
     }'
+    _dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+    printf '%s|context-guardian|%s|allow\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+    printf '%s|context-guardian|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
     exit 0
     ;;
 
@@ -71,6 +75,9 @@ case "$MODE" in
           decision: "block",
           reason: $msg
         }'
+        _dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+        printf '%s|context-guardian|%s|block\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+        printf '%s|context-guardian|%s|block\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
         exit 2
       else
         # Marker is stale — clean up and allow
@@ -79,6 +86,9 @@ case "$MODE" in
     fi
 
     # No marker — allow compaction
+    _dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+    printf '%s|context-guardian|%s|allow\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+    printf '%s|context-guardian|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
     exit 0
     ;;
 esac
