@@ -265,9 +265,9 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   refute_output --partial "7d"
 }
 
-# ── Session Name ─────────────────────────────────────────────
+# ── Session Name Removed (v1.3.0) ────────────────────────────
 
-@test "shows session name when present" {
+@test "does not show session_name (removed in v1.3.0)" {
   local json='{
     "model":{"id":"sonnet","display_name":"Sonnet"},
     "workspace":{"current_dir":"/tmp"},
@@ -275,20 +275,7 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   }'
   run run_sl "$json"
   assert_success
-  assert_output --partial "my-feature-work"
-}
-
-@test "truncates long session names" {
-  local json='{
-    "model":{"id":"sonnet","display_name":"Sonnet"},
-    "workspace":{"current_dir":"/tmp"},
-    "session_name":"this-is-a-very-long-session-name-that-should-be-truncated"
-  }'
-  run run_sl "$json"
-  assert_success
-  # Should be truncated with ellipsis, not full name
-  refute_output --partial "truncated"
-  assert_output --partial "…"
+  refute_output --partial "my-feature-work"
 }
 
 # ── Worktree Detection ──────────────────────────────────────

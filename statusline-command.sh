@@ -458,14 +458,6 @@ fi
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 session_parts=()
 
-# Session name (set via /rename or --name)
-if [[ -n "$session_name" ]] && [[ "$session_name" != "null" ]]; then
-    # Truncate long names
-    display_name="$session_name"
-    [ ${#session_name} -gt 20 ] && display_name="${session_name:0:18}…"
-    session_parts+=("${C_TEXT}📝 ${display_name}${RST}")
-fi
-
 # Cost
 if [ "$cost_positive" -eq 1 ]; then
     if [ "$cost_cents" -ge 100 ]; then
