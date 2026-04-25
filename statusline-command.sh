@@ -94,7 +94,8 @@ IFS='|' read -r cwd model_id model_display cost_usd duration_ms \
   lines_added lines_removed vim_mode exceeds_200k used_pct agent_name \
   ctx_size ctx_input ctx_output ctx_cache_create ctx_cache_read \
   remaining_pct rate_5h_pct rate_5h_resets session_id \
-  wt_name total_output session_name rate_7d_pct rate_7d_resets < <(
+  wt_name total_output session_name rate_7d_pct rate_7d_resets \
+  effort_level git_worktree < <(
   jq -r '[
     .workspace.current_dir // ".",
     .model.id // "",
@@ -120,7 +121,9 @@ IFS='|' read -r cwd model_id model_display cost_usd duration_ms \
     (.context_window.total_output_tokens // 0 | tostring),
     .session_name // "",
     (.rate_limits.seven_day.used_percentage // -1 | tostring),
-    (.rate_limits.seven_day.resets_at // 0 | tostring)
+    (.rate_limits.seven_day.resets_at // 0 | tostring),
+    .effort.level // "",
+    (.workspace.git_worktree // false | tostring)
   ] | join("|")' <<< "$input" | tr -d '\r'
 )
 
@@ -152,23 +155,24 @@ read -r cost_cents cost_positive < <(
 )
 
 # ── Context percentage ────────────────────────────────────────
-# Claude Code's JSON percentage fields (used_percentage, remaining_percentage)
-# are naive — based on full window size, not usable capacity. Claude Code
-# auto-compacts at ~80% of the window, so effective capacity = maxTokens * 0.8.
-# Always compute from raw token counts against effective capacity.
-# Matches ccstatusline's approach: tokens / (maxTokens * 0.8) * 100.
+# Trust Claude Code's used_percentage — it accounts for all token types and
+# knows its own compaction thresholds. Only fall back to remaining_percentage
+# when used_percentage is absent. Both reference implementations (Dan Mackay,
+# ccstatusline) take this approach.
 ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-if [ "$ctx_size_int" -gt 0 ]; then
-  effective_capacity=$(( ctx_size_int * 80 / 100 ))
-else
-  effective_capacity=0
-fi
+has_ctx_data=false
 
-if [ "$ctx_tokens" -gt 0 ] && [ "$effective_capacity" -gt 0 ]; then
-  used_int=$(( ctx_tokens * 100 / effective_capacity ))
+if [ "$used_int" -ge 0 ]; then
+  # Primary: Claude Code's own used_percentage
+  has_ctx_data=true
 elif [ "$remaining_int" -ge 0 ]; then
-  # Fallback if no token data: use remaining_percentage (still naive, but best we have)
+  # Fallback: derive from remaining_percentage
   used_int=$(( 100 - remaining_int ))
+  has_ctx_data=true
+elif [ "$ctx_tokens" -gt 0 ] && [ "$ctx_size_int" -gt 0 ]; then
+  # Last resort: compute from raw tokens against full window size
+  used_int=$(( ctx_tokens * 100 / ctx_size_int ))
+  has_ctx_data=true
 fi
 [ "$used_int" -gt 100 ] && used_int=100
 [ "$used_int" -lt 0 ] && used_int=0
@@ -202,7 +206,8 @@ if [ -n "$session_id" ] && [ "$total_output_int" -gt 0 ]; then
     IFS='|' read -r prev_ts prev_out < "$state_file"
     delta_sec=$(( now_sec - $(to_int "$prev_ts") ))
     delta_tok=$(( total_output_int - $(to_int "$prev_out") ))
-    if [ "$delta_sec" -gt 0 ] && [ "$delta_tok" -gt 0 ]; then
+    # Discard stale samples (>30s gap = terminal was backgrounded/locked)
+    if [ "$delta_sec" -gt 0 ] && [ "$delta_sec" -le 30 ] && [ "$delta_tok" -gt 0 ]; then
       speed=$(( delta_tok / delta_sec ))
       [ "$speed" -gt 0 ] && tok_speed="$speed"
     fi
@@ -238,14 +243,12 @@ else
     dirty_count=0
     [ -n "$dirty_lines" ] && dirty_count=$(echo "$dirty_lines" | wc -l | tr -d ' ')
 
-    # Worktree detection
+    # Worktree detection — prefer workspace.git_worktree, fall back to worktree.name
     git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null)
-    git_common=$(cd "$cwd" 2>/dev/null && git rev-parse --git-common-dir 2>/dev/null)
-    [ -n "$git_common" ] && [[ "$git_common" != /* ]] && git_common="$cwd/$git_common"
-    if [[ -n "$wt_name" ]] && [[ "$wt_name" != "null" ]]; then
+    if [[ "$git_worktree" == "true" ]]; then
         tree_icon="🌲"
-    elif [ "$git_dir" != "$git_common" ]; then
-        tree_icon="🔗"
+    elif [[ -n "$wt_name" ]] && [[ "$wt_name" != "null" ]]; then
+        tree_icon="🌲"
     else
         tree_icon="🌿"
     fi
@@ -312,6 +315,16 @@ else
     model_seg="${BG_DEFAULT} 🧠 ${model_display} ${RST}"
 fi
 
+# Effort level indicator
+effort_seg=""
+if [[ -n "$effort_level" ]] && [[ "$effort_level" != "null" ]]; then
+    case "$effort_level" in
+        high)   effort_seg=" ${C_MUTED}⬆ high${RST}" ;;
+        medium) effort_seg=" ${C_DIM}⬛ med${RST}" ;;
+        low)    effort_seg=" ${C_DIM}⬇ low${RST}" ;;
+    esac
+fi
+
 agent_seg=""
 if [[ -n "$agent_name" ]] && [[ "$agent_name" != "null" ]]; then
     agent_seg=" 🤖 ${C_AGENT}${agent_name}${RST}"
@@ -322,80 +335,84 @@ fi
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 3: Context Window (hero section)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-bar_width=20
+ctx_seg=""
 
-# Sub-character precision: fill in 8ths
-fill_eighths=$(( used_int * bar_width * 8 / 100 ))
-full_chars=$(( fill_eighths / 8 ))
-partial_eighth=$(( fill_eighths % 8 ))
-[ "$full_chars" -gt "$bar_width" ] && full_chars=$bar_width
-empty_chars=$(( bar_width - full_chars - (partial_eighth > 0 ? 1 : 0) ))
-[ "$empty_chars" -lt 0 ] && empty_chars=0
+if [ "$has_ctx_data" = true ]; then
+    bar_width=20
 
-# Precompute color for each bar position (no subshells in loop)
-for ((i=0; i<bar_width; i++)); do
-    pos_pct=$(( (i + 1) * 100 / bar_width ))
-    if   [ "$pos_pct" -ge 90 ]; then BAR_COLORS[$i]=$C_BAR_3
-    elif [ "$pos_pct" -ge 70 ]; then BAR_COLORS[$i]=$C_BAR_2
-    elif [ "$pos_pct" -ge 40 ]; then BAR_COLORS[$i]=$C_BAR_1
-    else                              BAR_COLORS[$i]=$C_BAR_0
+    # Sub-character precision: fill in 8ths
+    fill_eighths=$(( used_int * bar_width * 8 / 100 ))
+    full_chars=$(( fill_eighths / 8 ))
+    partial_eighth=$(( fill_eighths % 8 ))
+    [ "$full_chars" -gt "$bar_width" ] && full_chars=$bar_width
+    empty_chars=$(( bar_width - full_chars - (partial_eighth > 0 ? 1 : 0) ))
+    [ "$empty_chars" -lt 0 ] && empty_chars=0
+
+    # Precompute color for each bar position (no subshells in loop)
+    for ((i=0; i<bar_width; i++)); do
+        pos_pct=$(( (i + 1) * 100 / bar_width ))
+        if   [ "$pos_pct" -ge 90 ]; then BAR_COLORS[$i]=$C_BAR_3
+        elif [ "$pos_pct" -ge 70 ]; then BAR_COLORS[$i]=$C_BAR_2
+        elif [ "$pos_pct" -ge 40 ]; then BAR_COLORS[$i]=$C_BAR_1
+        else                              BAR_COLORS[$i]=$C_BAR_0
+        fi
+    done
+
+    # Percentage color matches gradient at fill edge
+    if   [ "$used_int" -ge 90 ]; then pct_color="${BOLD}${C_BAR_3}"
+    elif [ "$used_int" -ge 70 ]; then pct_color="${BOLD}${C_BAR_2}"
+    elif [ "$used_int" -ge 40 ]; then pct_color="${BOLD}${C_BAR_1}"
+    else                               pct_color="${BOLD}${C_BAR_0}"
     fi
-done
 
-# Percentage color matches gradient at fill edge
-if   [ "$used_int" -ge 90 ]; then pct_color="${BOLD}${C_BAR_3}"
-elif [ "$used_int" -ge 70 ]; then pct_color="${BOLD}${C_BAR_2}"
-elif [ "$used_int" -ge 40 ]; then pct_color="${BOLD}${C_BAR_1}"
-else                               pct_color="${BOLD}${C_BAR_0}"
-fi
+    # Build gradient bar using precomputed colors (zero subshells)
+    bar=""
+    for ((i=0; i<full_chars; i++)); do
+        bar="${bar}${BAR_COLORS[$i]}█"
+    done
+    [ "$full_chars" -gt 0 ] && bar="${bar}${RST}"
 
-# Build gradient bar using precomputed colors (zero subshells)
-bar=""
-for ((i=0; i<full_chars; i++)); do
-    bar="${bar}${BAR_COLORS[$i]}█"
-done
-[ "$full_chars" -gt 0 ] && bar="${bar}${RST}"
-
-# Partial fill character at boundary
-if [ "$partial_eighth" -gt 0 ]; then
-    bar="${bar}${BAR_COLORS[$full_chars]}${BLOCKS[$((partial_eighth - 1))]}${RST}"
-fi
-
-# Empty track (single color run, no per-char reset needed)
-if [ "$empty_chars" -gt 0 ]; then
-    printf -v empty_str '%*s' "$empty_chars" ''
-    empty_str="${empty_str// /░}"
-    bar="${bar}${C_BAR_TRACK}${empty_str}${RST}"
-fi
-
-# Token counts
-token_seg=""
-if [ "$ctx_size_int" -gt 0 ]; then
-    if [ "$ctx_input_int" -gt 0 ] || [ "$ctx_cache_create_int" -gt 0 ] || [ "$ctx_cache_read_int" -gt 0 ]; then
-        current_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-    elif [ "$used_int" -gt 0 ]; then
-        current_tokens=$(( used_int * ctx_size_int / 100 ))
-    else
-        current_tokens=0
+    # Partial fill character at boundary
+    if [ "$partial_eighth" -gt 0 ]; then
+        bar="${bar}${BAR_COLORS[$full_chars]}${BLOCKS[$((partial_eighth - 1))]}${RST}"
     fi
-    if [ "$current_tokens" -gt 0 ] || [ "$used_int" -gt 0 ]; then
-        token_seg="${C_TEXT}$(fmt_tokens "$current_tokens")/${C_MUTED}$(fmt_tokens "$effective_capacity")${RST} "
+
+    # Empty track (single color run, no per-char reset needed)
+    if [ "$empty_chars" -gt 0 ]; then
+        printf -v empty_str '%*s' "$empty_chars" ''
+        empty_str="${empty_str// /░}"
+        bar="${bar}${C_BAR_TRACK}${empty_str}${RST}"
     fi
+
+    # Token counts
+    token_seg=""
+    if [ "$ctx_size_int" -gt 0 ]; then
+        if [ "$ctx_input_int" -gt 0 ] || [ "$ctx_cache_create_int" -gt 0 ] || [ "$ctx_cache_read_int" -gt 0 ]; then
+            current_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
+        elif [ "$used_int" -gt 0 ]; then
+            current_tokens=$(( used_int * ctx_size_int / 100 ))
+        else
+            current_tokens=0
+        fi
+        if [ "$current_tokens" -gt 0 ] || [ "$used_int" -gt 0 ]; then
+            token_seg="${C_TEXT}$(fmt_tokens "$current_tokens")/${C_MUTED}$(fmt_tokens "$ctx_size_int")${RST} "
+        fi
+    fi
+
+    # Cache indicator — denominator includes all token types
+    cache_seg=""
+    if [ "$ctx_cache_read_int" -gt 0 ] && [ "$ctx_tokens" -gt 0 ]; then
+        cache_ratio=$(( ctx_cache_read_int * 100 / ctx_tokens ))
+        [ "$cache_ratio" -gt 0 ] && cache_seg="  ${C_CACHE}💾 ${cache_ratio}%${RST}"
+    fi
+
+    # Warning
+    ctx_warning=""
+    [[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠ 200k+${RST}"
+
+    printf -v pct_str '%3d%%' "$used_int"
+    ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST} ${pct_color}${pct_str}${RST}${cache_seg}${ctx_warning}"
 fi
-
-# Cache indicator
-cache_seg=""
-if [ "$ctx_cache_read_int" -gt 0 ] && [ "$ctx_input_int" -gt 0 ]; then
-    cache_ratio=$(( ctx_cache_read_int * 100 / (ctx_input_int + ctx_cache_read_int) ))
-    [ "$cache_ratio" -gt 0 ] && cache_seg="  ${C_CACHE}💾 ${cache_ratio}%${RST}"
-fi
-
-# Warning
-ctx_warning=""
-[[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠ 200k+${RST}"
-
-printf -v pct_str '%3d%%' "$used_int"
-ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST} ${pct_color}${pct_str}${RST}${cache_seg}${ctx_warning}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ZONE 4: Limits + Speed
@@ -528,11 +545,15 @@ fi
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Assemble:  Git  ║  Model+Agent  ║  Context  ║  Limits  ║  Session
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Only show context separator when context data is available
+ctx_with_sep=""
+[ -n "$ctx_seg" ] && ctx_with_sep="${SEP}${ctx_seg}"
+
 printf " %s%s%s%s%s%s%s\n" \
     "$git_seg" \
     "$SEP" \
     "$model_seg" \
+    "$effort_seg" \
     "$agent_seg" \
-    "$SEP" \
-    "$ctx_seg" \
+    "$ctx_with_sep" \
     "${limits_seg}${session_seg}"

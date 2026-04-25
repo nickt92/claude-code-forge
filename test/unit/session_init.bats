@@ -98,72 +98,24 @@ SCRIPT
   assert_output --partial "trivial/moderate/significant"
 }
 
-# ── Persona Hint ─────────────────────────────────────────────
+# ── No persona hint (removed in v1.3.0) ─────────────────────
 
-@test "includes persona hint when profile exists" {
+@test "does not include persona hint even when profile exists" {
   create_test_profile "senior-engineer" "high" "advanced" "expert" "engineering"
   run bash -c 'echo "{\"prompt\":\"test\"}" | bash "$0"' "$HOOK"
   assert_success
-  assert_output --partial "Test Profile"
-  assert_output --partial "senior-engineer"
+  refute_output --partial "Test Profile"
 }
 
-# ── Document Chain Nudge ──────────────────────────────────────
+# ── No document chain nudge (removed in v1.3.0) ─────────────
 
-@test "nudges about document chain for non-trivial projects" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  # Create a project with .claude/ and a manifest file (non-trivial heuristic)
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
-  assert_success
-  assert_output --partial "forge init --docs"
-}
-
-@test "does not nudge when docchain-skip marker exists" {
+@test "does not include doc-chain nudge" {
   create_test_profile "senior-engineer" "high" "advanced"
   local project_dir="$TEST_SANDBOX/project"
   mkdir -p "$project_dir/.claude"
   echo '{}' > "$project_dir/package.json"
-  touch "$project_dir/.claude/.docchain-skip"
 
   run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
   assert_success
   refute_output --partial "forge init --docs"
-}
-
-@test "does not nudge when PROJECT.md exists" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-  touch "$project_dir/PROJECT.md"
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
-  assert_success
-  refute_output --partial "forge init --docs"
-}
-
-@test "does not nudge for trivial projects (no manifest file)" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  # No package.json, Cargo.toml, etc.
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
-  assert_success
-  refute_output --partial "forge init --docs"
-}
-
-@test "nudge fires only once per project (creates marker)" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-
-  # First run creates the nudge marker
-  bash -c 'cd "$1" && echo "{\"prompt\":\"first\"}" | bash "$2"' _ "$project_dir" "$HOOK" > /dev/null
-  assert [ -f "$project_dir/.claude/.docchain-nudged" ]
 }

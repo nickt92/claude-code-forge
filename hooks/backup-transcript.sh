@@ -6,15 +6,12 @@
 # Purpose: Copies the full session transcript to ~/.claude/backups/
 #          so you never lose context history.
 #
-# Auto-cleanup: removes backups older than 30 days on each run.
+# Cleanup: delegated to Claude Code's cleanupPeriodDays setting.
 
 set -euo pipefail
 
 BACKUP_DIR="$HOME/.claude/backups"
 mkdir -p "$BACKUP_DIR"
-
-# Prune backups older than 30 days
-find "$BACKUP_DIR" -name "*.jsonl" -mtime +30 -delete 2>/dev/null || true
 
 # Windows jq compat — strip \r from output (see lib/platform.sh)
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }

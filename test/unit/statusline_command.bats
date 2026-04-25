@@ -80,7 +80,7 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   assert_output --partial "100%"
 }
 
-@test "context percentage clamps to 0 for negative" {
+@test "hides context segment when no data available" {
   local json='{
     "model":{"id":"sonnet","display_name":"Sonnet"},
     "workspace":{"current_dir":"/tmp"},
@@ -92,7 +92,39 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   }'
   run run_sl "$json"
   assert_success
-  assert_output --partial "0%"
+  # No percentage bar shown when no actual data
+  refute_output --partial "◈"
+}
+
+@test "uses used_percentage directly from JSON" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "context_window":{
+      "context_window_size":200000,
+      "used_percentage":42,
+      "current_usage":{"input_tokens":50000,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},
+      "remaining_percentage":58
+    }
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "42%"
+}
+
+@test "falls back to remaining_percentage when used_percentage absent" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "context_window":{
+      "context_window_size":200000,
+      "current_usage":{"input_tokens":50000,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},
+      "remaining_percentage":70
+    }
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "30%"
 }
 
 # ── Token Formatting ─────────────────────────────────────────
@@ -122,7 +154,7 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   }'
   run run_sl "$json"
   assert_success
-  assert_output --partial "$2.50"
+  assert_output --partial '$2.50'
 }
 
 # ── Rate Limits ──────────────────────────────────────────────
@@ -171,4 +203,131 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
 @test "handles missing rate limits gracefully" {
   run run_sl "$MINIMAL_JSON"
   assert_success
+}
+
+# ── Effort Level ─────────────────────────────────────────────
+
+@test "shows effort level when present" {
+  local json='{
+    "model":{"id":"claude-opus-4-5","display_name":"Opus"},
+    "workspace":{"current_dir":"/tmp"},
+    "effort":{"level":"high"}
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "high"
+}
+
+@test "shows low effort level" {
+  local json='{
+    "model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "effort":{"level":"low"}
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "low"
+}
+
+@test "handles missing effort level gracefully" {
+  run run_sl "$MINIMAL_JSON"
+  assert_success
+}
+
+# ── 7-Day Rate Limit ────────────────────────────────────────
+
+@test "shows 7-day rate limit when above 50%" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "rate_limits":{"seven_day":{"used_percentage":75,"resets_at":0}}
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "7d"
+  assert_output --partial "75%"
+}
+
+@test "hides 7-day rate limit when below 50%" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "rate_limits":{"seven_day":{"used_percentage":30,"resets_at":0}}
+  }'
+  run run_sl "$json"
+  assert_success
+  refute_output --partial "7d"
+}
+
+# ── Session Name ─────────────────────────────────────────────
+
+@test "shows session name when present" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "session_name":"my-feature-work"
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "my-feature-work"
+}
+
+@test "truncates long session names" {
+  local json='{
+    "model":{"id":"sonnet","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "session_name":"this-is-a-very-long-session-name-that-should-be-truncated"
+  }'
+  run run_sl "$json"
+  assert_success
+  # Should be truncated with ellipsis, not full name
+  refute_output --partial "truncated"
+  assert_output --partial "…"
+}
+
+# ── Worktree Detection ──────────────────────────────────────
+
+@test "shows medium effort level" {
+  local json='{
+    "model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},
+    "workspace":{"current_dir":"/tmp"},
+    "effort":{"level":"medium"}
+  }'
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "med"
+}
+
+@test "shows worktree icon via worktree.name fallback" {
+  local repo="$TEST_SANDBOX/wt-fallback"
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  git -C "$repo" commit --allow-empty -m "init" -q
+
+  local json
+  json=$(jq -n --arg dir "$repo" '{
+    "model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},
+    "workspace":{"current_dir":$dir},
+    "worktree":{"name":"feature-branch"}
+  }')
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "🌲"
+}
+
+@test "shows worktree icon when workspace.git_worktree is true" {
+  # Need a real git repo for the git zone to run worktree detection
+  local repo="$TEST_SANDBOX/wt-repo"
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  git -C "$repo" commit --allow-empty -m "init" -q
+
+  local json
+  json=$(jq -n --arg dir "$repo" '{
+    "model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},
+    "workspace":{"current_dir":$dir,"git_worktree":true}
+  }')
+  run run_sl "$json"
+  assert_success
+  assert_output --partial "🌲"
 }
