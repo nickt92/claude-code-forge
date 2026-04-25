@@ -180,6 +180,111 @@ _stats_sessions() {
   kv "Disk usage" "$human_size"
 }
 
+# ── Session Scorecard ─────────────────────────────────────────
+
+_stats_session() {
+  step "Session Scorecard"
+
+  local session_log="${TMPDIR:-/tmp}/forge-session-log-${PPID}"
+  if [ ! -f "$session_log" ] || [ ! -s "$session_log" ]; then
+    info "No session events recorded yet."
+    return
+  fi
+
+  local total
+  total=$(wc -l < "$session_log" | tr -d ' ')
+  kv "Total events" "$total"
+
+  # Count by hook
+  local hooks_tmp
+  hooks_tmp=$(mktemp)
+  cut -d'|' -f2 "$session_log" | sort | uniq -c | sort -rn > "$hooks_tmp"
+  while IFS= read -r count_line; do
+    local count hook_name
+    count=$(echo "$count_line" | awk '{print $1}')
+    hook_name=$(echo "$count_line" | awk '{print $2}')
+    [ -n "$hook_name" ] && bar "$hook_name" "$count" "$total"
+  done < "$hooks_tmp"
+  rm -f "$hooks_tmp"
+
+  # Count by outcome
+  local blocks allows
+  blocks=$(grep -c '|block$' "$session_log" 2>/dev/null || echo 0)
+  allows=$(grep -c '|allow$' "$session_log" 2>/dev/null || echo 0)
+  local detects overrides
+  detects=$(grep -c '|detect$' "$session_log" 2>/dev/null || echo 0)
+  overrides=$(grep -c '|override$' "$session_log" 2>/dev/null || echo 0)
+
+  echo ""
+  kv "Allowed" "$allows"
+  [ "$blocks" -gt 0 ] && kv "Blocked" "$blocks"
+  [ "$detects" -gt 0 ] && kv "Detected" "$detects"
+  [ "$overrides" -gt 0 ] && kv "Overrides" "$overrides"
+}
+
+# ── Hook Telemetry ───────────────────────────────────────────
+
+_stats_hooks() {
+  step "Hook Telemetry"
+
+  local telemetry_log="$CLAUDE_DIR/hook-telemetry.log"
+  if [ ! -f "$telemetry_log" ] || [ ! -s "$telemetry_log" ]; then
+    info "No hook telemetry recorded yet."
+    return
+  fi
+
+  # Rotate entries older than 30 days
+  local cutoff
+  cutoff=$(( $(date +%s) - 2592000 ))
+  local rotated_tmp
+  rotated_tmp=$(mktemp)
+  while IFS='|' read -r ts hook dur outcome; do
+    [ -n "$ts" ] && [ "$ts" -ge "$cutoff" ] 2>/dev/null && printf '%s|%s|%s|%s\n' "$ts" "$hook" "$dur" "$outcome"
+  done < "$telemetry_log" > "$rotated_tmp"
+  if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
+    mv "$rotated_tmp" "$telemetry_log"
+  else
+    rm -f "$rotated_tmp"
+  fi
+
+  local total
+  total=$(wc -l < "$telemetry_log" | tr -d ' ')
+  kv "Total invocations" "$total (last 30 days)"
+
+  # Count by hook
+  local hooks_tmp
+  hooks_tmp=$(mktemp)
+  cut -d'|' -f2 "$telemetry_log" | sort | uniq -c | sort -rn > "$hooks_tmp"
+  while IFS= read -r count_line; do
+    local count hook_name
+    count=$(echo "$count_line" | awk '{print $1}')
+    hook_name=$(echo "$count_line" | awk '{print $2}')
+    [ -n "$hook_name" ] && bar "$hook_name" "$count" "$total"
+  done < "$hooks_tmp"
+  rm -f "$hooks_tmp"
+
+  # Block rate
+  local blocks
+  blocks=$(grep -c '|block$' "$telemetry_log" 2>/dev/null || echo 0)
+  if [ "$total" -gt 0 ]; then
+    local block_rate=$(( blocks * 100 / total ))
+    kv "Block rate" "${block_rate}% ($blocks/$total)"
+  fi
+
+  # Average duration
+  local total_dur=0 dur_count=0
+  while IFS='|' read -r _ _ dur _; do
+    if [ -n "$dur" ] && [ "$dur" -gt 0 ] 2>/dev/null; then
+      total_dur=$(( total_dur + dur ))
+      dur_count=$(( dur_count + 1 ))
+    fi
+  done < "$telemetry_log"
+  if [ "$dur_count" -gt 0 ]; then
+    local avg_dur=$(( total_dur / dur_count ))
+    kv "Avg duration" "${avg_dur}ms"
+  fi
+}
+
 # ── Main ─────────────────────────────────────────────────────
 
 cmd_stats() {
@@ -197,6 +302,8 @@ cmd_stats() {
         printf "  forge stats              # all sections\n"
         printf "  forge stats --security   # security events only\n"
         printf "  forge stats --sessions   # session backups only\n"
+        printf "  forge stats --session    # current session scorecard\n"
+        printf "  forge stats --hooks      # hook telemetry (30 days)\n"
         return 0
         ;;
       --security)
@@ -207,9 +314,17 @@ cmd_stats() {
         section="sessions"
         shift
         ;;
+      --session)
+        section="session"
+        shift
+        ;;
+      --hooks)
+        section="hooks"
+        shift
+        ;;
       *)
         fail "Unknown option: $1"
-        echo "Usage: forge stats [--security] [--sessions] [--help]"
+        echo "Usage: forge stats [--security] [--sessions] [--session] [--hooks] [--help]"
         return 1
         ;;
     esac
@@ -226,10 +341,14 @@ cmd_stats() {
   case "$section" in
     security) _stats_security ;;
     sessions) _stats_sessions ;;
+    session)  _stats_session ;;
+    hooks)    _stats_hooks ;;
     *)
       _stats_installation
       _stats_security
       _stats_sessions
+      _stats_session
+      _stats_hooks
       ;;
   esac
 }
