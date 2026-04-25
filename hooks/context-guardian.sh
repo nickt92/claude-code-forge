@@ -35,6 +35,10 @@ case "$MODE" in
     [[ -L "$MARKER" ]] && rm -f "$MARKER"  # prevent symlink attacks
     touch "$MARKER"
 
+    # Update session state — significant task completed planning
+    STATE_FILE="${_TMPDIR}/forge-session-state-${PPID}"
+    printf 'classification=significant\nphase=implementation\n' > "$STATE_FILE" 2>/dev/null || true
+
     jq -n --arg ctx "CHECKPOINT: Plan approved. Planning and architect review consume significant context. Consider /clear to start implementation with a fresh context window — your plan file, CLAUDE.md, and auto-memory all persist and reload automatically." '{
       hookSpecificOutput: {
         hookEventName: "PostToolUse",

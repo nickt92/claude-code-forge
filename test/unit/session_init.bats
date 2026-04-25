@@ -107,6 +107,32 @@ SCRIPT
   refute_output --partial "Test Profile"
 }
 
+# ── Session State File ──────────────────────────────────────
+
+@test "creates session state file with classification=unknown" {
+  local wrapper="$TEST_SANDBOX/state-test.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+echo '{"prompt":"test"}' | bash "$HOOK" > /dev/null
+_TMPDIR="\${TMPDIR:-/tmp}"
+cat "\${_TMPDIR}/forge-session-state-\$\$" 2>/dev/null || echo "NO_STATE_FILE"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  assert_output --partial "classification=unknown"
+}
+
+@test "cleans up stale session state files" {
+  local _tmpdir="${TMPDIR:-/tmp}"
+  local stale="${_tmpdir}/forge-session-state-99999"
+  touch "$stale"
+  # Backdate by 2 days
+  touch -t "$(date -v-2d +%Y%m%d%H%M.%S 2>/dev/null || date -d '2 days ago' +%Y%m%d%H%M.%S 2>/dev/null)" "$stale"
+  echo '{"prompt":"test"}' | bash "$HOOK" > /dev/null
+  [ ! -f "$stale" ]
+}
+
 # ── No document chain nudge (removed in v1.3.0) ─────────────
 
 @test "does not include doc-chain nudge" {

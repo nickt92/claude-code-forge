@@ -66,6 +66,38 @@ SCRIPT
   assert_output --partial "MARKER_EXISTS"
 }
 
+# ── Session State File Update ──────────────────────────────
+
+@test "exitplan: updates session state to significant/implementation" {
+  local wrapper="$TEST_SANDBOX/state-update.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+echo '{}' | bash "$HOOK" exitplan > /dev/null
+_TMPDIR="\${TMPDIR:-/tmp}"
+cat "\${_TMPDIR}/forge-session-state-\$\$" 2>/dev/null || echo "NO_STATE_FILE"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  assert_output --partial "classification=significant"
+  assert_output --partial "phase=implementation"
+}
+
+@test "exitplan: state file is readable by other hooks via PPID" {
+  local wrapper="$TEST_SANDBOX/state-ppid.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+echo '{}' | bash "$HOOK" exitplan > /dev/null
+_TMPDIR="\${TMPDIR:-/tmp}"
+STATE="\${_TMPDIR}/forge-session-state-\$\$"
+[ -f "\$STATE" ] && echo "STATE_EXISTS" || echo "NO_STATE"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+  assert_output --partial "STATE_EXISTS"
+}
+
 # ── PreCompact mode: with marker ─────────────────────────────
 # Uses wrapper scripts so exitplan + precompact share the same PPID
 

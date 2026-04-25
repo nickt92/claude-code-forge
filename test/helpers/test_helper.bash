@@ -56,6 +56,7 @@ teardown_sandbox() {
   # Clean up temp markers that hooks create
   local _tmpdir="${TMPDIR:-/tmp}"
   rm -f "$_tmpdir"/claude-code-prompted-* "$_tmpdir"/claude-code-classified-* "$_tmpdir"/claude-forge-update-*
+  rm -f "$_tmpdir"/forge-session-state-* "$_tmpdir"/forge-session-log-*
 }
 
 # ── Helpers ──────────────────────────────────────────────────

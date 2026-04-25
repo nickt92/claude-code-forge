@@ -30,8 +30,13 @@ MARKER="${_TMPDIR}/claude-code-prompted-${PPID}"
 # Also cleans architect-gate classified markers (created by architect-gate.sh)
 find "$_TMPDIR" -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
 find "$_TMPDIR" -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "forge-session-state-*" -mtime +1 -delete 2>/dev/null || true
 
 touch "$MARKER"
+
+# Initialize session state file — shared protocol for hooks/statusline
+STATE_FILE="${_TMPDIR}/forge-session-state-${PPID}"
+printf 'classification=unknown\n' > "$STATE_FILE" 2>/dev/null || true
 
 # Read autonomy level from profile
 PROFILE="$HOME/.claude/profile.json"
