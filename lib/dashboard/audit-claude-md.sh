@@ -217,16 +217,17 @@ _audit_quality() {
   local claude_md="$1"
   local has_placeholders=false
   local length_assessment="missing"
+  local line_count=0
+  local imperative_ratio=0
 
   if [ -f "$claude_md" ]; then
-    local lines
-    lines=$(wc -l < "$claude_md" | tr -d ' ')
+    line_count=$(wc -l < "$claude_md" | tr -d ' ')
 
-    if [ "$lines" -lt 10 ]; then
+    if [ "$line_count" -lt 10 ]; then
       length_assessment="too-short"
-    elif [ "$lines" -lt 30 ]; then
+    elif [ "$line_count" -lt 30 ]; then
       length_assessment="minimal"
-    elif [ "$lines" -gt 500 ]; then
+    elif [ "$line_count" -gt 500 ]; then
       length_assessment="very-long"
     else
       length_assessment="adequate"
@@ -236,12 +237,75 @@ _audit_quality() {
     if grep -qiE '(TODO|FIXME|PLACEHOLDER|ADD DETAILS|FILL IN|TBD|CHANGEME)' "$claude_md" 2>/dev/null; then
       has_placeholders=true
     fi
+
+    # Imperative vs passive language ratio (sample directive lines)
+    local imperative_count=0 passive_count=0
+    while IFS= read -r line; do
+      # Skip empty lines and headings
+      [[ -z "$line" ]] && continue
+      [[ "$line" == "#"* ]] && continue
+      [[ "$line" == "|"* ]] && continue
+      # Count imperative (starts with verb-like words) vs passive patterns
+      if echo "$line" | grep -qiE '^\s*-?\s*(Use|Always|Never|Prefer|Avoid|Must|Do not|Run|Set|Add|Create|Check|Ensure|Follow|Keep|Write|Test|Include|Make)'; then
+        imperative_count=$(( imperative_count + 1 ))
+      fi
+      if echo "$line" | grep -qiE '(is used|are used|should be|was created|has been|will be|can be)'; then
+        passive_count=$(( passive_count + 1 ))
+      fi
+    done < "$claude_md"
+    local total_voice=$(( imperative_count + passive_count ))
+    if [ "$total_voice" -gt 0 ]; then
+      imperative_ratio=$(( imperative_count * 100 / total_voice ))
+    fi
   fi
 
   jq -n \
     --argjson has_placeholders "$has_placeholders" \
     --arg length_assessment "$length_assessment" \
-    '{has_placeholders: $has_placeholders, length_assessment: $length_assessment}'
+    --argjson line_count "$line_count" \
+    --argjson imperative_ratio "$imperative_ratio" \
+    '{has_placeholders: $has_placeholders, length_assessment: $length_assessment, line_count: $line_count, imperative_ratio: $imperative_ratio}'
+}
+
+# ── Hook compatibility ──────────────────────────────────────
+
+_audit_hook_compat() {
+  local claude_md="$1"
+  local installed_hooks='[]'
+  local referenced_hooks='[]'
+  local missing_hooks='[]'
+
+  # Find installed hooks
+  local hooks_dir="$HOME/.claude/hooks"
+  if [ -d "$hooks_dir" ]; then
+    for hf in "$hooks_dir"/*.sh; do
+      [ -f "$hf" ] || continue
+      local hname
+      hname=$(basename "$hf" .sh)
+      installed_hooks=$(echo "$installed_hooks" | jq --arg h "$hname" '. + [$h]')
+    done
+  fi
+
+  # Find hook references in CLAUDE.md
+  if [ -f "$claude_md" ]; then
+    local content
+    content=$(cat "$claude_md")
+    for hook_name in session-init context-guardian architect-gate commit-validator command-guard secret-filter db-guard backup-transcript forge-update-check; do
+      if echo "$content" | grep -qi "$hook_name"; then
+        referenced_hooks=$(echo "$referenced_hooks" | jq --arg h "$hook_name" '. + [$h]')
+        # Check if referenced but not installed
+        if ! echo "$installed_hooks" | jq -e --arg h "$hook_name" 'index($h)' >/dev/null 2>&1; then
+          missing_hooks=$(echo "$missing_hooks" | jq --arg h "$hook_name" '. + [$h]')
+        fi
+      fi
+    done
+  fi
+
+  jq -n \
+    --argjson installed "$installed_hooks" \
+    --argjson referenced "$referenced_hooks" \
+    --argjson missing "$missing_hooks" \
+    '{installed: $installed, referenced: $referenced, missing: $missing}'
 }
 
 # ── Findings generator ───────────────────────────────────────
@@ -252,6 +316,7 @@ _audit_generate_findings() {
   local tech_json="$3"
   local quality_json="$4"
   local has_claude_md="$5"
+  local hook_compat_json="${6:-}"
 
   local findings='[]'
 
@@ -314,6 +379,34 @@ _audit_generate_findings() {
   fi
   if [ "$length_assessment" = "too-short" ]; then
     findings=$(echo "$findings" | jq '. + [{"severity":"warn","code":"too_short","detail":"CLAUDE.md is very short (<10 lines)","fixable":false}]')
+  fi
+
+  # Line count warning (>200 lines)
+  local line_count
+  line_count=$(echo "$quality_json" | jq -r '.line_count // 0')
+  if [ "$line_count" -gt 200 ]; then
+    findings=$(echo "$findings" | jq --arg d "CLAUDE.md is $line_count lines (recommended: under 200)" \
+      '. + [{"severity":"warn","code":"too_long","detail":$d,"fixable":false}]')
+  fi
+
+  # Imperative language ratio
+  local imperative_ratio
+  imperative_ratio=$(echo "$quality_json" | jq -r '.imperative_ratio // 0')
+  if [ "$imperative_ratio" -gt 0 ] && [ "$imperative_ratio" -lt 50 ]; then
+    findings=$(echo "$findings" | jq --arg d "Low imperative language ratio (${imperative_ratio}%) — CLAUDE.md should use direct instructions (Use, Always, Never) not passive descriptions" \
+      '. + [{"severity":"info","code":"passive_language","detail":$d,"fixable":false}]')
+  fi
+
+  # Hook compatibility
+  if [ -n "$hook_compat_json" ]; then
+    local missing_hook_count
+    missing_hook_count=$(echo "$hook_compat_json" | jq '.missing | length' 2>/dev/null || echo 0)
+    if [ "$missing_hook_count" -gt 0 ]; then
+      local missing_names
+      missing_names=$(echo "$hook_compat_json" | jq -r '.missing | join(", ")')
+      findings=$(echo "$findings" | jq --arg d "Hooks referenced in CLAUDE.md but not installed: $missing_names" \
+        '. + [{"severity":"warn","code":"missing_hooks","detail":$d,"fixable":false}]')
+    fi
   fi
 
   echo "$findings"
@@ -393,7 +486,7 @@ audit_claude_md() {
     lines=$((root_lines + managed_lines))
   fi
 
-  local sections_json staleness_json tech_json quality_json findings_json
+  local sections_json staleness_json tech_json quality_json findings_json hook_compat_json
 
   if [ "$has_claude_md" = "true" ]; then
     # Use combined content for section detection and tech stack analysis
@@ -404,6 +497,7 @@ audit_claude_md() {
     sections_json=$(_audit_detect_sections "$combined_tmp")
     tech_json=$(_audit_tech_stack "$repo_dir" "$combined_tmp")
     quality_json=$(_audit_quality "$combined_tmp")
+    hook_compat_json=$(_audit_hook_compat "$combined_tmp")
 
     rm -f "$combined_tmp"
 
@@ -415,10 +509,11 @@ audit_claude_md() {
     sections_json='{"found":[],"missing":[],"coverage":0}'
     staleness_json='{"claude_md_days":-1,"repo_days":-1,"stale":false}'
     tech_json='{"detected":[],"mentioned":[],"gaps":[]}'
-    quality_json='{"has_placeholders":false,"length_assessment":"missing"}'
+    quality_json='{"has_placeholders":false,"length_assessment":"missing","line_count":0,"imperative_ratio":0}'
+    hook_compat_json='{"installed":[],"referenced":[],"missing":[]}'
   fi
 
-  findings_json=$(_audit_generate_findings "$sections_json" "$staleness_json" "$tech_json" "$quality_json" "$has_claude_md")
+  findings_json=$(_audit_generate_findings "$sections_json" "$staleness_json" "$tech_json" "$quality_json" "$has_claude_md" "$hook_compat_json")
 
   jq -n \
     --argjson has_claude_md "$has_claude_md" \
@@ -428,6 +523,7 @@ audit_claude_md() {
     --argjson staleness "$staleness_json" \
     --argjson tech_stack "$tech_json" \
     --argjson quality "$quality_json" \
+    --argjson hook_compat "$hook_compat_json" \
     --argjson findings "$findings_json" \
     '{
       schema_version: 1,
@@ -438,6 +534,7 @@ audit_claude_md() {
       staleness: $staleness,
       tech_stack: $tech_stack,
       quality: $quality,
+      hook_compat: $hook_compat,
       findings: $findings
     }'
 }

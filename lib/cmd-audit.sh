@@ -7,11 +7,16 @@ cmd_audit() {
 
   local target_path="."
   local json_output=false
+  local fix_mode=false
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --json)
         json_output=true
+        shift
+        ;;
+      --fix)
+        fix_mode=true
         shift
         ;;
       --help|-h)
@@ -48,6 +53,11 @@ cmd_audit() {
 
   # Human-readable output
   _audit_render "$audit_json" "$resolved"
+
+  # Fix mode — auto-fix fixable findings
+  if [ "$fix_mode" = true ]; then
+    _audit_fix "$audit_json" "$resolved"
+  fi
 }
 
 _audit_render() {
@@ -143,11 +153,33 @@ _audit_render() {
   has_placeholders=$(echo "$audit_json" | jq -r '.quality.has_placeholders')
   length_assessment=$(echo "$audit_json" | jq -r '.quality.length_assessment')
 
-  kv "Length" "$length_assessment"
+  local line_count imperative_ratio
+  line_count=$(echo "$audit_json" | jq -r '.quality.line_count // 0')
+  imperative_ratio=$(echo "$audit_json" | jq -r '.quality.imperative_ratio // 0')
+
+  kv "Length" "$length_assessment ($line_count lines)"
+  if [ "$line_count" -gt 200 ]; then
+    warn "Over 200 lines — consider trimming for faster context loading"
+  fi
+  if [ "$imperative_ratio" -gt 0 ]; then
+    kv "Imperative voice" "${imperative_ratio}%"
+    if [ "$imperative_ratio" -lt 50 ]; then
+      warn "Low imperative ratio — prefer direct instructions (Use, Always, Never)"
+    fi
+  fi
   if [ "$has_placeholders" = "true" ]; then
     warn "Contains TODO/FIXME/placeholder markers"
   else
     ok "No placeholder markers found"
+  fi
+
+  # Hook compatibility
+  local hook_missing_count
+  hook_missing_count=$(echo "$audit_json" | jq -r '.hook_compat.missing | length' 2>/dev/null || echo 0)
+  if [ "$hook_missing_count" -gt 0 ]; then
+    local missing_hooks
+    missing_hooks=$(echo "$audit_json" | jq -r '.hook_compat.missing | join(", ")')
+    warn "Hooks referenced but not installed: $missing_hooks"
   fi
 
   # Findings summary
@@ -167,17 +199,113 @@ _audit_render() {
   fi
 }
 
+_audit_fix() {
+  local audit_json="$1"
+  local repo_path="$2"
+
+  local fixable_count
+  fixable_count=$(echo "$audit_json" | jq '[.findings[] | select(.fixable == true)] | length')
+  if [ "$fixable_count" -eq 0 ]; then
+    info "No auto-fixable findings"
+    return 0
+  fi
+
+  step "Auto-fix ($fixable_count fixable findings)"
+
+  # Determine target CLAUDE.md
+  local claude_md=""
+  if [ -f "$repo_path/.claude/CLAUDE.md" ]; then
+    claude_md="$repo_path/.claude/CLAUDE.md"
+  elif [ -f "$repo_path/CLAUDE.md" ]; then
+    claude_md="$repo_path/CLAUDE.md"
+  fi
+
+  # Fix: no_claude_md — create minimal CLAUDE.md
+  if echo "$audit_json" | jq -e '.findings[] | select(.code == "no_claude_md")' >/dev/null 2>&1; then
+    if [ -z "$claude_md" ]; then
+      mkdir -p "$repo_path/.claude"
+      claude_md="$repo_path/.claude/CLAUDE.md"
+      local repo_name
+      repo_name=$(basename "$repo_path")
+      cat > "$claude_md" <<EOF
+# $repo_name
+
+## Overview
+<!-- Describe this project -->
+
+## Tech Stack
+<!-- List technologies, frameworks, versions -->
+
+## Testing
+<!-- Test commands and strategy -->
+
+## Architecture
+<!-- Key patterns and structure -->
+EOF
+      ok "Created $claude_md with scaffold sections"
+    fi
+  fi
+
+  # Fix: missing sections — append section stubs
+  if [ -n "$claude_md" ] && [ -f "$claude_md" ]; then
+    local fixed=0
+    local missing_sections_tmp
+    missing_sections_tmp=$(mktemp)
+    # Get missing sections from individual findings or from the sections data
+    echo "$audit_json" | jq -r '.findings[] | select(.code == "missing_section") | .section' 2>/dev/null > "$missing_sections_tmp"
+    # If low_coverage finding exists, get missing sections from sections data directly
+    if [ ! -s "$missing_sections_tmp" ]; then
+      echo "$audit_json" | jq -r '.sections.missing[]' 2>/dev/null > "$missing_sections_tmp"
+    fi
+    while IFS= read -r section; do
+      [ -z "$section" ] && continue
+      local heading=""
+      case "$section" in
+        tech-stack)    heading="Tech Stack" ;;
+        testing)       heading="Testing" ;;
+        architecture)  heading="Architecture" ;;
+        error-handling) heading="Error Handling" ;;
+        security)      heading="Security" ;;
+        conventions)   heading="Conventions" ;;
+        deployment)    heading="Deployment" ;;
+        performance)   heading="Performance" ;;
+        dependencies)  heading="Dependencies" ;;
+      esac
+      if [ -n "$heading" ]; then
+        printf '\n## %s\n<!-- Add %s details -->\n' "$heading" "$(echo "$heading" | tr '[:upper:]' '[:lower:]')" >> "$claude_md"
+        ok "Added ## $heading section"
+        fixed=$(( fixed + 1 ))
+      fi
+    done < "$missing_sections_tmp"
+    rm -f "$missing_sections_tmp"
+
+    # Fix: tech gaps — append tech mention
+    echo "$audit_json" | jq -r '.findings[] | select(.code == "tech_gap") | .detail' 2>/dev/null | while IFS= read -r detail; do
+      [ -z "$detail" ] && continue
+      local tech
+      tech=$(echo "$detail" | awk '{print $1}')
+      if [ -n "$tech" ] && ! grep -qi "$tech" "$claude_md" 2>/dev/null; then
+        # Find tech-stack section and note it, or append
+        ok "Tech gap noted: $tech (add to Tech Stack section manually)"
+      fi
+    done
+  fi
+}
+
 _audit_help() {
   printf "\n${_C_BOLD}forge audit${_C_RST} — Audit CLAUDE.md quality\n"
   printf "\n${_C_BOLD}Usage:${_C_RST}\n"
   printf "  forge audit [path]         Audit CLAUDE.md in path (default: .)\n"
   printf "  forge audit [path] --json  Output structured JSON\n"
+  printf "  forge audit [path] --fix   Auto-fix fixable findings\n"
   printf "\n${_C_BOLD}Options:${_C_RST}\n"
   printf "  --json      Output JSON instead of human-readable report\n"
+  printf "  --fix       Auto-fix fixable findings (add missing sections)\n"
   printf "  --help, -h  Show this help\n"
   printf "\n${_C_BOLD}Checks:${_C_RST}\n"
   printf "  Section coverage   Known section headings present vs expected\n"
   printf "  Staleness          CLAUDE.md age vs repo activity\n"
   printf "  Tech stack         Detected tech vs mentioned in config\n"
-  printf "  Content quality    Length assessment, placeholder detection\n"
+  printf "  Content quality    Length, line count, imperative language ratio\n"
+  printf "  Hook compatibility Referenced hooks vs installed hooks\n"
 }

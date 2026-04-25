@@ -167,6 +167,131 @@ EOF
   [ "$coverage" -ge 0 ] && [ "$coverage" -le 100 ]
 }
 
+# ── Line Count Warning ──────────────────────────────────────
+
+@test "audit warns when CLAUDE.md exceeds 200 lines" {
+  local repo="$TEST_SANDBOX/repo"
+  mkdir -p "$repo/.claude"
+  # Generate a 250-line CLAUDE.md
+  {
+    echo "# Project"
+    for i in $(seq 1 249); do echo "Line $i content here"; done
+  } > "$repo/.claude/CLAUDE.md"
+  run cmd_audit "$repo" --json
+  assert_success
+  local line_count
+  line_count=$(echo "$output" | jq '.quality.line_count')
+  [ "$line_count" -eq 250 ]
+  echo "$output" | jq -e '.findings[] | select(.code == "too_long")'
+}
+
+@test "audit does not warn when CLAUDE.md is under 200 lines" {
+  local repo="$TEST_SANDBOX/repo"
+  mkdir -p "$repo/.claude"
+  {
+    echo "# Project"
+    echo "## Testing"
+    echo "npm test"
+  } > "$repo/.claude/CLAUDE.md"
+  run cmd_audit "$repo" --json
+  assert_success
+  local has_too_long
+  has_too_long=$(echo "$output" | jq '[.findings[] | select(.code == "too_long")] | length')
+  [ "$has_too_long" -eq 0 ]
+}
+
+# ── Imperative Language Ratio ──────────────────────────────
+
+@test "audit reports imperative language ratio" {
+  local repo="$TEST_SANDBOX/repo"
+  mkdir -p "$repo/.claude"
+  cat > "$repo/.claude/CLAUDE.md" <<'EOF'
+# Project
+- Always use TypeScript
+- Never use any
+- Use strict mode
+- Prefer composition over inheritance
+The system is used for processing
+Data has been migrated
+EOF
+  run cmd_audit "$repo" --json
+  assert_success
+  local ratio
+  ratio=$(echo "$output" | jq '.quality.imperative_ratio')
+  [ "$ratio" -gt 0 ]
+}
+
+# ── Hook Compatibility ──────────────────────────────────────
+
+@test "audit detects hook compatibility" {
+  local repo="$TEST_SANDBOX/repo"
+  mkdir -p "$repo/.claude"
+  cat > "$repo/.claude/CLAUDE.md" <<'EOF'
+# Project
+Uses session-init and architect-gate hooks.
+EOF
+  run cmd_audit "$repo" --json
+  assert_success
+  echo "$output" | jq -e '.hook_compat'
+}
+
+# ── --fix Flag ──────────────────────────────────────────────
+
+@test "audit --fix creates CLAUDE.md when missing" {
+  local repo="$TEST_SANDBOX/fixrepo"
+  mkdir -p "$repo"
+  run cmd_audit "$repo" --fix
+  assert_success
+  [ -f "$repo/.claude/CLAUDE.md" ]
+}
+
+@test "audit --fix adds missing section stubs" {
+  local repo="$TEST_SANDBOX/fixrepo2"
+  mkdir -p "$repo/.claude"
+  echo "# Project" > "$repo/.claude/CLAUDE.md"
+  run cmd_audit "$repo" --fix
+  assert_success
+  # Should have added section stubs
+  grep -q "##" "$repo/.claude/CLAUDE.md"
+}
+
+@test "audit --fix reports no-fixable when all sections present" {
+  local repo="$TEST_SANDBOX/fixrepo3"
+  mkdir -p "$repo/.claude"
+  cat > "$repo/.claude/CLAUDE.md" <<'EOF'
+# Project
+## Tech Stack
+Node.js
+## Testing
+npm test
+## Architecture
+Monolith
+## Error Handling
+Throw early
+## Security
+OWASP
+## Conventions
+ESLint
+## Deployment
+Docker
+## Performance
+Lazy load
+## Dependencies
+npm
+EOF
+  run cmd_audit "$repo" --fix
+  assert_success
+  assert_output --partial "No auto-fixable"
+}
+
+@test "audit --help mentions --fix" {
+  run cmd_audit --help
+  assert_success
+  assert_output --partial "--fix"
+}
+
+# ── Tech Stack Detection ──────────────────────────���───────
+
 @test "audit detects tech stack from package.json" {
   local repo="$TEST_SANDBOX/repo"
   mkdir -p "$repo/.claude"
