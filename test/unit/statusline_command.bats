@@ -127,21 +127,27 @@ MINIMAL_JSON='{"model":{"id":"claude-sonnet-4-5","display_name":"Sonnet"},"works
   assert_output --partial "30%"
 }
 
-# ── Token Formatting ─────────────────────────────────────────
+# ── Context bar without token counter (Option D) ────────────
 
-@test "shows token count with k suffix" {
+@test "context shows bar and percentage but no raw token count" {
   local json='{
     "model":{"id":"sonnet","display_name":"Sonnet"},
     "workspace":{"current_dir":"/tmp"},
     "context_window":{
       "context_window_size":200000,
-      "current_usage":{"input_tokens":50000,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},
-      "remaining_percentage":-1
+      "used_percentage":42,
+      "current_usage":{"input_tokens":50000,"output_tokens":30000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},
+      "remaining_percentage":58
     }
   }'
   run run_sl "$json"
   assert_success
-  assert_output --partial "50k"
+  # Bar and percentage should show
+  assert_output --partial "42%"
+  assert_output --partial "◈"
+  # Raw token counter should NOT show (dropped in v1.3.0)
+  refute_output --partial "50k"
+  refute_output --partial "200k"
 }
 
 # ── Cost Display ─────────────────────────────────────────────

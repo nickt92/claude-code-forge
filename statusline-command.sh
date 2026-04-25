@@ -142,6 +142,7 @@ ctx_size_int=$(to_int "$ctx_size")
 ctx_input_int=$(to_int "$ctx_input")
 ctx_cache_create_int=$(to_int "$ctx_cache_create")
 ctx_cache_read_int=$(to_int "$ctx_cache_read")
+ctx_output_int=$(to_int "$ctx_output")
 total_output_int=$(to_int "$total_output")
 rate_7d_int=$(to_int "$rate_7d_pct")
 rate_7d_resets_int=$(to_int "$rate_7d_resets")
@@ -155,11 +156,11 @@ read -r cost_cents cost_positive < <(
 )
 
 # ── Context percentage ────────────────────────────────────────
-# Trust Claude Code's used_percentage — it accounts for all token types and
-# knows its own compaction thresholds. Only fall back to remaining_percentage
-# when used_percentage is absent. Both reference implementations (Dan Mackay,
-# ccstatusline) take this approach.
-ctx_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
+# Trust Claude Code's used_percentage when available. Fall back to
+# remaining_percentage, then to raw token computation as last resort.
+# Note: ccstatusline computes its own % from contextLength/total instead
+# of trusting used_percentage. We prefer the provider's authoritative value.
+ctx_tokens=$(( ctx_input_int + ctx_output_int + ctx_cache_create_int + ctx_cache_read_int ))
 has_ctx_data=false
 
 if [ "$used_int" -ge 0 ]; then
@@ -176,19 +177,6 @@ elif [ "$ctx_tokens" -gt 0 ] && [ "$ctx_size_int" -gt 0 ]; then
 fi
 [ "$used_int" -gt 100 ] && used_int=100
 [ "$used_int" -lt 0 ] && used_int=0
-
-# ── Helpers ──────────────────────────────────────────────────
-fmt_tokens() {
-  local n=$1
-  if [ "$n" -ge 1000000 ]; then
-    local whole=$(( n / 1000000 )) frac=$(( (n % 1000000) / 100000 ))
-    echo "${whole}.${frac}M"
-  elif [ "$n" -ge 1000 ]; then
-    echo "$(( n / 1000 ))k"
-  else
-    echo "$n"
-  fi
-}
 
 # Precompute bar colors into an array indexed by bar position (0..bar_width-1)
 # This avoids subshell spawning inside the bar loop
@@ -384,22 +372,7 @@ if [ "$has_ctx_data" = true ]; then
         bar="${bar}${C_BAR_TRACK}${empty_str}${RST}"
     fi
 
-    # Token counts
-    token_seg=""
-    if [ "$ctx_size_int" -gt 0 ]; then
-        if [ "$ctx_input_int" -gt 0 ] || [ "$ctx_cache_create_int" -gt 0 ] || [ "$ctx_cache_read_int" -gt 0 ]; then
-            current_tokens=$(( ctx_input_int + ctx_cache_create_int + ctx_cache_read_int ))
-        elif [ "$used_int" -gt 0 ]; then
-            current_tokens=$(( used_int * ctx_size_int / 100 ))
-        else
-            current_tokens=0
-        fi
-        if [ "$current_tokens" -gt 0 ] || [ "$used_int" -gt 0 ]; then
-            token_seg="${C_TEXT}$(fmt_tokens "$current_tokens")/${C_MUTED}$(fmt_tokens "$ctx_size_int")${RST} "
-        fi
-    fi
-
-    # Cache indicator — denominator includes all token types
+    # Cache indicator
     cache_seg=""
     if [ "$ctx_cache_read_int" -gt 0 ] && [ "$ctx_tokens" -gt 0 ]; then
         cache_ratio=$(( ctx_cache_read_int * 100 / ctx_tokens ))
@@ -411,7 +384,7 @@ if [ "$has_ctx_data" = true ]; then
     [[ "$exceeds_200k" == "true" ]] && ctx_warning=" ${BOLD}${C_DEL}⚠ 200k+${RST}"
 
     printf -v pct_str '%3d%%' "$used_int"
-    ctx_seg="${C_CTX_ICON}◈${RST} ${token_seg}${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST} ${pct_color}${pct_str}${RST}${cache_seg}${ctx_warning}"
+    ctx_seg="${C_CTX_ICON}◈${RST} ${C_BAR_FRAME}▐${RST}${bar}${C_BAR_FRAME}▌${RST} ${pct_color}${pct_str}${RST}${cache_seg}${ctx_warning}"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
