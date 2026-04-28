@@ -116,6 +116,7 @@ public struct RepoDetailView: View {
         HStack(spacing: 14) {
             if let score = repo.score {
                 ScoreRing(score: score.total, grade: score.grade, size: 56)
+                    .id(repo.path)
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -192,6 +193,7 @@ public struct RepoDetailView: View {
     private func scoreSection(_ score: ScoreData) -> some View {
         DetailCard("Score Breakdown") {
             DimensionBars(dimensions: score.dimensions)
+                .id(repo.path)
         }
     }
 
@@ -325,6 +327,22 @@ public struct RepoDetailView: View {
                             }
                         }
                     }
+                }
+
+                // Quality metrics
+                if audit.quality.lineCount != nil || audit.quality.imperativeRatio != nil {
+                    Divider()
+                    QualityGauge(
+                        lineCount: audit.quality.lineCount,
+                        imperativeRatio: audit.quality.imperativeRatio,
+                        lengthAssessment: audit.quality.lengthAssessment
+                    )
+                }
+
+                // Hook compatibility
+                if let hookCompat = audit.hookCompat, !hookCompat.missing.isEmpty {
+                    Divider()
+                    HookCompatBadge(hookCompat: hookCompat)
                 }
 
                 // Staleness warning
