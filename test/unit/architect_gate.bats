@@ -135,6 +135,23 @@ JSON
   assert_success
 }
 
+@test "gate 0: allows source edit when classification is trivial" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  local wrapper="$TEST_SANDBOX/gate0-trivial.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=trivial\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '{"tool_input":{"file_path":"/project/src/app.ts"}}' | bash "$HOOK" 2>/dev/null
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+}
+
 @test "gate 0: allows when classification is not unknown" {
   cat > "$CLAUDE_DIR/profile.json" <<'JSON'
 {"planning_enforcement": "enforce"}
