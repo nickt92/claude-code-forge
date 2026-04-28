@@ -11,6 +11,7 @@ public struct PersonaSwitcherView: View {
     @State private var isSwitching = false
     @State private var error: String?
     @State private var confirmPersona: PersonaProfile?
+    @State private var hoveredPersona: String?
 
     public init(currentPersona: String, onSwitched: @escaping () -> Void) {
         self.currentPersona = currentPersona
@@ -103,6 +104,7 @@ public struct PersonaSwitcherView: View {
 
     private func personaCard(_ persona: PersonaProfile) -> some View {
         let isCurrent = persona.persona == currentPersona
+        let isHovered = hoveredPersona == persona.persona
 
         return Button {
             if !isCurrent && !isSwitching {
@@ -136,10 +138,20 @@ public struct PersonaSwitcherView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isCurrent ? Color.accentColor.opacity(0.06) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(isCurrent ? Color.accentColor.opacity(0.3) : Color.gray.opacity(0.2)))
+            .contentShape(Rectangle())
+            .background(
+                isCurrent ? ForgeTheme.Colors.forgeAmber.opacity(0.08) :
+                (isHovered ? Color.primary.opacity(0.04) : Color.clear),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(
+                isCurrent ? ForgeTheme.Colors.forgeAmber.opacity(0.3) : Color.gray.opacity(0.2)
+            ))
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredPersona = hovering ? persona.persona : nil
+        }
         .disabled(isSwitching)
         .opacity(isSwitching && !isCurrent ? 0.5 : 1)
     }
