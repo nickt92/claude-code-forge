@@ -9,6 +9,7 @@ public struct DashboardView: View {
     @State private var showDoctor = false
     @State private var showPersonaSwitcher = false
     @State private var showNewProject = false
+    @State private var showTelemetry = false
     @AppStorage("sidebarSort") private var sortOrder: String = "name"
     @State private var activeFilters: Set<SidebarFilter> = []
     @Environment(\.openSettings) private var openSettings
@@ -84,6 +85,9 @@ public struct DashboardView: View {
         .sheet(isPresented: $showDoctor) {
             DoctorView(state: state)
         }
+        .sheet(isPresented: $showTelemetry) {
+            TelemetryView()
+        }
         .sheet(isPresented: $showPersonaSwitcher) {
             if let dashboard = state.dashboard {
                 PersonaSwitcherView(
@@ -136,7 +140,7 @@ public struct DashboardView: View {
     private func loadedSidebar(_ data: DashboardData) -> some View {
         if data.repos.isEmpty {
             VStack(spacing: 16) {
-                GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
+                GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true }, onTelemetryTap: { showTelemetry = true })
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
 
@@ -163,7 +167,7 @@ public struct DashboardView: View {
         } else {
             List(selection: $selectedRepoPath) {
                 Section {
-                    GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true })
+                    GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true }, onTelemetryTap: { showTelemetry = true })
                 }
 
                 Section {
@@ -242,6 +246,7 @@ public struct DashboardView: View {
 struct GlobalHealthCard: View {
     let data: DashboardData
     var onPersonaTap: (() -> Void)?
+    var onTelemetryTap: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -263,6 +268,16 @@ struct GlobalHealthCard: View {
                         Text("v\(data.global.install.forgeVersion)")
                         Text("·")
                         Text("\(data.global.plugins.group) plugins")
+                        if onTelemetryTap != nil {
+                            Text("·")
+                            Button { onTelemetryTap?() } label: {
+                                Image(systemName: "chart.bar.fill")
+                                    .font(.system(size: 10))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(ForgeTheme.Colors.forgeOrange)
+                            .help("Hook Telemetry")
+                        }
                     }
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
