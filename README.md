@@ -11,6 +11,8 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 
 [![Tests](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml/badge.svg)](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen?style=flat-square)](https://github.com/nickt92/claude-code-forge/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational?style=flat-square)](#quick-start)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-%E2%89%A51.0-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
@@ -31,6 +33,35 @@ Claude Code reads instructions — but doesn't always follow them. Through empir
 
 > **One size doesn't fit all.** A product manager doesn't need tier classifications and agent names. A senior engineer does. Same quality standards, different communication.
 
+## The Fix
+
+**Persona-tuned instructions** — 12 personas, same quality standards. Claude speaks your language — whether you're a vibe coder or a CTO.
+
+**Runtime enforcement** — 9 hooks that block mistakes at write time. Secret leaks, bad commits, unplanned architecture changes — caught before they land.
+
+**Focused, tested CLAUDE.md** — Assembled under 200 lines from imperative, empirically-tested sections. No fluff. No ignored content.
+
+<div align="center">
+<table>
+<tr>
+<td><img src=".github/screenshots/dashboard.png" width="400" alt="Dashboard"></td>
+<td><img src=".github/screenshots/audit-detail.png" width="400" alt="Audit Detail"></td>
+</tr>
+<tr>
+<td align="center"><em>Dashboard — health scores across all repos</em></td>
+<td align="center"><em>Audit — quality metrics and auto-fix</em></td>
+</tr>
+<tr>
+<td><img src=".github/screenshots/statusline.png" width="400" alt="Status Line"></td>
+<td><img src=".github/screenshots/persona-switcher.png" width="400" alt="Persona Switcher"></td>
+</tr>
+<tr>
+<td align="center"><em>Status line — 5 zones, 20+ metrics</em></td>
+<td align="center"><em>Personas — switch anytime, same quality</em></td>
+</tr>
+</table>
+</div>
+
 ## Quick Start
 
 **Prerequisites:** [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), `jq` (`brew install jq`), macOS / Linux / Windows ([Git Bash](https://gitforwindows.org/))
@@ -45,40 +76,9 @@ export PATH="$HOME/.claude/bin:$PATH"
 forge doctor                               # Verify installation
 ```
 
-## What You Get
-
-### Status Line
-
-A rich, 5-zone status line that shows everything about your Claude Code session at a glance:
-
-```
-🌿 feat/thing ✦3 ↑2 ║ 🧠 Opus ⬆ high 🤖 architect ║ ◈ ▐████████░░░░▌ 62% 💾 46% ║ 🔋 48% ⚡ 342t/s ║ 💰 $2.87 · ✏️ +342/−89 · ⏱️ 32m
-```
-
-| Zone | What It Shows |
-|:-----|:-------------|
-| **Git** | Branch, uncommitted changes, ahead/behind, stashes, rebase/merge state |
-| **Model** | Active model with color-coded badge (Opus/Sonnet/Haiku), effort level, active subagent |
-| **Context** | Gradient bar (blue→cyan→amber→red) with usage %, cache hit ratio |
-| **Limits** | 5-hour and 7-day rate limits, token generation speed |
-| **Session** | Name, cost, lines changed, duration, vim mode |
-
-Run `forge statusline` for an interactive legend with every icon explained, or open **Settings → Statusline Guide** in the desktop app.
-
-### Feature Highlights
-
-| | |
-|:--|:--|
-| **12 Personas** | Same quality, different communication — from vibe coder to CTO |
-| **9 Hooks** | Enforce rules at write time — architect gate, commit validator, secret filter, context guardian |
-| **8 Rules Files** | Quality engineering, scope discipline, agent orchestration, and more |
-| **3 Plugin Groups** | Full (18), standard (16), or minimal (6) — matched to your persona |
-| **3 Permission Presets** | Ask Before Changes → Auto-Edit → Full Autonomy (223 curated rules) |
-| **Desktop App** | Native macOS menu bar app — dashboard, doctor, persona switcher, onboarding, hook telemetry |
-| **Audit + Auto-Fix** | Score CLAUDE.md quality, detect gaps, auto-fix findings with `forge audit --fix` |
-| **850+ Tests** | CLI (bats-core) + desktop (Swift), cross-platform via GitHub Actions (macOS, Linux, Windows) |
-
 ## Persona System
+
+Pick during install. Switch anytime with `forge switch`. Or build your own.
 
 Every persona enforces the same quality standards. What changes is how Claude **talks to you**.
 
@@ -110,6 +110,44 @@ Every persona enforces the same quality standards. What changes is how Claude **
 | **Data Engineer** | Pipeline/systems vocabulary, engineering depth |
 
 Or run `forge build` to create your own persona from the 4 behavioral axes.
+
+## Highlights
+
+### Works Your Way
+12 personas from vibe coder to CTO — same quality rules, your communication style. Or `forge build` to create your own.
+
+### Enforces at Write Time
+9 hooks block mistakes before they land: architect review gate, commit validator, secret filter, command guard, database guard, context guardian, and more.
+
+### Scores and Fixes Your Config
+`forge audit` scores your CLAUDE.md, detects gaps in sections/tech stack/hooks, and `--fix` auto-remediates findings. The desktop app surfaces everything visually.
+
+### Scales With You
+3 plugin groups (6 → 16 → 18), 3 permission presets (ask first → auto-edit → full autonomy), per-project config, document chain support.
+
+### Desktop App (macOS)
+Native menu bar app with dashboard, audit detail, hook telemetry, persona switcher, Claude-powered onboarding, and doctor diagnostics.
+
+### 850+ Tests
+697 CLI (bats-core) + 162 Swift — cross-platform on every push via GitHub Actions.
+
+## Status Line
+
+A rich, 5-zone status line that shows everything about your Claude Code session at a glance:
+
+```
+🌿 feat/thing ✦3 ↑2 ║ 🧠 Opus ⬆ high 🤖 architect ║ ◈ ▐████████░░░░▌ 62% 💾 46% ║ 🔋 48% ⚡ 342t/s ║ 💰 $2.87 · ✏️ +342/−89 · ⏱️ 32m
+```
+
+| Zone | What It Shows |
+|:-----|:-------------|
+| **Git** | Branch, uncommitted changes, ahead/behind, stashes, rebase/merge state |
+| **Model** | Active model with color-coded badge (Opus/Sonnet/Haiku), effort level, active subagent |
+| **Context** | Gradient bar (blue→cyan→amber→red) with usage %, cache hit ratio |
+| **Limits** | 5-hour and 7-day rate limits, token generation speed |
+| **Session** | Name, cost, lines changed, duration, vim mode |
+
+Run `forge statusline` for an interactive legend with every icon explained, or open **Settings → Statusline Guide** in the desktop app.
 
 <details>
 <summary><strong>CLI Reference</strong></summary>
