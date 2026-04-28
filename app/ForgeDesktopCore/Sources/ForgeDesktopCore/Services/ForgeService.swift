@@ -37,6 +37,39 @@ public final class ForgeService: Sendable {
         }
     }
 
+    public func loadHookTelemetry() async throws -> HookTelemetryData {
+        let forgePath = try await discoverForgePath()
+        let data = try await executor.run(executable: forgePath, arguments: ["stats", "--hooks", "--json"])
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        do {
+            return try decoder.decode(HookTelemetryData.self, from: data)
+        } catch let error as DecodingError {
+            throw ForgeError.jsonDecodingFailed(error)
+        }
+    }
+
+    public func loadSessionScorecard() async throws -> SessionScorecard {
+        let forgePath = try await discoverForgePath()
+        let data = try await executor.run(executable: forgePath, arguments: ["stats", "--session", "--json"])
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        do {
+            return try decoder.decode(SessionScorecard.self, from: data)
+        } catch let error as DecodingError {
+            throw ForgeError.jsonDecodingFailed(error)
+        }
+    }
+
+    public func fixRepo(path: String) async throws {
+        let forgePath = try await discoverForgePath()
+        _ = try await executor.run(executable: forgePath, arguments: ["audit", path, "--fix"])
+    }
+
     public func discoverForgePath() async throws -> String {
         if let override = forgePathOverride, !override.isEmpty {
             guard FileManager.default.isExecutableFile(atPath: override) else {
