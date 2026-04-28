@@ -144,7 +144,14 @@ public struct AuditData: Codable, Sendable {
     public let staleness: StalenessInfo
     public let techStack: TechStackInfo
     public let quality: QualityInfo
+    public let hookCompat: HookCompatInfo?
     public let findings: [Finding]
+}
+
+public struct HookCompatInfo: Codable, Sendable {
+    public let installed: [String]
+    public let referenced: [String]
+    public let missing: [String]
 }
 
 public struct AuditSections: Codable, Sendable {
@@ -168,6 +175,8 @@ public struct TechStackInfo: Codable, Sendable {
 public struct QualityInfo: Codable, Sendable {
     public let hasPlaceholders: Bool
     public let lengthAssessment: String
+    public let lineCount: Int?
+    public let imperativeRatio: Int?
 }
 
 public struct Finding: Codable, Sendable, Identifiable {

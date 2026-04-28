@@ -81,6 +81,54 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(finding.detail.isEmpty)
     }
 
+    func testDecodesAuditWithNewV130Fields() throws {
+        let data = try loadFixture("audit")
+        let audit = try decoder.decode(AuditData.self, from: data)
+
+        // Quality fields
+        XCTAssertEqual(audit.quality.lineCount, 200)
+        XCTAssertEqual(audit.quality.imperativeRatio, 72)
+
+        // Hook compat
+        let hookCompat = try XCTUnwrap(audit.hookCompat)
+        XCTAssertEqual(hookCompat.installed.count, 3)
+        XCTAssertEqual(hookCompat.missing, ["db-guard"])
+    }
+
+    func testDecodesAuditWithMissingOptionalFields() throws {
+        let data = try loadFixture("dashboard")
+        let dashboard = try decoder.decode(DashboardData.self, from: data)
+
+        let audit = try XCTUnwrap(dashboard.repos.first?.claudeMdAudit)
+        // Dashboard fixture doesn't have new fields — they should be nil
+        XCTAssertNil(audit.quality.lineCount)
+        XCTAssertNil(audit.quality.imperativeRatio)
+        XCTAssertNil(audit.hookCompat)
+    }
+
+    func testDecodesTelemetryModels() throws {
+        let hooksJson = """
+        {"total_invocations":42,"by_hook":{"architect-gate":20,"command-guard":22},"block_rate":5,"avg_duration_ms":12}
+        """.data(using: .utf8)!
+
+        let hooks = try decoder.decode(HookTelemetryData.self, from: hooksJson)
+        XCTAssertEqual(hooks.totalInvocations, 42)
+        XCTAssertEqual(hooks.byHook["architect-gate"], 20)
+        XCTAssertEqual(hooks.blockRate, 5)
+        XCTAssertEqual(hooks.avgDurationMs, 12)
+
+        let sessionJson = """
+        {"total_events":10,"by_hook":{"session-init":5,"architect-gate":5},"blocks":1,"allows":8,"detects":1,"overrides":0}
+        """.data(using: .utf8)!
+
+        let session = try decoder.decode(SessionScorecard.self, from: sessionJson)
+        XCTAssertEqual(session.totalEvents, 10)
+        XCTAssertEqual(session.blocks, 1)
+        XCTAssertEqual(session.allows, 8)
+        XCTAssertEqual(session.detects, 1)
+        XCTAssertEqual(session.overrides, 0)
+    }
+
     func testDecodesDocChain() throws {
         let data = try loadFixture("dashboard")
         let dashboard = try decoder.decode(DashboardData.self, from: data)

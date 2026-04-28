@@ -20,7 +20,14 @@
   },
   "quality": {
     "has_placeholders": false,
-    "length_assessment": "adequate"
+    "length_assessment": "adequate",
+    "line_count": 200,
+    "imperative_ratio": 72
+  },
+  "hook_compat": {
+    "installed": ["architect-gate", "command-guard", "secret-filter"],
+    "referenced": ["architect-gate", "command-guard", "secret-filter", "db-guard"],
+    "missing": ["db-guard"]
   },
   "findings": [
     {

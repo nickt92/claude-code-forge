@@ -201,7 +201,8 @@ final class SidebarFilterTests: XCTestCase {
             sections: AuditSections(found: [], missing: [], coverage: 50),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: findings
         )
         return RepoData(
@@ -284,7 +285,8 @@ final class ForgeStateUpdateTests: XCTestCase {
             sections: AuditSections(found: [], missing: ["arch"], coverage: 30),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: []
         )
         let repo = RepoData(
@@ -305,7 +307,8 @@ final class ForgeStateUpdateTests: XCTestCase {
             sections: AuditSections(found: ["arch"], missing: [], coverage: 90),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: []
         )
 
@@ -328,7 +331,8 @@ final class ForgeStateUpdateTests: XCTestCase {
             sections: AuditSections(found: [], missing: [], coverage: 50),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: []
         )
         // Should not crash when state is idle
@@ -355,7 +359,8 @@ final class ForgeStateUpdateTests: XCTestCase {
             sections: AuditSections(found: [], missing: [], coverage: 50),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: []
         )
 
@@ -386,7 +391,8 @@ final class RepoDataUpdateTests: XCTestCase {
             sections: AuditSections(found: ["all"], missing: [], coverage: 100),
             staleness: StalenessInfo(claudeMdDays: 0, repoDays: 0, stale: false),
             techStack: TechStackInfo(detected: [], mentioned: [], gaps: []),
-            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok"),
+            quality: QualityInfo(hasPlaceholders: false, lengthAssessment: "ok", lineCount: nil, imperativeRatio: nil),
+            hookCompat: nil,
             findings: []
         )
 
