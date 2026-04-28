@@ -196,6 +196,8 @@ public struct ScoreRing: View {
     let grade: String
     let size: CGFloat
 
+    @State private var animatedProgress: CGFloat = 0
+
     public init(score: Int, grade: String, size: CGFloat) {
         self.score = score
         self.grade = grade
@@ -207,7 +209,7 @@ public struct ScoreRing: View {
             Circle()
                 .stroke(gradeColor.opacity(0.15), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: CGFloat(score) / 100)
+                .trim(from: 0, to: animatedProgress)
                 .stroke(gradeColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text(grade)
@@ -215,6 +217,16 @@ public struct ScoreRing: View {
                 .foregroundStyle(gradeColor)
         }
         .frame(width: size, height: size)
+        .onAppear {
+            withAnimation(ForgeTheme.Animations.springBouncy) {
+                animatedProgress = CGFloat(score) / 100
+            }
+        }
+        .onChange(of: score) { _, newValue in
+            withAnimation(ForgeTheme.Animations.springBouncy) {
+                animatedProgress = CGFloat(newValue) / 100
+            }
+        }
     }
 
     private var lineWidth: CGFloat { size > 30 ? 4 : 2.5 }

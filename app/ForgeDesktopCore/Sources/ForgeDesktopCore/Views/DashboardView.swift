@@ -353,29 +353,8 @@ struct DimensionBars: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(sortedDimensions, id: \.key) { key, dim in
-                HStack(spacing: 6) {
-                    Text(formatDimensionName(key))
-                        .font(.system(size: 10))
-                        .frame(width: 100, alignment: .trailing)
-                        .foregroundStyle(.secondary)
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(.quaternary)
-                            Capsule()
-                                .fill(scoreColor(dim.score).gradient)
-                                .frame(width: max(0, geo.size.width * CGFloat(dim.score) / 100))
-                        }
-                    }
-                    .frame(height: 6)
-
-                    Text("\(dim.score)")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .frame(width: 24, alignment: .trailing)
-                        .foregroundStyle(scoreColor(dim.score))
-                }
+            ForEach(Array(sortedDimensions.enumerated()), id: \.element.key) { index, entry in
+                DimensionBarRow(key: entry.key, dim: entry.value, index: index)
             }
         }
     }
@@ -383,9 +362,45 @@ struct DimensionBars: View {
     private var sortedDimensions: [(key: String, value: DimensionScore)] {
         dimensions.sorted { $0.value.weight > $1.value.weight }
     }
+}
 
-    private func formatDimensionName(_ key: String) -> String {
-        key.formattedAsTitle
+// MARK: - Dimension Bar Row
+
+private struct DimensionBarRow: View {
+    let key: String
+    let dim: DimensionScore
+    let index: Int
+
+    @State private var barWidth: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(key.formattedAsTitle)
+                .font(.system(size: 10))
+                .frame(width: 100, alignment: .trailing)
+                .foregroundStyle(.secondary)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.quaternary)
+                    Capsule()
+                        .fill(scoreColor(dim.score).gradient)
+                        .frame(width: max(0, barWidth * geo.size.width))
+                }
+            }
+            .frame(height: 6)
+            .onAppear {
+                withAnimation(ForgeTheme.Animations.springSnappy.delay(Double(index) * ForgeTheme.Animations.staggerDelay)) {
+                    barWidth = CGFloat(dim.score) / 100
+                }
+            }
+
+            Text("\(dim.score)")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .frame(width: 24, alignment: .trailing)
+                .foregroundStyle(scoreColor(dim.score))
+        }
     }
 }
 

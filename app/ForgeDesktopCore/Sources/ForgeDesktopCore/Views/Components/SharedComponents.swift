@@ -4,10 +4,12 @@ import SwiftUI
 
 struct DetailCard<Content: View>: View {
     let title: String
+    let accentColor: Color?
     @ViewBuilder let content: Content
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, accentColor: Color? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.accentColor = accentColor
         self.content = content()
     }
 
@@ -15,7 +17,7 @@ struct DetailCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accentColor ?? .secondary)
                 .textCase(.uppercase)
                 .tracking(0.5)
 
@@ -23,8 +25,8 @@ struct DetailCard<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
+        .background(.background, in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius).stroke(.quaternary))
     }
 }
 
