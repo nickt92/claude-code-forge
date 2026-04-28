@@ -49,7 +49,7 @@ public struct MenuBarView: View {
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.accentColor)
+                .tint(ForgeTheme.Colors.forgeOrange)
                 .controlSize(.small)
 
                 Button { onRunDoctor() } label: {
@@ -142,7 +142,7 @@ public struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
 
-                    ForEach(Array(needsAttention)) { repo in
+                    ForEach(Array(needsAttention.enumerated()), id: \.element.id) { index, repo in
                         HStack(spacing: 8) {
                             if let score = repo.score {
                                 ScoreRing(score: score.total, grade: score.grade, size: 22)
@@ -160,11 +160,13 @@ public struct MenuBarView: View {
                                         Text("\(warnCount)")
                                             .font(.system(size: 10, weight: .semibold))
                                     }
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(ForgeTheme.Colors.forgeOrange)
                                 }
                             }
                         }
                         .padding(.vertical, 2)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                        .animation(ForgeTheme.Animations.easeReveal.delay(Double(index) * ForgeTheme.Animations.staggerDelay), value: needsAttention.count)
                     }
                 }
                 .padding(10)

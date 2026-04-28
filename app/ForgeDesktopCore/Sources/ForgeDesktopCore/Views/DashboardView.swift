@@ -48,7 +48,7 @@ public struct DashboardView: View {
             }
         }
         .searchable(text: $searchText, prompt: "Filter repositories")
-        .navigationTitle("Forge Dashboard")
+        .navigationTitle("Forge")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewProject = true } label: {
@@ -116,7 +116,10 @@ public struct DashboardView: View {
             ContentUnavailableView("No Data", systemImage: "tray", description: Text("Press ⌘R to load."))
         case .loading:
             VStack(spacing: 12) {
-                ProgressView()
+                Image(systemName: "hammer.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(ForgeTheme.Colors.forgeOrange)
+                    .symbolEffect(.pulse, options: .repeating)
                 Text("Scanning repositories...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -287,6 +290,7 @@ struct GlobalHealthCard: View {
             DimensionBars(dimensions: data.globalScore.dimensions)
         }
         .padding(.vertical, 6)
+        .background(ForgeTheme.Gradients.subtleBg)
     }
 }
 
