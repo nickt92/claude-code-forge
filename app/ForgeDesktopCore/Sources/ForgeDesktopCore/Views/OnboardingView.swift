@@ -657,6 +657,7 @@ public struct OnboardingView: View {
                     }
 
                 case .result(let result):
+                    updateDetectedSections(generationComplete: true)
                     if result.isError {
                         phase = .failed(result.result ?? "Unknown error")
                     } else {
@@ -675,6 +676,7 @@ public struct OnboardingView: View {
 
             // Stream finished without a result event
             if case .generating = phase {
+                updateDetectedSections(generationComplete: true)
                 let finalContent = generatedContent.trimmingCharacters(in: .whitespacesAndNewlines)
                 if finalContent.isEmpty {
                     phase = .failed("Generation ended without producing content")
@@ -690,7 +692,7 @@ public struct OnboardingView: View {
     }
 
     /// Scan generatedContent for completed markdown sections (headers followed by more content)
-    private func updateDetectedSections() {
+    private func updateDetectedSections(generationComplete: Bool = false) {
         let lines = generatedContent.components(separatedBy: "\n")
         var sections: [DetectedSection] = []
 
@@ -700,9 +702,10 @@ public struct OnboardingView: View {
             guard !title.isEmpty else { continue }
 
             // A section is "complete" if there's a subsequent header after it,
-            // meaning Claude has moved on to the next section
+            // meaning Claude has moved on to the next section.
+            // When generation is complete, the last section is also done.
             let hasSubsequentHeader = lines[(i + 1)...].contains(where: { $0.hasPrefix("#") })
-            if hasSubsequentHeader {
+            if hasSubsequentHeader || generationComplete {
                 // Avoid duplicates by title
                 if !sections.contains(where: { $0.title == title }) {
                     sections.append(DetectedSection(title: title))
