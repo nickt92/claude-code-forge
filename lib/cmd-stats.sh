@@ -44,7 +44,7 @@ _rotate_telemetry() {
   local cutoff
   cutoff=$(( $(date +%s) - 2592000 ))
   local rotated_tmp
-  rotated_tmp=$(mktemp "${telemetry_log}.rot.XXXXXX")
+  rotated_tmp=$(mktemp)
   awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
   if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
     mv "$rotated_tmp" "$telemetry_log"
@@ -278,7 +278,10 @@ _stats_hooks() {
 
   # Average duration
   local total_dur=0 dur_count=0
-  read -r total_dur dur_count < <(awk -F'|' '$3 > 0 { s+=$3; c++ } END { print s+0, c+0 }' "$telemetry_log")
+  local _dur_result
+  _dur_result=$(awk -F'|' '$3 > 0 { s+=$3; c++ } END { print s+0, c+0 }' "$telemetry_log" | tr -d '\r')
+  total_dur="${_dur_result%% *}"
+  dur_count="${_dur_result##* }"
   if [ "$dur_count" -gt 0 ]; then
     local avg_dur=$(( total_dur / dur_count ))
     kv "Avg duration" "${avg_dur}ms"
@@ -314,7 +317,7 @@ _stats_hooks_json() {
       first = 0
     }
     printf "},\"block_rate\":%d,\"avg_duration_ms\":%d}\n", block_rate, avg_dur
-  }' "$telemetry_log"
+  }' "$telemetry_log" | tr -d '\r'
 }
 
 _stats_session_json() {
@@ -342,7 +345,7 @@ _stats_session_json() {
       first = 0
     }
     printf "},\"blocks\":%d,\"allows\":%d,\"detects\":%d,\"overrides\":%d}\n", blocks, allows, detects, overrides
-  }' "$session_log"
+  }' "$session_log" | tr -d '\r'
 }
 
 # ── Main ─────────────────────────────────────────────────────
