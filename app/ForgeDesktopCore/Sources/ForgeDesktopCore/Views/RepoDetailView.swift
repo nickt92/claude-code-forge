@@ -74,6 +74,8 @@ public struct RepoDetailView: View {
                     after: review.after,
                     sectionName: review.finding.section ?? review.finding.code,
                     remaining: coordinator?.reviewQueue.count ?? 0,
+                    reviewIndex: (coordinator?.completedReviews ?? 0) + 1,
+                    reviewTotal: coordinator?.totalPendingReviews ?? 0,
                     onApprove: {
                         coordinator?.handleReviewApprove(
                             afterContent: review.after,
@@ -426,6 +428,22 @@ public struct RepoDetailView: View {
                     // Bulk fix progress
                     if let bulk = coordinator?.bulkFixState {
                         BulkFixProgressView(state: bulk)
+                    }
+
+                    // Pending reviews indicator
+                    if let coordinator, coordinator.isReviewing {
+                        let remaining = coordinator.totalPendingReviews - coordinator.completedReviews
+                        HStack(spacing: 6) {
+                            Image(systemName: "eye.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.blue)
+                            Text("\(remaining) change\(remaining == 1 ? "" : "s") awaiting review")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                     }
 
                     // Individual finding rows

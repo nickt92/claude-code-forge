@@ -6,6 +6,8 @@ public struct DiffPreviewView: View {
     let after: String
     let sectionName: String
     let remaining: Int
+    let reviewIndex: Int
+    let reviewTotal: Int
     let onApprove: () -> Void
     let onReject: () -> Void
 
@@ -23,6 +25,8 @@ public struct DiffPreviewView: View {
         after: String,
         sectionName: String,
         remaining: Int = 0,
+        reviewIndex: Int = 0,
+        reviewTotal: Int = 0,
         onApprove: @escaping () -> Void,
         onReject: @escaping () -> Void
     ) {
@@ -30,6 +34,8 @@ public struct DiffPreviewView: View {
         self.after = after
         self.sectionName = sectionName
         self.remaining = remaining
+        self.reviewIndex = reviewIndex
+        self.reviewTotal = reviewTotal
         self.onApprove = onApprove
         self.onReject = onReject
     }
@@ -236,6 +242,11 @@ public struct DiffPreviewView: View {
 
     private var footer: some View {
         HStack {
+            if reviewTotal > 1 {
+                Text("Review \(reviewIndex) of \(reviewTotal)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button("Reject") {
                 onReject()

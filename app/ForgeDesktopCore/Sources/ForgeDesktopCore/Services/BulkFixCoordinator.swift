@@ -10,6 +10,8 @@ public final class BulkFixCoordinator {
     var reviewQueue: [(finding: Finding, before: String, after: String)] = []
     var currentReview: (finding: Finding, before: String, after: String)?
     var showReview = false
+    var totalPendingReviews: Int = 0
+    var completedReviews: Int = 0
 
     private let fixService: FixService
     private let dismissalService: DismissalService
@@ -20,6 +22,7 @@ public final class BulkFixCoordinator {
     }
 
     var isRunning: Bool { bulkFixState != nil }
+    var isReviewing: Bool { totalPendingReviews > 0 && currentReview != nil }
 
     func handleStreamEvent(_ event: ClaudeStreamEvent) {
         switch event {
@@ -84,10 +87,11 @@ public final class BulkFixCoordinator {
                 if bulkFixState?.failedFinding != nil { break }
             }
 
-            try? await Task.sleep(for: .seconds(1))
             bulkFixState = nil
 
             if !reviewQueue.isEmpty {
+                totalPendingReviews = reviewQueue.count
+                completedReviews = 0
                 currentReview = reviewQueue.removeFirst()
                 showReview = true
             } else {
@@ -139,8 +143,11 @@ public final class BulkFixCoordinator {
     }
 
     private func advanceReview(onRefresh: @escaping () async -> Void) {
+        completedReviews += 1
         if reviewQueue.isEmpty {
             currentReview = nil
+            totalPendingReviews = 0
+            completedReviews = 0
             Task { await onRefresh() }
         } else {
             currentReview = reviewQueue.removeFirst()
