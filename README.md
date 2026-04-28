@@ -15,7 +15,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **810+ Tests**
+**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **850+ Tests**
 
 </div>
 
@@ -74,9 +74,9 @@ Run `forge statusline` for an interactive legend with every icon explained, or o
 | **8 Rules Files** | Quality engineering, scope discipline, agent orchestration, and more |
 | **3 Plugin Groups** | Full (18), standard (16), or minimal (6) — matched to your persona |
 | **3 Permission Presets** | Ask Before Changes → Auto-Edit → Full Autonomy (223 curated rules) |
-| **Desktop App** | Native macOS menu bar app — dashboard, doctor, persona switcher, onboarding |
-| **Project Onboarding** | Generate project-specific CLAUDE.md from real codebase analysis |
-| **810+ Tests** | CLI (bats-core) + desktop (Swift), run on every push via GitHub Actions |
+| **Desktop App** | Native macOS menu bar app — dashboard, doctor, persona switcher, onboarding, hook telemetry |
+| **Audit + Auto-Fix** | Score CLAUDE.md quality, detect gaps, auto-fix findings with `forge audit --fix` |
+| **850+ Tests** | CLI (bats-core) + desktop (Swift), cross-platform via GitHub Actions (macOS, Linux, Windows) |
 
 ## Persona System
 
@@ -135,12 +135,12 @@ Diagnostics
   doctor      Run diagnostic health checks
   diff        Show differences between source and installed
   dashboard   Configuration health dashboard (JSON output)
-  audit       Audit CLAUDE.md files for quality issues
+  audit       Audit CLAUDE.md quality (--fix to auto-remediate)
   analyze     Extract codebase context as structured JSON
 
 Info
   statusline  Interactive status line legend
-  stats       Installation statistics and security event summary
+  stats       Statistics, hook telemetry, session scorecard (--json)
   export      Package installation into portable tar.gz
   version     Show forge version
   help        Show this help
@@ -209,8 +209,8 @@ All tiers exclude destructive operations. The command-guard hook provides runtim
 - `forge config get|set <key>` — Get/set forge settings
 - `forge dashboard` — JSON health dashboard (data source for desktop app)
 - `forge analyze /path/to/repo --json` — Extract codebase context
-- `forge audit /path/to/repo` — Audit CLAUDE.md quality
-- `forge stats` — Installation overview, security events, backup metrics
+- `forge audit /path/to/repo` — Audit CLAUDE.md quality (`--fix` to auto-remediate, `--json` for structured output)
+- `forge stats` — Installation overview, security events, hook telemetry (`--json` for structured output)
 - `forge export` — Package installation into portable tar.gz
 - `forge statusline` — Interactive status line legend with all icons explained
 
@@ -384,11 +384,12 @@ your-project/
 <details>
 <summary><strong>Desktop App (macOS)</strong></summary>
 
-A native macOS menu bar app (SwiftUI, macOS 14+) providing:
+A native macOS menu bar app (SwiftUI, macOS 14+) with forge brand identity:
 
-- **Menu bar icon** with aggregate health score
-- **Dashboard** with searchable, filterable repository list
-- **Repo detail view** with audit breakdown, CLAUDE.md content, quick-fix actions
+- **Menu bar icon** with animated score ring and aggregate health score
+- **Dashboard** with searchable, filterable repository list and stagger animations
+- **Repo detail view** with audit breakdown, quality gauge, hook compatibility, quick-fix actions
+- **Hook telemetry** — invocation counts, block rate gauge, per-hook bar charts
 - **Claude-powered onboarding** with streaming split-view UX
 - **Persona switcher** — switch without terminal
 - **Doctor view** — visual health diagnostics
@@ -441,9 +442,9 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 <details>
 <summary><strong>Testing</strong></summary>
 
-810+ automated tests across two suites, run on every push via GitHub Actions.
+850+ automated tests across two suites, run on every push via GitHub Actions.
 
-**CLI (bats-core)** — 650+ tests across macOS, Ubuntu, and Windows:
+**CLI (bats-core)** — 697 tests across macOS, Ubuntu, and Windows:
 
 ```bash
 ./test/run_tests.sh              # All tests
@@ -454,13 +455,13 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 
 | Suite | Files | Covers |
 |:------|------:|:-------|
-| **Unit** | 26 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats, export, permissions |
+| **Unit** | 26 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats (incl. JSON), export, permissions, audit |
 | **Integration** | 11 | Assembly, settings merge/unmerge, install, backup/restore, switch, doctor, diff, update, build, init |
 | **Validation** | 4 | Profile schema, section coverage, settings template, completions |
 
 All tests run in a sandbox — your real `~/.claude/` is never touched.
 
-**Desktop (Swift)** — 159+ tests (XCTest + Swift Testing):
+**Desktop (Swift)** — 162 tests (XCTest + Swift Testing):
 
 ```bash
 cd app/ForgeDesktopCore && swift test
