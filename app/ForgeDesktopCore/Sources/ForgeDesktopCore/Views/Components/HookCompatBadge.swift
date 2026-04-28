@@ -42,5 +42,6 @@ struct HookCompatBadge: View {
                 }
             }
         }
+        .accessibilityLabel("\(hookCompat.installed.count) hooks installed, \(hookCompat.missing.count) missing: \(hookCompat.missing.joined(separator: ", "))")
     }
 }

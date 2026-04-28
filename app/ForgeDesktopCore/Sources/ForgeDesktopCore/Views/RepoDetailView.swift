@@ -18,14 +18,6 @@ public struct RepoDetailView: View {
         self.repo = repo
     }
 
-    private var bulkCoordinator: BulkFixCoordinator {
-        if let existing = coordinator { return existing }
-        let new = BulkFixCoordinator(fixService: fixService, dismissalService: dismissalService)
-        // Defer mutation to avoid modifying state during view update
-        DispatchQueue.main.async { coordinator = new }
-        return new
-    }
-
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {

@@ -229,6 +229,7 @@ public struct ScoreRing: View {
                 animatedProgress = CGFloat(newValue) / 100
             }
         }
+        .accessibilityLabel("Score \(score) out of 100, grade \(grade)")
     }
 
     private var lineWidth: CGFloat { size > 30 ? 4 : 2.5 }

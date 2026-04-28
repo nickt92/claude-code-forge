@@ -414,6 +414,11 @@ private struct DimensionBarRow: View {
                     barWidth = CGFloat(dim.score) / 100
                 }
             }
+            .onChange(of: dim.score) { _, newValue in
+                withAnimation(ForgeTheme.Animations.springSnappy) {
+                    barWidth = CGFloat(newValue) / 100
+                }
+            }
 
             Text("\(dim.score)")
                 .font(.system(size: 10, weight: .medium, design: .rounded))

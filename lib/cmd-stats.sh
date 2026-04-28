@@ -36,6 +36,23 @@ _stats_days_ago() {
   fi
 }
 
+# Rotate telemetry entries older than 30 days (shared by human + JSON output).
+# Uses cp+mv to avoid data loss from concurrent hook appenders.
+_rotate_telemetry() {
+  local telemetry_log="$1"
+  [ -f "$telemetry_log" ] || return
+  local cutoff
+  cutoff=$(( $(date +%s) - 2592000 ))
+  local rotated_tmp
+  rotated_tmp=$(mktemp "${telemetry_log}.rot.XXXXXX")
+  awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
+  if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
+    mv "$rotated_tmp" "$telemetry_log"
+  else
+    rm -f "$rotated_tmp"
+  fi
+}
+
 # ── Sections ─────────────────────────────────────────────────
 
 _stats_installation() {
@@ -233,17 +250,7 @@ _stats_hooks() {
     return
   fi
 
-  # Rotate entries older than 30 days
-  local cutoff
-  cutoff=$(( $(date +%s) - 2592000 ))
-  local rotated_tmp
-  rotated_tmp=$(mktemp)
-  awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
-  if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
-    mv "$rotated_tmp" "$telemetry_log"
-  else
-    rm -f "$rotated_tmp"
-  fi
+  _rotate_telemetry "$telemetry_log"
 
   local total
   total=$(wc -l < "$telemetry_log" | tr -d ' ')
@@ -287,17 +294,7 @@ _stats_hooks_json() {
     return
   fi
 
-  # Rotate entries older than 30 days
-  local cutoff
-  cutoff=$(( $(date +%s) - 2592000 ))
-  local rotated_tmp
-  rotated_tmp=$(mktemp)
-  awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
-  if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
-    mv "$rotated_tmp" "$telemetry_log"
-  else
-    rm -f "$rotated_tmp"
-  fi
+  _rotate_telemetry "$telemetry_log"
 
   awk -F'|' '
   {
@@ -332,9 +329,9 @@ _stats_session_json() {
     total++
     hooks[$2]++
     if ($4 == "block") blocks++
-    else if ($4 == "allow") allows++
-    else if ($4 == "detect") detects++
-    else if ($4 == "override") overrides++
+    if ($4 == "allow") allows++
+    if ($4 == "detect") detects++
+    if ($4 == "override") overrides++
   }
   END {
     printf "{\"total_events\":%d,\"by_hook\":{", total

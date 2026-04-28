@@ -61,6 +61,15 @@ struct QualityGauge: View {
                 }
             }
         }
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        var parts: [String] = []
+        if let ratio = imperativeRatio { parts.append("Imperative ratio \(ratio) percent") }
+        if let count = lineCount { parts.append("\(count) lines") }
+        parts.append(lengthAssessment)
+        return parts.joined(separator: ", ")
     }
 
     private func ratioColor(_ ratio: Int) -> Color {

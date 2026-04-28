@@ -4,65 +4,47 @@ public final class ForgeService: Sendable {
     private let executor: CLIExecutor
     private let forgePathOverride: String?
 
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return d
+    }()
+
     public init(executor: CLIExecutor = ProcessExecutor(), forgePath: String? = nil) {
         self.executor = executor
         self.forgePathOverride = forgePath
     }
 
-    public func loadDashboard() async throws -> DashboardData {
-        let forgePath = try await discoverForgePath()
-        let data = try await executor.run(executable: forgePath, arguments: ["dashboard"])
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
-            return try decoder.decode(DashboardData.self, from: data)
+            return try Self.decoder.decode(type, from: data)
         } catch let error as DecodingError {
             throw ForgeError.jsonDecodingFailed(error)
         }
+    }
+
+    public func loadDashboard() async throws -> DashboardData {
+        let forgePath = try await discoverForgePath()
+        let data = try await executor.run(executable: forgePath, arguments: ["dashboard"])
+        return try decode(DashboardData.self, from: data)
     }
 
     public func auditRepo(path: String) async throws -> AuditData {
         let forgePath = try await discoverForgePath()
         let data = try await executor.run(executable: forgePath, arguments: ["audit", path, "--json"])
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-
-        do {
-            return try decoder.decode(AuditData.self, from: data)
-        } catch let error as DecodingError {
-            throw ForgeError.jsonDecodingFailed(error)
-        }
+        return try decode(AuditData.self, from: data)
     }
 
     public func loadHookTelemetry() async throws -> HookTelemetryData {
         let forgePath = try await discoverForgePath()
         let data = try await executor.run(executable: forgePath, arguments: ["stats", "--hooks", "--json"])
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-
-        do {
-            return try decoder.decode(HookTelemetryData.self, from: data)
-        } catch let error as DecodingError {
-            throw ForgeError.jsonDecodingFailed(error)
-        }
+        return try decode(HookTelemetryData.self, from: data)
     }
 
     public func loadSessionScorecard() async throws -> SessionScorecard {
         let forgePath = try await discoverForgePath()
         let data = try await executor.run(executable: forgePath, arguments: ["stats", "--session", "--json"])
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-
-        do {
-            return try decoder.decode(SessionScorecard.self, from: data)
-        } catch let error as DecodingError {
-            throw ForgeError.jsonDecodingFailed(error)
-        }
+        return try decode(SessionScorecard.self, from: data)
     }
 
     public func fixRepo(path: String) async throws {

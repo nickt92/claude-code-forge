@@ -29,6 +29,12 @@ struct TelemetryMetricRow: View {
                         barWidth = fraction
                     }
                 }
+                .onChange(of: value) { _, _ in
+                    let newFraction = total > 0 ? CGFloat(value) / CGFloat(total) : 0
+                    withAnimation(ForgeTheme.Animations.springSnappy) {
+                        barWidth = newFraction
+                    }
+                }
             }
             .frame(height: 8)
 
@@ -69,6 +75,12 @@ struct BlockRateGauge: View {
                     animatedRate = CGFloat(rate) / 100
                 }
             }
+            .onChange(of: rate) { _, newValue in
+                withAnimation(ForgeTheme.Animations.springBouncy) {
+                    animatedRate = CGFloat(newValue) / 100
+                }
+            }
+            .accessibilityLabel("Block rate \(rate) percent")
 
             Text("Block Rate")
                 .font(.system(size: 10, weight: .medium))

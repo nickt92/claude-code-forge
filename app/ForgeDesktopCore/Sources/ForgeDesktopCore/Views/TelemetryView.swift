@@ -173,13 +173,16 @@ public struct TelemetryView: View {
     // MARK: - Data Loading
 
     private func loadData() async {
-        do {
-            async let hooks = forgeService.loadHookTelemetry()
-            async let session = forgeService.loadSessionScorecard()
-            hookData = try await hooks
-            sessionData = try await session
-        } catch {
-            loadError = error.localizedDescription
+        do { hookData = try await forgeService.loadHookTelemetry() }
+        catch is CancellationError { return }
+        catch { /* hook data unavailable — view handles nil */ }
+
+        do { sessionData = try await forgeService.loadSessionScorecard() }
+        catch is CancellationError { return }
+        catch { /* session data unavailable — view handles nil */ }
+
+        if hookData == nil && sessionData == nil {
+            loadError = "Failed to load telemetry data."
         }
         isLoading = false
     }
