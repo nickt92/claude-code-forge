@@ -94,12 +94,15 @@ _analyze_json() {
   local scripts_json
   scripts_json="$(_analyze_scripts "$dir")"
 
-  local claude_md_file
-  claude_md_file="$(mktemp)"
+  # Use module-scoped vars for trap compatibility (locals are out of scope at EXIT)
+  _analyze_claude_md_file="$(mktemp)"
+  _analyze_dir_structure_file="$(mktemp)"
+  trap 'rm -f "$_analyze_claude_md_file" "$_analyze_dir_structure_file"' EXIT
+
   if [ -f "$dir/.claude/CLAUDE.md" ]; then
-    head -500 "$dir/.claude/CLAUDE.md" > "$claude_md_file" 2>/dev/null
+    head -500 "$dir/.claude/CLAUDE.md" > "$_analyze_claude_md_file" 2>/dev/null
   elif [ -f "$dir/CLAUDE.md" ]; then
-    head -500 "$dir/CLAUDE.md" > "$claude_md_file" 2>/dev/null
+    head -500 "$dir/CLAUDE.md" > "$_analyze_claude_md_file" 2>/dev/null
   fi
 
   # CI/CD workflows
@@ -107,16 +110,11 @@ _analyze_json() {
   ci_configs_json="$(_analyze_ci "$dir")"
 
   # Write dir_structure to file for rawfile handling
-  local dir_structure_file
-  dir_structure_file="$(mktemp)"
-  echo "$dir_structure" > "$dir_structure_file"
-
-  # Clean up temp files on exit (covers all return paths)
-  trap 'rm -f "$claude_md_file" "$dir_structure_file"' EXIT
+  echo "$dir_structure" > "$_analyze_dir_structure_file"
 
   # Build final JSON
   local has_claude_md=false
-  if [ -s "$claude_md_file" ]; then
+  if [ -s "$_analyze_claude_md_file" ]; then
     has_claude_md=true
   fi
 
@@ -124,14 +122,14 @@ _analyze_json() {
     jq -n \
       --arg path "$dir" \
       --arg name "$name" \
-      --rawfile dir_structure "$dir_structure_file" \
+      --rawfile dir_structure "$_analyze_dir_structure_file" \
       --argjson dependencies "$deps_json" \
       --argjson configs "$configs_json" \
       --argjson documentation "$docs_json" \
       --argjson git "$git_json" \
       --argjson test_files "$test_files_json" \
       --argjson scripts "$scripts_json" \
-      --rawfile existing_claude_md "$claude_md_file" \
+      --rawfile existing_claude_md "$_analyze_claude_md_file" \
       --argjson ci_configs "$ci_configs_json" \
       '{
         path: $path,
@@ -150,7 +148,7 @@ _analyze_json() {
     jq -n \
       --arg path "$dir" \
       --arg name "$name" \
-      --rawfile dir_structure "$dir_structure_file" \
+      --rawfile dir_structure "$_analyze_dir_structure_file" \
       --argjson dependencies "$deps_json" \
       --argjson configs "$configs_json" \
       --argjson documentation "$docs_json" \
