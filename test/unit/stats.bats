@@ -346,6 +346,102 @@ LOG
   assert_output --partial "1/4"
 }
 
+# ── JSON Output ─────────────────────────────────────────────
+
+@test "stats --hooks --json outputs valid JSON with empty log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --hooks --json
+  assert_success
+  echo "$output" | jq . >/dev/null 2>&1
+  [ $? -eq 0 ]
+  echo "$output" | jq -e '.total_invocations == 0' >/dev/null
+}
+
+@test "stats --hooks --json outputs by_hook and block_rate" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now
+  now=$(date +%s)
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${now}|session-init|5|allow
+${now}|architect-gate|10|allow
+${now}|command-guard|3|block
+${now}|architect-gate|8|allow
+LOG
+
+  run cmd_stats --hooks --json
+  assert_success
+  echo "$output" | jq -e '.total_invocations == 4' >/dev/null
+  echo "$output" | jq -e '.block_rate == 25' >/dev/null
+  echo "$output" | jq -e '.avg_duration_ms > 0' >/dev/null
+  echo "$output" | jq -e '.by_hook | length > 0' >/dev/null
+}
+
+@test "stats --session --json outputs valid JSON with empty log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --session --json
+  assert_success
+  echo "$output" | jq -e '.total_events == 0' >/dev/null
+}
+
+@test "stats --session --json outputs outcomes from session log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local session_log="${TMPDIR:-/tmp}/forge-session-log-${PPID}"
+  cat > "$session_log" <<'LOG'
+1700000000|session-init|5|allow
+1700000001|architect-gate|2|allow
+1700000002|command-guard|1|block
+1700000003|architect-gate|3|allow
+1700000004|secret-filter|4|detect
+LOG
+
+  run cmd_stats --session --json
+  assert_success
+  echo "$output" | jq -e '.total_events == 5' >/dev/null
+  echo "$output" | jq -e '.blocks == 1' >/dev/null
+  echo "$output" | jq -e '.allows == 3' >/dev/null
+  echo "$output" | jq -e '.detects == 1' >/dev/null
+  rm -f "$session_log"
+}
+
+@test "stats --json outputs combined hooks and session object" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --json
+  assert_success
+  echo "$output" | jq -e '.hooks' >/dev/null
+  echo "$output" | jq -e '.session' >/dev/null
+  echo "$output" | jq -e '.hooks.total_invocations == 0' >/dev/null
+  echo "$output" | jq -e '.session.total_events == 0' >/dev/null
+}
+
+@test "stats --json skips banner and human-readable output" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --json
+  assert_success
+  refute_output --partial "Stats"
+  refute_output --partial "Installation"
+  # Output should be parseable JSON
+  echo "$output" | jq . >/dev/null 2>&1
+  [ $? -eq 0 ]
+}
+
 # ── Helper Functions ─────────────────────────────────────────
 
 @test "format_bytes converts bytes to human-readable" {

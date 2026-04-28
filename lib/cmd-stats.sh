@@ -278,6 +278,76 @@ _stats_hooks() {
   fi
 }
 
+# ── JSON Output ─────────────────────────────────────────────
+
+_stats_hooks_json() {
+  local telemetry_log="$CLAUDE_DIR/hook-telemetry.log"
+  if [ ! -f "$telemetry_log" ] || [ ! -s "$telemetry_log" ]; then
+    printf '{"total_invocations":0,"by_hook":{},"block_rate":0,"avg_duration_ms":0}\n'
+    return
+  fi
+
+  # Rotate entries older than 30 days
+  local cutoff
+  cutoff=$(( $(date +%s) - 2592000 ))
+  local rotated_tmp
+  rotated_tmp=$(mktemp)
+  awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
+  if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
+    mv "$rotated_tmp" "$telemetry_log"
+  else
+    rm -f "$rotated_tmp"
+  fi
+
+  awk -F'|' '
+  {
+    total++
+    hooks[$2]++
+    if ($4 == "block") blocks++
+    if ($3 > 0) { dur_sum += $3; dur_count++ }
+  }
+  END {
+    block_rate = (total > 0) ? int(blocks * 100 / total) : 0
+    avg_dur = (dur_count > 0) ? int(dur_sum / dur_count) : 0
+    printf "{\"total_invocations\":%d,\"by_hook\":{", total
+    first = 1
+    for (h in hooks) {
+      if (!first) printf ","
+      printf "\"%s\":%d", h, hooks[h]
+      first = 0
+    }
+    printf "},\"block_rate\":%d,\"avg_duration_ms\":%d}\n", block_rate, avg_dur
+  }' "$telemetry_log"
+}
+
+_stats_session_json() {
+  local session_log="${TMPDIR:-/tmp}/forge-session-log-${PPID}"
+  if [ ! -f "$session_log" ] || [ ! -s "$session_log" ]; then
+    printf '{"total_events":0,"by_hook":{},"blocks":0,"allows":0,"detects":0,"overrides":0}\n'
+    return
+  fi
+
+  awk -F'|' '
+  {
+    total++
+    hooks[$2]++
+    if ($4 == "block") blocks++
+    else if ($4 == "allow") allows++
+    else if ($4 == "detect") detects++
+    else if ($4 == "override") overrides++
+  }
+  END {
+    printf "{\"total_events\":%d,\"by_hook\":{", total
+    first = 1
+    for (h in hooks) {
+      if (!first) printf ","
+      printf "\"%s\":%d", h, hooks[h]
+      first = 0
+    }
+    printf "},\"blocks\":%d,\"allows\":%d,\"detects\":%d,\"overrides\":%d}\n", blocks, allows, detects, overrides
+  }' "$session_log"
+}
+
 # ── Main ─────────────────────────────────────────────────────
 
 cmd_stats() {
@@ -286,6 +356,7 @@ cmd_stats() {
   source "$FORGE_SOURCE_DIR/lib/platform.sh"
 
   local section=""
+  local json_mode=false
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -297,7 +368,13 @@ cmd_stats() {
         printf "  forge stats --sessions   # session backups only\n"
         printf "  forge stats --session    # current session scorecard\n"
         printf "  forge stats --hooks      # hook telemetry (30 days)\n"
+        printf "  forge stats --json       # all sections as JSON\n"
+        printf "  forge stats --hooks --json  # single section as JSON\n"
         return 0
+        ;;
+      --json)
+        json_mode=true
+        shift
         ;;
       --security)
         section="security"
@@ -317,7 +394,7 @@ cmd_stats() {
         ;;
       *)
         fail "Unknown option: $1"
-        echo "Usage: forge stats [--security] [--sessions] [--session] [--hooks] [--help]"
+        echo "Usage: forge stats [--security] [--sessions] [--session] [--hooks] [--json] [--help]"
         return 1
         ;;
     esac
@@ -327,6 +404,20 @@ cmd_stats() {
     fail "Forge is not installed (no manifest found)"
     info "Run: forge install"
     return 1
+  fi
+
+  if [ "$json_mode" = true ]; then
+    case "$section" in
+      hooks)    _stats_hooks_json ;;
+      session)  _stats_session_json ;;
+      *)
+        local hooks_json session_json
+        hooks_json=$(_stats_hooks_json)
+        session_json=$(_stats_session_json)
+        printf '{"hooks":%s,"session":%s}\n' "$hooks_json" "$session_json"
+        ;;
+    esac
+    return 0
   fi
 
   banner "Stats"
