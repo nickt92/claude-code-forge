@@ -50,7 +50,7 @@ public struct PluginInfo: Codable, Sendable {
     public let plugins: [String]
 }
 
-public struct RulesInfo: Codable, Sendable {
+public struct RulesInfo: Codable, Sendable, Equatable {
     public let count: Int
     public let files: [String]
 }
@@ -70,20 +70,20 @@ public struct ClaudeMdInfo: Codable, Sendable {
 
 // MARK: - Score
 
-public struct ScoreData: Codable, Sendable {
+public struct ScoreData: Codable, Sendable, Equatable {
     public let total: Int
     public let grade: String
     public let dimensions: [String: DimensionScore]
 }
 
-public struct DimensionScore: Codable, Sendable {
+public struct DimensionScore: Codable, Sendable, Equatable {
     public let score: Int
     public let weight: Int
 }
 
 // MARK: - Repo
 
-public struct RepoData: Codable, Sendable, Identifiable {
+public struct RepoData: Codable, Sendable, Identifiable, Equatable {
     public let path: String
     public let name: String
     public let claudeMd: ClaudeMdBasic
@@ -111,31 +111,31 @@ public struct RepoData: Codable, Sendable, Identifiable {
     }
 }
 
-public struct ClaudeMdBasic: Codable, Sendable {
+public struct ClaudeMdBasic: Codable, Sendable, Equatable {
     public let exists: Bool
     public let lines: Int
 }
 
-public struct DocChainInfo: Codable, Sendable {
+public struct DocChainInfo: Codable, Sendable, Equatable {
     public let projectMd: Bool
     public let requirementsMd: Bool
     public let roadmapMd: Bool
     public let dismissed: Bool
 }
 
-public struct GitInfo: Codable, Sendable {
+public struct GitInfo: Codable, Sendable, Equatable {
     public let isRepo: Bool
     public let branch: String
 }
 
-public struct RepoHooksInfo: Codable, Sendable {
+public struct RepoHooksInfo: Codable, Sendable, Equatable {
     public let present: Bool
     public let count: Int
 }
 
 // MARK: - Audit
 
-public struct AuditData: Codable, Sendable {
+public struct AuditData: Codable, Sendable, Equatable {
     public let schemaVersion: Int
     public let hasClaudeMd: Bool
     public let lines: Int
@@ -148,38 +148,38 @@ public struct AuditData: Codable, Sendable {
     public let findings: [Finding]
 }
 
-public struct HookCompatInfo: Codable, Sendable {
+public struct HookCompatInfo: Codable, Sendable, Equatable {
     public let installed: [String]
     public let referenced: [String]
     public let missing: [String]
 }
 
-public struct AuditSections: Codable, Sendable {
+public struct AuditSections: Codable, Sendable, Equatable {
     public let found: [String]
     public let missing: [String]
     public let coverage: Int
 }
 
-public struct StalenessInfo: Codable, Sendable {
+public struct StalenessInfo: Codable, Sendable, Equatable {
     public let claudeMdDays: Int
     public let repoDays: Int
     public let stale: Bool
 }
 
-public struct TechStackInfo: Codable, Sendable {
+public struct TechStackInfo: Codable, Sendable, Equatable {
     public let detected: [String]
     public let mentioned: [String]
     public let gaps: [String]
 }
 
-public struct QualityInfo: Codable, Sendable {
+public struct QualityInfo: Codable, Sendable, Equatable {
     public let hasPlaceholders: Bool
     public let lengthAssessment: String
     public let lineCount: Int?
     public let imperativeRatio: Int?
 }
 
-public struct Finding: Codable, Sendable, Identifiable {
+public struct Finding: Codable, Sendable, Identifiable, Equatable {
     public let severity: String
     public let code: String
     public let detail: String

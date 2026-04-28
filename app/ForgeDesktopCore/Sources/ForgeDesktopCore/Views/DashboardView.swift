@@ -38,7 +38,7 @@ public struct DashboardView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             if let repo = selectedRepo {
-                RepoDetailView(repo: repo)
+                RepoDetailView(repo: repo, onDashboardRefresh: onRefresh)
             } else {
                 ContentUnavailableView(
                     "Select a Repository",
@@ -478,10 +478,6 @@ struct FilterChip: View {
 // MARK: - RepoData Hashable
 
 extension RepoData: Hashable {
-    public static func == (lhs: RepoData, rhs: RepoData) -> Bool {
-        lhs.path == rhs.path
-    }
-
     public func hash(into hasher: inout Hasher) {
         hasher.combine(path)
     }

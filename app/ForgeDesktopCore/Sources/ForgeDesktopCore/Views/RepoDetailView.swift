@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct RepoDetailView: View {
     let repo: RepoData
+    let onDashboardRefresh: () -> Void
     @State private var dismissedFindings: Set<String> = []
     @State private var contentHashAtLoad: String?
     @State private var fixRunning: Bool = false
@@ -14,8 +15,9 @@ public struct RepoDetailView: View {
     @Environment(\.dismissalService) private var dismissalService
     @Environment(\.claudeService) private var claudeService
 
-    public init(repo: RepoData) {
+    public init(repo: RepoData, onDashboardRefresh: @escaping () -> Void) {
         self.repo = repo
+        self.onDashboardRefresh = onDashboardRefresh
     }
 
     public var body: some View {
@@ -238,7 +240,7 @@ public struct RepoDetailView: View {
                     persona: dashboard.global.persona,
                     onComplete: {
                         claudeMdRefreshTrigger += 1
-                        Task { await refreshRepoAudit() }
+                        onDashboardRefresh()
                     }
                 )
             }
