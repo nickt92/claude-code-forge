@@ -238,9 +238,7 @@ _stats_hooks() {
   cutoff=$(( $(date +%s) - 2592000 ))
   local rotated_tmp
   rotated_tmp=$(mktemp)
-  while IFS='|' read -r ts hook dur outcome; do
-    [ -n "$ts" ] && [ "$ts" -ge "$cutoff" ] 2>/dev/null && printf '%s|%s|%s|%s\n' "$ts" "$hook" "$dur" "$outcome"
-  done < "$telemetry_log" > "$rotated_tmp"
+  awk -F'|' -v cutoff="$cutoff" '$1 >= cutoff' "$telemetry_log" > "$rotated_tmp"
   if [ "$(wc -l < "$rotated_tmp" | tr -d ' ')" -lt "$(wc -l < "$telemetry_log" | tr -d ' ')" ]; then
     mv "$rotated_tmp" "$telemetry_log"
   else
@@ -273,12 +271,7 @@ _stats_hooks() {
 
   # Average duration
   local total_dur=0 dur_count=0
-  while IFS='|' read -r _ _ dur _; do
-    if [ -n "$dur" ] && [ "$dur" -gt 0 ] 2>/dev/null; then
-      total_dur=$(( total_dur + dur ))
-      dur_count=$(( dur_count + 1 ))
-    fi
-  done < "$telemetry_log"
+  read -r total_dur dur_count < <(awk -F'|' '$3 > 0 { s+=$3; c++ } END { print s+0, c+0 }' "$telemetry_log")
   if [ "$dur_count" -gt 0 ]; then
     local avg_dur=$(( total_dur / dur_count ))
     kv "Avg duration" "${avg_dur}ms"
