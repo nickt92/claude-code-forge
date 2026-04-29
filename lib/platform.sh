@@ -85,6 +85,20 @@ format_bytes() {
   fi
 }
 
+# Open a file/URL in the default browser
+open_browser() {
+  local target="$1"
+  local platform
+  platform="$(detect_platform)"
+  case "$platform" in
+    macos)   open "$target" 2>/dev/null ;;
+    wsl)     wslview "$target" 2>/dev/null || explorer.exe "$target" 2>/dev/null ;;
+    linux)   xdg-open "$target" 2>/dev/null ;;
+    windows) start "$target" 2>/dev/null ;;
+    *)       return 1 ;;
+  esac
+}
+
 # Check if platform is supported and warn if not
 check_platform() {
   local platform

@@ -21,10 +21,6 @@ merge_settings() {
   local output="$3"
 
   jq -s '
-    def merge_hook_arrays:
-      # For each hook event, combine arrays and deduplicate by .hooks[].command
-      (.[0] // []) + (.[1] // []) | unique_by(.hooks[0].command);
-
     (.[0] // {}) as $existing |
     (.[1] // {}) as $template |
     ($existing * $template) *
@@ -33,7 +29,7 @@ merge_settings() {
         ($existing.hooks // {}) as $eh |
         ($template.hooks // {}) as $th |
         ($eh | keys) + ($th | keys) | unique | map(
-          { (.): ([$eh[.] // [], $th[.] // []] | add | unique_by(.hooks[0].command)) }
+          { (.): ([$eh[.] // [], $th[.] // []] | add | unique_by(.hooks | map(.command) | sort | join(","))) }
         ) | add // {}
       ),
       enabledPlugins: (($existing.enabledPlugins // {}) * ($template.enabledPlugins // {}))

@@ -61,9 +61,42 @@ teardown() {
   assert [ "$count" -eq 0 ]
 }
 
-# ── 30-Day Pruning ───────────────────────────────────────────
+# ── No auto-pruning (delegated to Claude Code cleanupPeriodDays) ──
 
-@test "prunes backups older than 30 days" {
+# ── Path Traversal Sanitization ──────────────────────────────
+
+@test "sanitizes path traversal characters in session ID" {
+  local transcript="$TEST_SANDBOX/transcript.jsonl"
+  echo '{"message":"test"}' > "$transcript"
+
+  echo "{\"transcript_path\":\"$transcript\",\"session_id\":\"../../etc/evil\",\"trigger\":\"test\"}" | bash "$HOOK"
+
+  # Backup should land in backups dir, not traverse out
+  local count
+  count=$(ls "$CLAUDE_DIR/backups/"*.jsonl 2>/dev/null | wc -l | tr -d ' ')
+  assert [ "$count" -eq 1 ]
+
+  # Filename should have slashes and dots replaced with underscores
+  run ls "$CLAUDE_DIR/backups/"
+  assert_output --partial "______etc_evil"
+  refute_output --partial "../../"
+}
+
+@test "sanitizes special characters in trigger" {
+  local transcript="$TEST_SANDBOX/transcript.jsonl"
+  echo '{"message":"test"}' > "$transcript"
+
+  echo "{\"transcript_path\":\"$transcript\",\"session_id\":\"safe\",\"trigger\":\"pre/compact;rm -rf\"}" | bash "$HOOK"
+
+  run ls "$CLAUDE_DIR/backups/"
+  assert_output --partial "safe"
+  refute_output --partial ";"
+  refute_output --partial "/"
+}
+
+# ── No auto-pruning (delegated to Claude Code cleanupPeriodDays) ──
+
+@test "does not prune old backups" {
   # Create an "old" backup
   local old_backup="$CLAUDE_DIR/backups/old-session-compact-20200101.jsonl"
   touch -t 202001010000 "$old_backup"
@@ -74,21 +107,6 @@ teardown() {
 
   echo "{\"transcript_path\":\"$transcript\",\"session_id\":\"new\",\"trigger\":\"test\"}" | bash "$HOOK"
 
-  # Old backup should be deleted
-  assert [ ! -f "$old_backup" ]
-}
-
-@test "keeps recent backups during pruning" {
-  # Create a recent backup
-  local recent_backup="$CLAUDE_DIR/backups/recent-session-compact-recent.jsonl"
-  echo "recent" > "$recent_backup"
-
-  # Create a fresh transcript
-  local transcript="$TEST_SANDBOX/transcript.jsonl"
-  echo '{"message":"test"}' > "$transcript"
-
-  echo "{\"transcript_path\":\"$transcript\",\"session_id\":\"new\",\"trigger\":\"test\"}" | bash "$HOOK"
-
-  # Recent backup should still exist
-  assert [ -f "$recent_backup" ]
+  # Old backup should still exist — cleanup is Claude Code's responsibility
+  assert [ -f "$old_backup" ]
 }

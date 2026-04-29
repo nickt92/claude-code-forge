@@ -9,6 +9,10 @@
     "workflow": "advanced",
     "depth": "engineering"
   },
-  "quality": ["core", "engineering"],
-  "default_plugin_group": "full"
+  "quality": [
+    "core",
+    "engineering"
+  ],
+  "default_plugin_group": "full",
+  "planning_enforcement": "enforce"
 }

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "category": "cli",
+      "name": "forge binary",
+      "status": "pass",
+      "detail": "Found at /usr/local/bin/forge"
+    },
+    {
+      "category": "cli",
+      "name": "forge version",
+      "status": "pass",
+      "detail": "v1.2.1"
+    },
+    {
+      "category": "manifest",
+      "name": "manifest exists",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "category": "manifest",
+      "name": "manifest version",
+      "status": "pass",
+      "detail": "v2"
+    },
+    {
+      "category": "files",
+      "name": "global CLAUDE.md",
+      "status": "pass",
+      "detail": "140 lines"
+    },
+    {
+      "category": "files",
+      "name": "rules directory",
+      "status": "pass",
+      "detail": "8 rules"
+    },
+    {
+      "category": "hooks",
+      "name": "hooks configured",
+      "status": "pass",
+      "detail": "8 hooks"
+    },
+    {
+      "category": "hooks",
+      "name": "hook scripts exist",
+      "status": "warn",
+      "detail": "backup-transcript.sh not found"
+    },
+    {
+      "category": "plugins",
+      "name": "plugin group",
+      "status": "pass",
+      "detail": "full (19 plugins)"
+    },
+    {
+      "category": "project",
+      "name": "scan path",
+      "status": "fail",
+      "detail": "dashboard.scan_path not configured"
+    }
+  ],
+  "summary": {
+    "pass": 8,
+    "warnings": 1,
+    "failures": 1
+  }
+}

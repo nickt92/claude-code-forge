@@ -98,72 +98,50 @@ SCRIPT
   assert_output --partial "trivial/moderate/significant"
 }
 
-# ── Persona Hint ─────────────────────────────────────────────
+# ── No persona hint (removed in v1.3.0) ─────────────────────
 
-@test "includes persona hint when profile exists" {
+@test "does not include persona hint even when profile exists" {
   create_test_profile "senior-engineer" "high" "advanced" "expert" "engineering"
   run bash -c 'echo "{\"prompt\":\"test\"}" | bash "$0"' "$HOOK"
   assert_success
-  assert_output --partial "Test Profile"
-  assert_output --partial "senior-engineer"
+  refute_output --partial "Test Profile"
 }
 
-# ── Document Chain Nudge ──────────────────────────────────────
+# ── Session State File ──────────────────────────────────────
 
-@test "nudges about document chain for non-trivial projects" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  # Create a project with .claude/ and a manifest file (non-trivial heuristic)
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
+@test "creates session state file with classification=unknown" {
+  local wrapper="$TEST_SANDBOX/state-test.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+echo '{"prompt":"test"}' | bash "$HOOK" > /dev/null
+_TMPDIR="\${TMPDIR:-/tmp}"
+cat "\${_TMPDIR}/forge-session-state-\$\$" 2>/dev/null || echo "NO_STATE_FILE"
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
   assert_success
-  assert_output --partial "forge init --docs"
+  assert_output --partial "classification=unknown"
 }
 
-@test "does not nudge when docchain-skip marker exists" {
+@test "cleans up stale session state files" {
+  local _tmpdir="${TMPDIR:-/tmp}"
+  local stale="${_tmpdir}/forge-session-state-99999"
+  touch "$stale"
+  # Backdate by 2 days
+  touch -t "$(date -v-2d +%Y%m%d%H%M.%S 2>/dev/null || date -d '2 days ago' +%Y%m%d%H%M.%S 2>/dev/null)" "$stale"
+  echo '{"prompt":"test"}' | bash "$HOOK" > /dev/null
+  [ ! -f "$stale" ]
+}
+
+# ── No document chain nudge (removed in v1.3.0) ─────────────
+
+@test "does not include doc-chain nudge" {
   create_test_profile "senior-engineer" "high" "advanced"
   local project_dir="$TEST_SANDBOX/project"
   mkdir -p "$project_dir/.claude"
   echo '{}' > "$project_dir/package.json"
-  touch "$project_dir/.claude/.docchain-skip"
 
   run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
   assert_success
   refute_output --partial "forge init --docs"
-}
-
-@test "does not nudge when PROJECT.md exists" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-  touch "$project_dir/PROJECT.md"
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
-  assert_success
-  refute_output --partial "forge init --docs"
-}
-
-@test "does not nudge for trivial projects (no manifest file)" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  # No package.json, Cargo.toml, etc.
-
-  run bash -c 'cd "$1" && echo "{\"prompt\":\"test\"}" | bash "$2"' _ "$project_dir" "$HOOK"
-  assert_success
-  refute_output --partial "forge init --docs"
-}
-
-@test "nudge fires only once per project (creates marker)" {
-  create_test_profile "senior-engineer" "high" "advanced"
-  local project_dir="$TEST_SANDBOX/project"
-  mkdir -p "$project_dir/.claude"
-  echo '{}' > "$project_dir/package.json"
-
-  # First run creates the nudge marker
-  bash -c 'cd "$1" && echo "{\"prompt\":\"first\"}" | bash "$2"' _ "$project_dir" "$HOOK" > /dev/null
-  assert [ -f "$project_dir/.claude/.docchain-nudged" ]
 }

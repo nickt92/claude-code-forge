@@ -200,14 +200,16 @@ psql -c "DROP TABLE test_users"'
   grep -q 'command="psql' "$log_file"
 }
 
-@test "forge-override with multi-line command shows line count in log" {
+@test "forge-override with multi-line command logs all lines" {
   local log_file="$HOME/.claude/security.log"
   : > "$log_file"
   run_hook '# forge-override: running migration cleanup
 psql -c "DROP TABLE old_users"
 psql -c "DROP TABLE old_orders"
 psql -c "DROP TABLE old_sessions"'
-  grep -q '\[+2 lines\]' "$log_file"
+  grep -q 'old_users' "$log_file"
+  grep -q 'old_orders' "$log_file"
+  grep -q 'old_sessions' "$log_file"
 }
 
 @test "forge-override with whitespace-only reason is still blocked" {

@@ -21,11 +21,12 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
 
 # ── One check per session ─────────────────────────────────────
 _TMPDIR="${TMPDIR:-/tmp}"
 MARKER="${_TMPDIR}/claude-forge-update-${PPID}"
-[ -f "$MARKER" ] && exit 0
+[ -f "$MARKER" ] && exit 0  # already fired — skip logging for repeat invocations
 
 # Clean up stale markers from old sessions (>24h)
 find "$_TMPDIR" -maxdepth 1 -name "claude-forge-update-*" -mtime +1 -delete 2>/dev/null || true
@@ -69,5 +70,9 @@ jq -n --arg installed "$INSTALLED_VERSION" --arg available "$SOURCE_VERSION" '{
     additionalContext: ("INFO: Forge update available. Installed: v" + $installed + ", available: v" + $available + ". Run '\''forge install'\'' to update.")
   }
 }'
+
+_dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+printf '%s|forge-update-check|%s|allow\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+printf '%s|forge-update-check|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
 
 exit 0

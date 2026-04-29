@@ -1,14 +1,14 @@
 #!/bin/bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Session Init Hook — persona-aware task classification nudge
+# Session Init Hook — task classification nudge
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Trigger: UserPromptSubmit
 # Purpose: On the first prompt of every session, nudges Claude
 #          to classify the task — with language adapted to the
-#          user's persona (guided/moderate/high autonomy).
+#          user's autonomy level (guided/moderate/high).
 #
-# Reads ~/.claude/profile.json for persona context.
-# Falls back to generic nudge if profile is missing.
+# Reads ~/.claude/profile.json for autonomy level.
+# Falls back to high autonomy if profile is missing.
 #
 # Fires once per session using a PPID-based marker.
 # A new terminal / new `claude` invocation = new session.
@@ -20,39 +20,31 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
 
 # One nudge per session — PPID is tied to the parent shell
 _TMPDIR="${TMPDIR:-/tmp}"
 MARKER="${_TMPDIR}/claude-code-prompted-${PPID}"
-[ -f "$MARKER" ] && exit 0
+[ -f "$MARKER" ] && exit 0  # already fired — skip logging for repeat invocations
 
 # New session — clean up stale markers from old sessions (>24h)
 # Also cleans architect-gate classified markers (created by architect-gate.sh)
 find "$_TMPDIR" -maxdepth 1 -name "claude-code-prompted-*" -mtime +1 -delete 2>/dev/null || true
 find "$_TMPDIR" -maxdepth 1 -name "claude-code-classified-*" -mtime +1 -delete 2>/dev/null || true
+find "$_TMPDIR" -maxdepth 1 -name "forge-session-state-*" -mtime +1 -delete 2>/dev/null || true
 
 touch "$MARKER"
 
-# Read persona context
+# Initialize session state file — shared protocol for hooks/statusline
+STATE_FILE="${_TMPDIR}/forge-session-state-${PPID}"
+printf 'classification=unknown\n' > "$STATE_FILE" 2>/dev/null || true
+
+# Read autonomy level from profile
 PROFILE="$HOME/.claude/profile.json"
 AUTONOMY="high"
-LABEL=""
-PERSONA=""
-COMM=""
-DEPTH=""
 
 if [ -f "$PROFILE" ]; then
   AUTONOMY=$(jq -r '.axes.autonomy // "high"' "$PROFILE" 2>/dev/null)
-  LABEL=$(jq -r '.label // ""' "$PROFILE" 2>/dev/null)
-  PERSONA=$(jq -r '.persona // ""' "$PROFILE" 2>/dev/null)
-  COMM=$(jq -r '.axes.communication // ""' "$PROFILE" 2>/dev/null)
-  DEPTH=$(jq -r '.axes.depth // ""' "$PROFILE" 2>/dev/null)
-fi
-
-# Build persona hint (if available)
-PERSONA_HINT=""
-if [ -n "$LABEL" ] && [ -n "$PERSONA" ]; then
-  PERSONA_HINT="You are working with a ${LABEL} (${PERSONA}). Communication: ${COMM}, Depth: ${DEPTH}. "
 fi
 
 # Branch protection (all personas)
@@ -71,29 +63,15 @@ case "$AUTONOMY" in
     ;;
 esac
 
-# Document chain nudge — one-time per project, only for non-trivial projects
-DOC_NUDGE=""
-PROJECT_CLAUDE_DIR="$(pwd)/.claude"
-if [ -d "$PROJECT_CLAUDE_DIR" ] && \
-   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-skip" ] && \
-   [ ! -f "$PROJECT_CLAUDE_DIR/.docchain-nudged" ] && \
-   [ ! -f "$(pwd)/PROJECT.md" ] && [ ! -f "$(pwd)/REQUIREMENTS.md" ] && [ ! -f "$(pwd)/ROADMAP.md" ]; then
-  # Heuristic: non-trivial project has a build/manifest file
-  _has_manifest=false
-  for _f in package.json Cargo.toml go.mod pyproject.toml Makefile CMakeLists.txt pom.xml build.gradle Gemfile; do
-    [ -f "$(pwd)/$_f" ] && _has_manifest=true && break
-  done
-  if [ "$_has_manifest" = true ]; then
-    DOC_NUDGE=" For multi-session projects, consider 'forge init --docs' for persistent context files (PROJECT.md, REQUIREMENTS.md, ROADMAP.md)."
-    touch "$PROJECT_CLAUDE_DIR/.docchain-nudged" 2>/dev/null || true
-  fi
-fi
-
-jq -n --arg ctx "SYSTEM: ${PERSONA_HINT}${NUDGE} ${BRANCH_REMINDER}${DOC_NUDGE}" '{
+jq -n --arg ctx "SYSTEM: ${NUDGE} ${BRANCH_REMINDER}" '{
   hookSpecificOutput: {
     hookEventName: "UserPromptSubmit",
     additionalContext: $ctx
   }
 }'
+
+_dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+printf '%s|session-init|%s|allow\n' "$(date +%s)" "$_dur" >> "${_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+printf '%s|session-init|%s|allow\n' "$(date +%s)" "$_dur" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
 
 exit 0

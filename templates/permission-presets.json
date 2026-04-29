@@ -1,0 +1,178 @@
+{
+  "presets": {
+    "ask-before-changes": {
+      "label": "Ask Before Changes",
+      "tier": 1,
+      "description": "Claude browses your code without asking, but asks permission before making any changes.",
+      "detail": "Auto-approves: reading files, searching code, inspecting directories and git history, system info. You approve: file edits, running any command that modifies state.",
+      "permissions": [
+        "Read", "Glob", "Grep",
+
+        "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)",
+        "Bash(wc:*)", "Bash(file:*)", "Bash(which:*)", "Bash(pwd:*)",
+        "Bash(echo:*)", "Bash(find:*)", "Bash(tree:*)",
+        "Bash(stat:*)", "Bash(du:*)", "Bash(df:*)",
+        "Bash(realpath:*)", "Bash(dirname:*)", "Bash(basename:*)",
+        "Bash(grep:*)", "Bash(rg:*)",
+        "Bash(diff:*)",
+        "Bash(sort:*)", "Bash(uniq:*)", "Bash(cut:*)", "Bash(tr:*)",
+        "Bash(jq:*)", "Bash(yq:*)",
+        "Bash(ps:*)",
+        "Bash(uptime:*)", "Bash(nproc:*)", "Bash(free:*)",
+        "Bash(uname:*)", "Bash(whoami:*)", "Bash(date:*)",
+        "Bash(hostname:*)", "Bash(type:*)", "Bash(id:*)",
+        "Bash(lsb_release:*)",
+
+        "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)",
+        "Bash(git show:*)", "Bash(git branch:*)",
+        "Bash(git blame:*)", "Bash(git rev-parse:*)",
+        "Bash(git ls-files:*)", "Bash(git describe:*)",
+        "Bash(git shortlog:*)",
+
+        "Bash(command:*)", "Bash(test:*)",
+        "Bash(printf:*)", "Bash(seq:*)", "Bash(sleep:*)",
+        "Bash(md5sum:*)", "Bash(shasum:*)", "Bash(sha256sum:*)",
+
+        "Bash(systemctl status:*)", "Bash(journalctl:*)"
+      ]
+    },
+    "auto-edit": {
+      "label": "Auto-Edit",
+      "tier": 2,
+      "description": "Claude browses and edits files without asking. Still asks before running dev tools and git operations.",
+      "detail": "Auto-approves: everything above, plus creating/editing/copying/moving files. You approve: build commands, test runners, git commits/pushes.",
+      "inherits": "ask-before-changes",
+      "permissions": [
+        "Write", "Edit",
+        "Bash(mkdir:*)", "Bash(touch:*)", "Bash(cp:*)",
+        "Bash(mv:*)", "Bash(chmod:*)", "Bash(ln:*)",
+        "Bash(sed:*)", "Bash(awk:*)", "Bash(tee:*)", "Bash(patch:*)"
+      ]
+    },
+    "full-autonomy": {
+      "label": "Full Autonomy",
+      "tier": 3,
+      "description": "Claude runs development commands without asking. Still asks before destructive operations.",
+      "detail": "Auto-approves: everything above, plus git, package managers, compilers, build tools, test runners, linters, Docker, and web access. You approve: rm, sudo, force pushes, hard resets.",
+      "inherits": "auto-edit",
+      "permissions": [
+        "Bash(git -C:*)", "Bash(git -c:*)",
+        "Bash(git add:*)", "Bash(git commit:*)", "Bash(git push:*)",
+        "Bash(git checkout:*)", "Bash(git stash:*)", "Bash(git fetch:*)",
+        "Bash(git pull:*)", "Bash(git merge:*)", "Bash(git rebase:*)",
+        "Bash(git tag:*)", "Bash(git remote:*)", "Bash(git cherry-pick:*)",
+        "Bash(git switch:*)", "Bash(git worktree:*)",
+        "Bash(git config:*)", "Bash(git clone:*)", "Bash(git init:*)",
+        "Bash(git submodule:*)",
+
+        "Bash(npm:*)", "Bash(npx:*)", "Bash(pnpm:*)", "Bash(yarn:*)", "Bash(bun:*)",
+        "Bash(pip:*)", "Bash(pip3:*)", "Bash(uv:*)", "Bash(poetry:*)",
+        "Bash(pdm:*)", "Bash(pipx:*)", "Bash(hatch:*)",
+        "Bash(cargo:*)", "Bash(rustup:*)", "Bash(rustc:*)",
+        "Bash(go:*)", "Bash(golangci-lint:*)",
+        "Bash(swift:*)", "Bash(xcodebuild:*)",
+        "Bash(gem:*)", "Bash(bundle:*)", "Bash(ruby:*)", "Bash(rake:*)",
+        "Bash(composer:*)", "Bash(php:*)",
+        "Bash(dotnet:*)", "Bash(nuget:*)",
+        "Bash(mix:*)", "Bash(elixir:*)",
+        "Bash(dart:*)", "Bash(flutter:*)",
+        "Bash(ghc:*)", "Bash(cabal:*)", "Bash(stack:*)",
+        "Bash(sbt:*)", "Bash(scala:*)",
+        "Bash(java:*)", "Bash(javac:*)", "Bash(kotlin:*)", "Bash(kotlinc:*)",
+        "Bash(zig:*)", "Bash(nim:*)", "Bash(nimble:*)",
+
+        "Bash(gcc:*)", "Bash(g++:*)", "Bash(clang:*)", "Bash(clang++:*)",
+        "Bash(make:*)", "Bash(cmake:*)",
+        "Bash(ninja:*)", "Bash(meson:*)",
+        "Bash(gradle:*)", "Bash(mvn:*)", "Bash(ant:*)",
+        "Bash(bazel:*)", "Bash(turbo:*)", "Bash(nx:*)",
+        "Bash(conan:*)",
+
+        "Bash(pytest:*)", "Bash(jest:*)", "Bash(vitest:*)",
+        "Bash(mocha:*)", "Bash(bats:*)", "Bash(rspec:*)", "Bash(phpunit:*)",
+        "Bash(tox:*)", "Bash(nox:*)",
+
+        "Bash(eslint:*)", "Bash(prettier:*)",
+        "Bash(black:*)", "Bash(ruff:*)", "Bash(isort:*)",
+        "Bash(mypy:*)", "Bash(pyright:*)", "Bash(pylint:*)", "Bash(flake8:*)",
+        "Bash(rubocop:*)", "Bash(biome:*)",
+        "Bash(swiftlint:*)", "Bash(swiftformat:*)",
+        "Bash(clang-format:*)", "Bash(clang-tidy:*)",
+        "Bash(golangci-lint:*)", "Bash(gofmt:*)",
+        "Bash(phpstan:*)", "Bash(phpcs:*)",
+
+        "Bash(tsc:*)", "Bash(node:*)", "Bash(deno:*)",
+        "Bash(python:*)", "Bash(python3:*)",
+
+        "Bash(source:*)", "Bash(.:*)",
+        "Bash(bash:*)", "Bash(sh:*)", "Bash(zsh:*)",
+        "Bash(xargs:*)", "Bash(timeout:*)",
+        "Bash(nohup:*)",
+
+        "Bash(curl:*)", "Bash(wget:*)", "Bash(http:*)",
+
+        "Bash(docker build:*)", "Bash(docker ps:*)", "Bash(docker logs:*)",
+        "Bash(docker images:*)", "Bash(docker compose:*)",
+        "Bash(docker exec:*)", "Bash(docker stop:*)",
+
+        "Bash(gh:*)",
+        "Bash(helm:*)",
+
+        "Bash(brew:*)",
+        "Bash(apt:*)", "Bash(apt-get:*)",
+        "Bash(dnf:*)", "Bash(yum:*)", "Bash(pacman:*)", "Bash(apk:*)",
+
+        "Bash(nvm:*)", "Bash(fnm:*)", "Bash(pyenv:*)", "Bash(rbenv:*)",
+        "Bash(asdf:*)", "Bash(mise:*)", "Bash(sdkman:*)",
+
+        "Bash(tar:*)", "Bash(zip:*)", "Bash(unzip:*)",
+        "Bash(gzip:*)", "Bash(gunzip:*)",
+
+        "WebFetch", "WebSearch"
+      ]
+    }
+  },
+  "_excluded_from_all_tiers": {
+    "_note": "Documentation only. Actual enforcement is in the command-guard hook, not this file. These commands are never added to any preset's allow list.",
+    "destructive_file_ops": [
+      "Bash(rm:*)", "Bash(rmdir:*)",
+      "Bash(truncate:*)", "Bash(shred:*)"
+    ],
+    "privilege_escalation": [
+      "Bash(sudo:*)", "Bash(chown:*)"
+    ],
+    "destructive_git": [
+      "Bash(git push --force:*)", "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git restore .:*)",
+      "Bash(git branch -D:*)"
+    ],
+    "destructive_docker": [
+      "Bash(docker rm:*)", "Bash(docker rmi:*)",
+      "Bash(docker run:*)",
+      "Bash(docker volume rm:*)", "Bash(docker system prune:*)",
+      "Bash(docker container prune:*)", "Bash(docker compose down -v:*)"
+    ],
+    "process_control": [
+      "Bash(kill:*)", "Bash(killall:*)", "Bash(pkill:*)"
+    ],
+    "remote_access": [
+      "Bash(ssh:*)", "Bash(scp:*)"
+    ],
+    "persistence": [
+      "Bash(crontab:*)"
+    ],
+    "network_tools": [
+      "Bash(nc:*)", "Bash(netcat:*)", "Bash(ncat:*)"
+    ],
+    "system_control": [
+      "Bash(reboot:*)", "Bash(shutdown:*)", "Bash(halt:*)", "Bash(poweroff:*)"
+    ],
+    "dangerous_infra": [
+      "Bash(terraform apply:*)", "Bash(terraform destroy:*)",
+      "Bash(pulumi up:*)", "Bash(pulumi destroy:*)",
+      "Bash(ansible-playbook:*)"
+    ]
+  }
+}

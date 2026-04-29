@@ -6,7 +6,10 @@
 _forge() {
   local -a commands
   commands=(
+    'audit:Audit CLAUDE.md quality for a repository'
     'build:Create a custom persona profile'
+    'config:Get/set forge settings'
+    'dashboard:Generate configuration dashboard'
     'diff:Show differences between source and installed'
     'doctor:Run diagnostic health checks'
     'export:Package forge installation into portable archive'
@@ -30,6 +33,12 @@ _forge() {
       ;;
     args)
       case "${words[1]}" in
+        audit)
+          _arguments \
+            '--json[Output structured JSON]' \
+            '--help[Show help]' \
+            '1:path:_directories'
+          ;;
         switch)
           _forge_personas
           ;;
@@ -62,6 +71,26 @@ _forge() {
             '--docs[Scaffold document chain only]' \
             '--skip-docs[Skip document chain prompt]' \
             '--help[Show help]'
+          ;;
+        dashboard)
+          _arguments \
+            '--json[Output JSON (default, backward compat)]' \
+            '--help[Show help]'
+          ;;
+        doctor)
+          _arguments \
+            '--json[Output structured JSON]' \
+            '--help[Show help]'
+          ;;
+        status)
+          _arguments \
+            '--json[Output structured JSON]' \
+            '--help[Show help]'
+          ;;
+        config)
+          _arguments \
+            '1:subcommand:(get set list)' \
+            '*::arg:->config_args'
           ;;
         *)
           _arguments '--help[Show help]'

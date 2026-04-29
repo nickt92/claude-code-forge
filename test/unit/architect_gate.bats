@@ -48,6 +48,127 @@ teardown() {
   assert_success
 }
 
+# ── Gate 0: Plan Enforcement ──────────────────────────────────
+
+@test "gate 0: blocks source edit with enforce profile and no plan" {
+  # Create profile with enforce
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  # No plan files, no state file (classification defaults to unknown)
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0"' "$HOOK"
+  assert_failure 2
+  assert_output --partial "BLOCKED"
+  assert_output --partial "No plan file"
+}
+
+@test "gate 0: allows source edit with enforce when plan file exists" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  echo "# Plan" > "$CLAUDE_DIR/plans/my-plan.md"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0" 2>/dev/null' "$HOOK"
+  assert_success
+}
+
+@test "gate 0: allows source edit when phase=implementation" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  local wrapper="$TEST_SANDBOX/gate0-impl.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=significant\nphase=implementation\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '{"tool_input":{"file_path":"/project/src/app.ts"}}' | bash "$HOOK" 2>/dev/null
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+}
+
+@test "gate 0: nudge profile does not block, falls through to gate 2" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "nudge"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0"' "$HOOK"
+  assert_success
+  assert_output --partial "classified this task"
+}
+
+@test "gate 0: off profile skips gate entirely" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "off"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0" 2>/dev/null' "$HOOK"
+  assert_success
+}
+
+@test "gate 0: defaults to nudge when profile has no planning_enforcement" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"axes": {"autonomy": "high"}}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0"' "$HOOK"
+  assert_success
+  assert_output --partial "classified this task"
+}
+
+@test "gate 0: enforce blocks even without profile (missing file)" {
+  rm -f "$CLAUDE_DIR/profile.json"
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  # Default is nudge, so should not block
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/src/app.ts\"}}" | bash "$0"' "$HOOK"
+  assert_success
+}
+
+@test "gate 0: skips excluded file types" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  run bash -c 'echo "{\"tool_input\":{\"file_path\":\"/project/README.md\"}}" | bash "$0" 2>/dev/null' "$HOOK"
+  assert_success
+}
+
+@test "gate 0: allows source edit when classification is trivial" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  local wrapper="$TEST_SANDBOX/gate0-trivial.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=trivial\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '{"tool_input":{"file_path":"/project/src/app.ts"}}' | bash "$HOOK" 2>/dev/null
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+}
+
+@test "gate 0: allows when classification is not unknown" {
+  cat > "$CLAUDE_DIR/profile.json" <<'JSON'
+{"planning_enforcement": "enforce"}
+JSON
+  rmdir "$CLAUDE_DIR/plans" 2>/dev/null; mkdir -p "$CLAUDE_DIR/plans"
+  local wrapper="$TEST_SANDBOX/gate0-classified.sh"
+  cat > "$wrapper" <<SCRIPT
+#!/bin/bash
+_TMPDIR="\${TMPDIR:-/tmp}"
+printf 'classification=moderate\n' > "\${_TMPDIR}/forge-session-state-\$\$"
+echo '{"tool_input":{"file_path":"/project/src/app.ts"}}' | bash "$HOOK" 2>/dev/null
+SCRIPT
+  chmod +x "$wrapper"
+  run bash "$wrapper"
+  assert_success
+}
+
 # ── Gate 2: Source File Classification Nudge ─────────────────
 
 @test "nudges on first source file edit" {

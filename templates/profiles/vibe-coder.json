@@ -9,6 +9,9 @@
     "workflow": "simplified",
     "depth": "conceptual"
   },
-  "quality": ["core"],
-  "default_plugin_group": "minimal"
+  "quality": [
+    "core"
+  ],
+  "default_plugin_group": "minimal",
+  "planning_enforcement": "off"
 }
