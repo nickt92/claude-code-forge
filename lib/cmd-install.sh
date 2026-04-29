@@ -62,10 +62,12 @@ cmd_install() {
   # Parse arguments
   local PROFILE_ARG=""
   local PLUGINS_ARG=""
+  local PERMISSIONS_ARG=""
   local RECONFIGURE=false
   local RUN_CHECK_ONLY=false
   local DRY_RUN=false
   local SELECTED_PERSONA=""
+  local SELECTED_PERMISSIONS=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -145,13 +147,22 @@ cmd_install() {
         PLUGINS_ARG="$2"
         shift 2
         ;;
+      --permissions)
+        if [[ $# -lt 2 ]]; then
+          fail "Missing preset name after --permissions"
+          echo "Available presets: ask-before-changes, auto-edit, full-autonomy"
+          return 1
+        fi
+        PERMISSIONS_ARG="$2"
+        shift 2
+        ;;
       --reconfigure)
         RECONFIGURE=true
         shift
         ;;
       *)
         fail "Unknown option: $1"
-        echo "Usage: forge install [--profile <name>] [--plugins <group>] [--reconfigure] [--uninstall] [--quiet] [--help]"
+        echo "Usage: forge install [--profile <name>] [--plugins <group>] [--permissions <preset>] [--reconfigure] [--uninstall] [--quiet] [--help]"
         return 1
         ;;
     esac
@@ -246,6 +257,13 @@ cmd_install() {
     PLUGIN_GROUP=$(get_default_plugin_group "$PROFILE_FILE")
   fi
 
+  # Resolve permissions: CLI flag > project default > wizard selection
+  if [ -n "$PERMISSIONS_ARG" ]; then
+    SELECTED_PERMISSIONS="$PERMISSIONS_ARG"
+  elif [ -z "$SELECTED_PERMISSIONS" ] && [ -n "$_DEFAULT_PERMISSIONS" ]; then
+    SELECTED_PERMISSIONS="$_DEFAULT_PERMISSIONS"
+  fi
+
   # ── Dry-run mode ──
   if [ "$DRY_RUN" = true ]; then
     banner "Claude Code Forge — Dry Run"
@@ -253,6 +271,7 @@ cmd_install() {
     persona_label=$(jq -r '.label' "$PROFILE_FILE")
     kv "Profile" "$persona_label ($SELECTED_PERSONA)"
     kv "Plugins" "$PLUGIN_GROUP"
+    kv "Permissions" "${SELECTED_PERMISSIONS:-none}"
     kv "Source" "$FORGE_SOURCE_DIR"
     kv "Target" "$CLAUDE_DIR"
 
@@ -441,8 +460,47 @@ cmd_install() {
     ok "Settings installed (fresh)"
   fi
 
+  # ── Apply permission preset ──
+  if [ -n "$SELECTED_PERMISSIONS" ]; then
+    source "$FORGE_SOURCE_DIR/lib/permissions-merge.sh"
+    local PRESETS_FILE="$FORGE_SOURCE_DIR/templates/permission-presets.json"
+
+    # Validate preset name
+    local valid
+    valid=$(jq -r --arg name "$SELECTED_PERMISSIONS" '.presets[$name] // empty' "$PRESETS_FILE")
+    if [ -z "$valid" ]; then
+      warn "Unknown permissions preset: $SELECTED_PERMISSIONS — skipping"
+    else
+      # Unmerge old permissions if present
+      if [ -f "$MANIFEST_FILE" ]; then
+        local old_preset old_added
+        old_preset=$(jq -r '.installed.permissions_preset // "none"' "$MANIFEST_FILE" 2>/dev/null)
+        old_added=$(jq '.installed.permissions_added // []' "$MANIFEST_FILE" 2>/dev/null)
+        if [ "$old_preset" != "none" ] && [ "$old_added" != "[]" ]; then
+          unmerge_permissions "$CLAUDE_DIR/settings.json" "$old_added"
+        fi
+      fi
+
+      merge_permissions "$CLAUDE_DIR/settings.json" "$SELECTED_PERMISSIONS" "$PRESETS_FILE"
+      local perm_count
+      perm_count=$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$PRESETS_FILE" | jq 'length')
+      ok "Permissions: $(jq -r --arg id "$SELECTED_PERMISSIONS" '.presets[$id].label' "$PRESETS_FILE") ($perm_count rules auto-approved)"
+    fi
+  fi
+
   # ── Update manifest with installed files ──
   update_manifest_installed "$(jq -r '.persona' "$PROFILE_FILE")" "$FORGE_SOURCE_DIR" "$PLUGIN_GROUP"
+
+  # Record permissions preset in manifest
+  if [ -n "$SELECTED_PERMISSIONS" ] && [ -f "$MANIFEST_FILE" ]; then
+    local resolved_perms
+    resolved_perms=$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$FORGE_SOURCE_DIR/templates/permission-presets.json")
+    jq --arg preset "$SELECTED_PERMISSIONS" --argjson added "$resolved_perms" '
+      .installed.permissions_preset = $preset |
+      .installed.permissions_added = $added
+    ' "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
+    mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
+  fi
 
   # ── Install plugins ──
   step "Installing plugins"

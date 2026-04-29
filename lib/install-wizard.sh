@@ -54,6 +54,50 @@ _install_run_wizard() {
   selected_label=$(jq -r '.label' "$PROFILES_DIR/${SELECTED_PERSONA}.json")
   echo ""
   ok "Selected: ${selected_label}"
+
+  # Permissions step (skip if --permissions was passed via CLI)
+  [ -z "$PERMISSIONS_ARG" ] && _install_select_permissions
+}
+
+# ── Permissions selection ─────────────────────────────────────
+_install_select_permissions() {
+  local PRESETS_FILE="$FORGE_SOURCE_DIR/templates/permission-presets.json"
+
+  echo ""
+  echo "How much autonomy should Claude have?"
+  echo ""
+
+  local ids=()
+  local labels=()
+  local i=1
+
+  while IFS= read -r id; do
+    ids+=("$id")
+    local label desc recommended=""
+    label=$(jq -r --arg id "$id" '.presets[$id].label' "$PRESETS_FILE")
+    desc=$(jq -r --arg id "$id" '.presets[$id].description' "$PRESETS_FILE")
+    labels+=("$label")
+    [ "$id" = "full-autonomy" ] && recommended=" ${_C_GREEN}(recommended)${_C_RST}"
+
+    printf "  ${_C_BOLD}%2d.${_C_RST}  %-25s${recommended}\n" "$i" "$label"
+    printf "      ${_C_DIM}%s${_C_RST}\n" "$desc"
+    ((i++))
+  done < <(jq -r '.presets | to_entries | sort_by(.value.tier)[] | .key' "$PRESETS_FILE")
+
+  local count=${#ids[@]}
+  echo ""
+  while true; do
+    read -p "Your choice [1-${count}]: " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "$count" ]; then
+      SELECTED_PERMISSIONS="${ids[$((choice - 1))]}"
+      break
+    else
+      echo "Please enter a number between 1 and ${count}"
+    fi
+  done
+
+  echo ""
+  ok "Permissions: ${labels[$((choice - 1))]}"
 }
 
 # ── Install-specific banners ─────────────────────────────────
@@ -105,6 +149,7 @@ _install_show_help() {
   printf "  forge install                           ${_C_DIM}Interactive wizard${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--profile${_C_RST} <name>          ${_C_DIM}Non-interactive install${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--plugins${_C_RST} <group>         ${_C_DIM}Choose plugin group${_C_RST}\n"
+  printf "  forge install ${_C_BOLD}--permissions${_C_RST} <preset>    ${_C_DIM}Set permission preset${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--reconfigure${_C_RST}             ${_C_DIM}Re-run persona wizard${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--uninstall${_C_RST}               ${_C_DIM}Remove forge (restores backups)${_C_RST}\n"
   printf "  forge install ${_C_BOLD}--check${_C_RST}                   ${_C_DIM}Health checks only${_C_RST}\n"
@@ -118,4 +163,8 @@ _install_show_help() {
   printf "  ${_C_BOLD}full${_C_RST}       All 18 plugins ${_C_DIM}(default for engineering personas)${_C_RST}\n"
   printf "  ${_C_BOLD}standard${_C_RST}   16 plugins ${_C_DIM}(drops HR/legal and startup)${_C_RST}\n"
   printf "  ${_C_BOLD}minimal${_C_RST}    6 core plugins ${_C_DIM}(default for vibe-coder, hobbyist)${_C_RST}\n"
+  printf "\n${_C_BOLD}Permission presets:${_C_RST}\n"
+  printf "  ${_C_BOLD}ask-before-changes${_C_RST}   Read-only auto-approved\n"
+  printf "  ${_C_BOLD}auto-edit${_C_RST}            Read + write auto-approved\n"
+  printf "  ${_C_BOLD}full-autonomy${_C_RST}        Dev commands auto-approved ${_C_DIM}(recommended)${_C_RST}\n"
 }

@@ -68,7 +68,7 @@ Claude Code reads instructions, but doesn't always follow them. Through empirica
 
 ```bash
 git clone https://github.com/nickt92/claude-code-forge.git
-cd claude-code-forge && ./install.sh      # Interactive persona wizard
+cd claude-code-forge && ./install.sh      # Persona + permissions wizard
 
 # Add forge to your PATH (add to ~/.zshrc or ~/.bashrc for persistence)
 export PATH="$HOME/.claude/bin:$PATH"
@@ -222,7 +222,7 @@ forge doctor --json
 
 ### forge permissions
 
-Three-tier permission presets controlling what Claude can do without prompting.
+Three-tier permission presets controlling what Claude can do without prompting. Selected during install; change anytime with `forge permissions`.
 
 ```bash
 forge permissions                          # Show current preset
