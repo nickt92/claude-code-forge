@@ -17,7 +17,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **850+ Tests**
+**`forge` CLI** · **Desktop App (Beta)** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **850+ Tests**
 
 </div>
 
@@ -125,8 +125,8 @@ Or run `forge build` to create your own persona from the 4 behavioral axes.
 ### Scales With You
 3 plugin groups (6 → 16 → 18), 3 permission presets (ask first → auto-edit → full autonomy), per-project config, document chain support.
 
-### Desktop App (macOS)
-Native menu bar app with dashboard, audit detail, hook telemetry, persona switcher, Claude-powered onboarding, and doctor diagnostics.
+### Desktop App (macOS, Beta)
+Native menu bar app with dashboard, audit detail, hook telemetry, persona switcher, Claude-powered onboarding, and doctor diagnostics. Build from source if you clone the repo.
 
 ### 850+ Tests
 697 CLI (bats-core) + 162 Swift, cross-platform on every push via GitHub Actions.
@@ -192,6 +192,7 @@ Run `forge <command> --help` for command-specific options.
 forge install                              # Interactive wizard
 forge install --profile senior-engineer   # Non-interactive
 forge install --plugins minimal           # Override plugin group
+forge install --permissions full-autonomy # Set permission preset
 forge install --reconfigure               # Re-run persona wizard
 forge install --uninstall                 # Remove forge, restore backups
 forge install --check                     # Health checks only (no changes)
@@ -420,7 +421,9 @@ your-project/
 </details>
 
 <details>
-<summary><strong>Desktop App (macOS)</strong></summary>
+<summary><strong>Desktop App (macOS, Beta)</strong></summary>
+
+> **Beta:** The desktop app is functional but still under active development. Expect rough edges. It will ship as a packaged release in a future major version.
 
 A native macOS menu bar app (SwiftUI, macOS 14+) with forge brand identity:
 
@@ -437,8 +440,17 @@ A native macOS menu bar app (SwiftUI, macOS 14+) with forge brand identity:
 
 The app shells out to the `forge` CLI and parses JSON. It does not duplicate CLI logic.
 
+**Requirements:** macOS 14+, Xcode 15+, forge CLI installed
+
 ```bash
+# Clone the repo (the app is not included in the CLI install)
+git clone https://github.com/nickt92/claude-code-forge.git
+cd claude-code-forge
+
+# Build and run
 cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean build
+
+# The built app will be in DerivedData — or open ForgeDesktop.xcodeproj in Xcode and hit ⌘R
 ```
 
 </details>
