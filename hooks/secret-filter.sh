@@ -14,7 +14,10 @@
 #   - Slack tokens (xoxb-, xoxp-, etc.)
 #   - NPM tokens (npm_...)
 #   - Bearer tokens
-#   - Private keys (PEM)
+#   - Private keys (PEM and OpenSSH)
+#   - Database connection URLs with credentials
+#   - JWT tokens
+#   - Stripe keys (sk_live_, pk_live_)
 #   - Generic KEY/SECRET/TOKEN/PASSWORD env assignments
 #
 # Exit code: Always 0 (advisory only)
@@ -28,10 +31,19 @@
 [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* ]] && jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 
 INPUT=$(cat)
+_HOOK_START=$SECONDS
+_SF_TMPDIR="${TMPDIR:-/tmp}"
+
+_sf_log() {
+  local dur=$(( (SECONDS - _HOOK_START) * 1000 ))
+  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "${_SF_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
+  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
+}
+
 TOOL_RESPONSE=$(echo "$INPUT" | jq -r '.tool_response // empty')
 
 # No response to scan
-[ -z "$TOOL_RESPONSE" ] && exit 0
+[ -z "$TOOL_RESPONSE" ] && { _sf_log allow; exit 0; }
 
 # ── Pattern matching ──────────────────────────────────────────
 DETECTED=""
@@ -74,13 +86,33 @@ if echo "$TOOL_RESPONSE" | grep -qE '\-{5}BEGIN.*PRIVATE KEY\-{5}'; then
   DETECTED="${DETECTED}private key, "
 fi
 
+# Database connection strings with embedded credentials
+if echo "$TOOL_RESPONSE" | grep -qE '(postgres|mysql|mongodb(\+srv)?|redis|amqp)://[^[:space:]]+:[^[:space:]]+@'; then
+  DETECTED="${DETECTED}database URL with credentials, "
+fi
+
+# JWT tokens (three base64 segments separated by dots)
+if echo "$TOOL_RESPONSE" | grep -qE 'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'; then
+  DETECTED="${DETECTED}JWT token, "
+fi
+
+# OpenSSH private keys
+if echo "$TOOL_RESPONSE" | grep -qF 'BEGIN OPENSSH PRIVATE KEY'; then
+  DETECTED="${DETECTED}OpenSSH private key, "
+fi
+
+# Stripe secret keys
+if echo "$TOOL_RESPONSE" | grep -qE '(sk|pk|rk)_live_[A-Za-z0-9]{10,}'; then
+  DETECTED="${DETECTED}Stripe key, "
+fi
+
 # Generic env-style secrets (require 1+ prefix chars to avoid bare keyword matches)
 if echo "$TOOL_RESPONSE" | grep -qE '[A-Z_]+(KEY|SECRET|TOKEN|PASSWORD)=[^[:space:]]{16,}'; then
   DETECTED="${DETECTED}env secret, "
 fi
 
 # No secrets found — pass through silently
-[ -z "$DETECTED" ] && exit 0
+[ -z "$DETECTED" ] && { _sf_log allow; exit 0; }
 
 # Trim trailing comma-space
 DETECTED="${DETECTED%, }"
@@ -99,4 +131,4 @@ jq -n --arg types "$DETECTED" '{
   }
 }'
 
-exit 0
+_sf_log detect; exit 0

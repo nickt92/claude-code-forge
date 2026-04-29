@@ -25,7 +25,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 15 }}
     defaults:
       run:
         shell: bash

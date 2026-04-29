@@ -9,6 +9,9 @@
     "workflow": "standard",
     "depth": "practical"
   },
-  "quality": ["core"],
-  "default_plugin_group": "standard"
+  "quality": [
+    "core"
+  ],
+  "default_plugin_group": "standard",
+  "planning_enforcement": "nudge"
 }

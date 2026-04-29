@@ -198,6 +198,250 @@ LOG
   refute_output --partial "Security Events"
 }
 
+# ── Session Scorecard ────────────────────────────────────────
+
+@test "stats --session shows no-events when log missing" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --session
+  assert_success
+  assert_output --partial "No session events"
+}
+
+@test "stats --session shows scorecard from session log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local session_log="${TMPDIR:-/tmp}/forge-session-log-${PPID}"
+  cat > "$session_log" <<'LOG'
+1700000000|session-init|5|allow
+1700000001|architect-gate|2|allow
+1700000002|command-guard|1|block
+1700000003|architect-gate|3|allow
+1700000004|secret-filter|4|detect
+LOG
+
+  run cmd_stats --session
+  assert_success
+  assert_output --partial "5"
+  assert_output --partial "session-init"
+  assert_output --partial "Blocked"
+  rm -f "$session_log"
+}
+
+@test "stats --session shows only session section" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --session
+  assert_success
+  assert_output --partial "Session Scorecard"
+  refute_output --partial "Installation"
+}
+
+# ── Hook Telemetry ──────────────────────────────────────────
+
+@test "stats --hooks shows no-telemetry when log missing" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --hooks
+  assert_success
+  assert_output --partial "No hook telemetry"
+}
+
+@test "stats --hooks shows telemetry from log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now
+  now=$(date +%s)
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${now}|session-init|5|allow
+${now}|architect-gate|10|allow
+${now}|command-guard|3|block
+${now}|architect-gate|8|allow
+LOG
+
+  run cmd_stats --hooks
+  assert_success
+  assert_output --partial "4"
+  assert_output --partial "session-init"
+  assert_output --partial "Block rate"
+}
+
+@test "stats --hooks shows only hooks section" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --hooks
+  assert_success
+  assert_output --partial "Hook Telemetry"
+  refute_output --partial "Installation"
+}
+
+@test "stats --hooks rotates entries older than 30 days" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now old_ts
+  now=$(date +%s)
+  old_ts=$(( now - 3000000 ))  # ~35 days ago
+
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${old_ts}|session-init|5|allow
+${now}|architect-gate|10|allow
+LOG
+
+  run cmd_stats --hooks
+  assert_success
+  # After rotation, only 1 entry should remain
+  local remaining
+  remaining=$(wc -l < "$CLAUDE_DIR/hook-telemetry.log" | tr -d ' ')
+  [ "$remaining" -eq 1 ]
+}
+
+@test "stats --hooks computes average duration" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now
+  now=$(date +%s)
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${now}|hook-a|10|allow
+${now}|hook-b|20|allow
+LOG
+
+  run cmd_stats --hooks
+  assert_success
+  assert_output --partial "15ms"
+}
+
+@test "stats --hooks shows block rate percentage" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now
+  now=$(date +%s)
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${now}|a|1|allow
+${now}|b|1|block
+${now}|c|1|allow
+${now}|d|1|allow
+LOG
+
+  run cmd_stats --hooks
+  assert_success
+  assert_output --partial "25%"
+  assert_output --partial "1/4"
+}
+
+# ── JSON Output ─────────────────────────────────────────────
+
+@test "stats --hooks --json outputs valid JSON with empty log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --hooks --json
+  assert_success
+  echo "$output" | jq . >/dev/null 2>&1
+  [ $? -eq 0 ]
+  echo "$output" | jq -e '.total_invocations == 0' >/dev/null
+}
+
+@test "stats --hooks --json outputs by_hook and block_rate" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local now
+  now=$(date +%s)
+  cat > "$CLAUDE_DIR/hook-telemetry.log" <<LOG
+${now}|session-init|5|allow
+${now}|architect-gate|10|allow
+${now}|command-guard|3|block
+${now}|architect-gate|8|allow
+LOG
+
+  run cmd_stats --hooks --json
+  assert_success
+  echo "$output" | jq -e '.total_invocations == 4' >/dev/null
+  echo "$output" | jq -e '.block_rate == 25' >/dev/null
+  echo "$output" | jq -e '.avg_duration_ms > 0' >/dev/null
+  echo "$output" | jq -e '.by_hook | length > 0' >/dev/null
+}
+
+@test "stats --session --json outputs valid JSON with empty log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --session --json
+  assert_success
+  echo "$output" | jq -e '.total_events == 0' >/dev/null
+}
+
+@test "stats --session --json outputs outcomes from session log" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  local session_log="${TMPDIR:-/tmp}/forge-session-log-${PPID}"
+  cat > "$session_log" <<'LOG'
+1700000000|session-init|5|allow
+1700000001|architect-gate|2|allow
+1700000002|command-guard|1|block
+1700000003|architect-gate|3|allow
+1700000004|secret-filter|4|detect
+LOG
+
+  run cmd_stats --session --json
+  assert_success
+  echo "$output" | jq -e '.total_events == 5' >/dev/null
+  echo "$output" | jq -e '.blocks == 1' >/dev/null
+  echo "$output" | jq -e '.allows == 3' >/dev/null
+  echo "$output" | jq -e '.detects == 1' >/dev/null
+  rm -f "$session_log"
+}
+
+@test "stats --json outputs combined hooks and session object" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --json
+  assert_success
+  echo "$output" | jq -e '.hooks' >/dev/null
+  echo "$output" | jq -e '.session' >/dev/null
+  echo "$output" | jq -e '.hooks.total_invocations == 0' >/dev/null
+  echo "$output" | jq -e '.session.total_events == 0' >/dev/null
+}
+
+@test "stats --json skips banner and human-readable output" {
+  create_test_manifest_v2 "senior-engineer"
+  create_test_profile "senior-engineer"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats --json
+  assert_success
+  refute_output --partial "Stats"
+  refute_output --partial "Installation"
+  # Output should be parseable JSON
+  echo "$output" | jq . >/dev/null 2>&1
+  [ $? -eq 0 ]
+}
+
 # ── Helper Functions ─────────────────────────────────────────
 
 @test "format_bytes converts bytes to human-readable" {

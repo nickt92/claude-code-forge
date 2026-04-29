@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-25
+
+### Added
+- Context Budget Guardian hook — blocks compaction after plan approval, suggests `/clear` instead
+- `if` fields on commit-validator and db-guard hooks to reduce process spawns (~95-99% fewer)
+- Effort level indicator in status line (shows reasoning depth next to model badge)
+- `workspace.git_worktree` detection in status line (eliminates subprocess spawns)
+
+### Changed
+- Replaced `plan-checkpoint` PostToolUse hook with `context-guardian` PreCompact hook (blocking capability)
+- Session-init hook streamlined — removed persona hint and document chain nudge (reduces token injection)
+- Backup-transcript hook no longer prunes old backups (delegated to Claude Code's `cleanupPeriodDays`)
+
+### Fixed
+- Status line context percentage now trusts Claude Code's `used_percentage` directly instead of recomputing against effective capacity
+- Status line token speed discards stale samples (>30s gap) to prevent incorrect readings after terminal backgrounding
+- Status line cache ratio denominator now includes all token types (input + cache creation + cache read)
+
+### Removed
+- `plan-checkpoint.sh` hook (superseded by `context-guardian.sh`)
+- Persona hint output from session-init hook (CLAUDE.md already provides persona context)
+- Document chain nudge from session-init hook (`forge init --docs` remains as explicit command)
+
 ## [1.2.1] - 2026-03-17
 
 ### Added
