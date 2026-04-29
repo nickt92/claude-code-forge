@@ -28,10 +28,21 @@
         "Bash(git blame:*)", "Bash(git rev-parse:*)",
         "Bash(git ls-files:*)", "Bash(git describe:*)",
         "Bash(git shortlog:*)",
+        "Bash(git remote -v:*)", "Bash(git stash list:*)",
+        "Bash(git tag -l:*)", "Bash(git config --get:*)",
+        "Bash(git ls-remote:*)", "Bash(git cat-file:*)",
+        "Bash(git reflog:*)",
 
         "Bash(command:*)", "Bash(test:*)",
         "Bash(printf:*)", "Bash(seq:*)", "Bash(sleep:*)",
         "Bash(md5sum:*)", "Bash(shasum:*)", "Bash(sha256sum:*)",
+
+        "Bash(env:*)", "Bash(printenv:*)",
+        "Bash(readlink:*)",
+        "Bash(tac:*)", "Bash(column:*)", "Bash(nl:*)",
+        "Bash(strings:*)", "Bash(base64:*)", "Bash(xxd:*)",
+        "Bash(ldd:*)", "Bash(getconf:*)", "Bash(locale:*)",
+        "Bash(sw_vers:*)", "Bash(open:*)", "Bash(xdg-open:*)",
 
         "Bash(systemctl status:*)", "Bash(journalctl:*)"
       ]
@@ -69,7 +80,7 @@
         "Bash(pip:*)", "Bash(pip3:*)", "Bash(uv:*)", "Bash(poetry:*)",
         "Bash(pdm:*)", "Bash(pipx:*)", "Bash(hatch:*)",
         "Bash(cargo:*)", "Bash(rustup:*)", "Bash(rustc:*)",
-        "Bash(go:*)", "Bash(golangci-lint:*)",
+        "Bash(go:*)",
         "Bash(swift:*)", "Bash(xcodebuild:*)",
         "Bash(gem:*)", "Bash(bundle:*)", "Bash(ruby:*)", "Bash(rake:*)",
         "Bash(composer:*)", "Bash(php:*)",
@@ -114,9 +125,21 @@
         "Bash(docker build:*)", "Bash(docker ps:*)", "Bash(docker logs:*)",
         "Bash(docker images:*)", "Bash(docker compose:*)",
         "Bash(docker exec:*)", "Bash(docker stop:*)",
+        "Bash(docker inspect:*)", "Bash(docker network:*)",
+        "Bash(docker volume:*)", "Bash(docker info:*)",
+        "Bash(docker version:*)", "Bash(docker top:*)",
+        "Bash(docker stats:*)", "Bash(docker diff:*)",
+        "Bash(docker history:*)", "Bash(docker port:*)",
+        "Bash(docker cp:*)", "Bash(docker tag:*)",
+        "Bash(docker pull:*)", "Bash(docker push:*)",
+        "Bash(docker login:*)",
+        "Bash(docker buildx:*)",
+
+        "Bash(./:*)",
 
         "Bash(gh:*)",
         "Bash(helm:*)",
+        "Bash(kubectl:*)",
 
         "Bash(brew:*)",
         "Bash(apt:*)", "Bash(apt-get:*)",
@@ -127,6 +150,39 @@
 
         "Bash(tar:*)", "Bash(zip:*)", "Bash(unzip:*)",
         "Bash(gzip:*)", "Bash(gunzip:*)",
+
+        "Bash(aws:*)", "Bash(gcloud:*)", "Bash(az:*)",
+
+        "Bash(sam:*)", "Bash(cdk:*)",
+        "Bash(serverless:*)", "Bash(sls:*)",
+        "Bash(terraform init:*)", "Bash(terraform plan:*)",
+        "Bash(terraform show:*)", "Bash(terraform validate:*)",
+        "Bash(terraform fmt:*)", "Bash(terraform output:*)",
+        "Bash(terraform state:*)",
+        "Bash(pulumi preview:*)", "Bash(pulumi stack:*)",
+        "Bash(pulumi config:*)",
+
+        "Bash(ansible:*)", "Bash(ansible-inventory:*)",
+        "Bash(ansible-vault:*)",
+
+        "Bash(psql:*)", "Bash(mysql:*)", "Bash(mongosh:*)",
+        "Bash(redis-cli:*)", "Bash(sqlite3:*)",
+
+        "Bash(heroku:*)", "Bash(fly:*)", "Bash(railway:*)",
+        "Bash(vercel:*)", "Bash(netlify:*)", "Bash(wrangler:*)",
+
+        "Bash(act:*)",
+
+        "Bash(pbcopy:*)", "Bash(pbpaste:*)",
+
+        "Bash(lsof:*)",
+
+        "Bash(dig:*)", "Bash(nslookup:*)", "Bash(host:*)",
+        "Bash(ping:*)", "Bash(traceroute:*)",
+
+        "Bash(nix:*)", "Bash(nix-shell:*)", "Bash(nix-build:*)",
+
+        "Bash(ssh-keygen:*)", "Bash(ssh-add:*)",
 
         "WebFetch", "WebSearch"
       ]
