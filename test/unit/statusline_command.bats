@@ -351,7 +351,7 @@ SCRIPT
   local repo="$TEST_SANDBOX/wt-fallback"
   mkdir -p "$repo"
   git -C "$repo" init -q
-  git -C "$repo" commit --allow-empty -m "init" -q
+  git -C "$repo" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" -q
 
   local json
   json=$(jq -n --arg dir "$repo" '{
@@ -369,7 +369,7 @@ SCRIPT
   local repo="$TEST_SANDBOX/wt-repo"
   mkdir -p "$repo"
   git -C "$repo" init -q
-  git -C "$repo" commit --allow-empty -m "init" -q
+  git -C "$repo" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" -q
 
   local json
   json=$(jq -n --arg dir "$repo" '{
