@@ -211,9 +211,9 @@ forge permissions --json
 
 | Preset | Rules | What's Auto-Approved |
 |:-------|------:|:---------------------|
-| **Ask Before Changes** | 60 | File reading, code search, git inspection |
-| **Auto-Edit** | 70 | Everything above + file creation/editing |
-| **Full Autonomy** | 223 | Everything above + git, package managers, compilers, Docker, GitHub CLI |
+| **Ask Before Changes** | 82 | File reading, code search, git inspection |
+| **Auto-Edit** | 94 | Everything above + file creation/editing |
+| **Full Autonomy** | 308 | Everything above + git, package managers, compilers, Docker, GitHub CLI |
 
 All tiers exclude destructive operations. The command-guard hook provides runtime enforcement.
 
