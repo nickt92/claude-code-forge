@@ -41,27 +41,6 @@ Claude Code reads instructions, but doesn't always follow them. Through empirica
 
 **Focused, tested CLAUDE.md.** Assembled under 200 lines from imperative, empirically-tested sections. No fluff. No ignored content.
 
-<div align="center">
-<table>
-<tr>
-<td><img src=".github/screenshots/dashboard.png" width="400" alt="Dashboard"></td>
-<td><img src=".github/screenshots/audit-detail.png" width="400" alt="Audit Detail"></td>
-</tr>
-<tr>
-<td align="center"><em>Dashboard: health scores across all repos</em></td>
-<td align="center"><em>Audit: quality metrics and auto-fix</em></td>
-</tr>
-<tr>
-<td><img src=".github/screenshots/statusline.png" width="400" alt="Status Line"></td>
-<td><img src=".github/screenshots/persona-switcher.png" width="400" alt="Persona Switcher"></td>
-</tr>
-<tr>
-<td align="center"><em>Status line: 5 zones, 20+ metrics</em></td>
-<td align="center"><em>Personas: switch anytime, same quality</em></td>
-</tr>
-</table>
-</div>
-
 ## Quick Start
 
 **Prerequisites:** [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), `jq` (`brew install jq`), macOS / Linux / Windows ([Git Bash](https://gitforwindows.org/))
