@@ -120,7 +120,7 @@ cmd_install() {
           plugin_list=$(resolve_plugin_list "$plugin_group_for_uninstall")
           while IFS= read -r plugin; do
             [ -n "$plugin" ] || continue
-            claude plugins remove "$plugin" </dev/null 2>/dev/null || true
+            claude plugin uninstall "$plugin" --scope user </dev/null 2>/dev/null || true
           done <<< "$plugin_list"
           ok "Plugins removed"
         fi

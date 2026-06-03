@@ -123,3 +123,87 @@ teardown() {
   # Should not crash
   assert_success
 }
+
+# ── Install invocation contract (regression guard) ───────────
+# Locks the exact CLI flow against the current Claude Code: marketplaces are
+# registered first via `plugin marketplace add <source>`, then plugins are
+# installed via `plugin install <name>@<marketplace> --scope user`. The dead
+# `claude plugins add` verb must never reappear.
+
+@test "install_plugins registers marketplaces then installs with --scope user" {
+  CLAUDE_CALLS="$BATS_TEST_TMPDIR/calls"
+  : > "$CLAUDE_CALLS"
+
+  # Capturing mock: record argv, report no pre-existing marketplaces.
+  claude() { printf '%s\n' "$*" >> "$CLAUDE_CALLS"; return 0; }
+  progress_start() { :; }
+  progress_tick() { :; }
+  progress_done() { :; }
+
+  install_plugins "backend-development@claude-code-workflows
+context7@claude-plugins-official"
+
+  # Marketplace sources came from templates/marketplaces.json, not repo paths.
+  grep -qF "plugin marketplace add wshobson/agents" "$CLAUDE_CALLS"
+  grep -qF "plugin marketplace add anthropics/claude-plugins-official" "$CLAUDE_CALLS"
+
+  # Installs use name@marketplace and explicit user scope.
+  grep -qF "plugin install backend-development@claude-code-workflows --scope user" "$CLAUDE_CALLS"
+  grep -qF "plugin install context7@claude-plugins-official --scope user" "$CLAUDE_CALLS"
+
+  # The removed verb must never be used again.
+  refute grep -qE "plugins add|plugin add " "$CLAUDE_CALLS"
+
+  # Every marketplace add precedes every install (no fan-out race).
+  local last_add first_install
+  last_add=$(grep -n "marketplace add" "$CLAUDE_CALLS" | tail -1 | cut -d: -f1)
+  first_install=$(grep -n "plugin install" "$CLAUDE_CALLS" | head -1 | cut -d: -f1)
+  assert [ "$last_add" -lt "$first_install" ]
+}
+
+@test "install_plugins skips adding an already-registered marketplace" {
+  CLAUDE_CALLS="$BATS_TEST_TMPDIR/calls"
+  : > "$CLAUDE_CALLS"
+
+  # Mock reports the workflows marketplace as already present.
+  claude() {
+    printf '%s\n' "$*" >> "$CLAUDE_CALLS"
+    case "$*" in
+      *"marketplace list"*) echo "  ❯ claude-code-workflows" ;;
+    esac
+    return 0
+  }
+  progress_start() { :; }
+  progress_tick() { :; }
+  progress_done() { :; }
+
+  install_plugins "backend-development@claude-code-workflows"
+
+  refute grep -qF "marketplace add" "$CLAUDE_CALLS"
+  grep -qF "plugin install backend-development@claude-code-workflows --scope user" "$CLAUDE_CALLS"
+}
+
+@test "install_plugins surfaces real failure reason instead of silent skip" {
+  # Multiline stderr (as a Node CLI emits) must be flattened so the failed
+  # plugin id and reason stay on a single, readable line.
+  claude() {
+    case "$*" in
+      *"marketplace list"*) return 0 ;;
+      *"marketplace add"*) return 0 ;;
+      *"install backend-development"*) printf 'network unreachable\n  at fetch (node:internal)\n' >&2; return 1 ;;
+      *"install"*) return 0 ;;
+    esac
+  }
+  progress_start() { :; }
+  progress_tick() { :; }
+  progress_done() { echo "DONE: $*"; }
+  warn() { echo "WARN: $*"; }
+
+  run install_plugins "backend-development@claude-code-workflows
+context7@claude-plugins-official"
+
+  assert_success
+  assert_output --partial "DONE: 1 plugins installed (1 failed)"
+  # Plugin id and reason on ONE line — would split across lines without flattening.
+  assert_line --partial "✗ backend-development@claude-code-workflows: network unreachable"
+}
