@@ -32,6 +32,13 @@ _marketplace_source() {
   jq -r --arg n "$name" '.[$n] // empty' "$MARKETPLACES_FILE" 2>/dev/null
 }
 
+# True if marketplace <name> ($2) appears in `claude plugin marketplace list`
+# output ($1). Matches the "❯ <name>" line shape, not a bare substring, so a
+# name cannot false-match inside another marketplace's Source URL.
+_marketplace_listed() {
+  printf '%s\n' "$1" | grep -qE "❯[[:space:]]+$2([[:space:]]|\$)"
+}
+
 # Resolve a plugin group name to a newline-separated list of plugin identifiers.
 # Falls back to "full" if group not found.
 resolve_plugin_list() {
@@ -92,28 +99,42 @@ install_plugins() {
 
   # ── Phase 1: register required marketplaces (sequential, before fan-out) ──
   # mkt_failed accumulates "marketplace<TAB>reason" lines; dependent plugins
-  # are failed without an install attempt.
-  local mkt_failed=""
+  # are failed without an install attempt. attempted tracks names we ran
+  # `marketplace add` for, so registration can be verified afterward.
+  local mkt_failed="" attempted="" required_marketplaces
   local existing_marketplaces mkt source err
+  required_marketplaces="$(printf '%s\n' "${plugins[@]}" | sed 's/.*@//' | sort -u)"
   existing_marketplaces="$(claude plugin marketplace list 2>/dev/null || true)"
 
   while IFS= read -r mkt; do
     [ -n "$mkt" ] || continue
-    # Already registered? Idempotent success. Match the "❯ <name>" line shape
-    # rather than a bare substring, which could collide with a Source URL.
-    if printf '%s\n' "$existing_marketplaces" | grep -qE "❯[[:space:]]+${mkt}([[:space:]]|\$)"; then
-      continue
-    fi
+    # Already registered? Idempotent success.
+    _marketplace_listed "$existing_marketplaces" "$mkt" && continue
     source="$(_marketplace_source "$mkt")"
     if [ -z "$source" ]; then
       mkt_failed+="${mkt}"$'\t'"no source mapping in marketplaces.json"$'\n'
       continue
     fi
     # Flatten multiline CLI errors so the awk field-2 lookup stays single-line.
-    if ! err="$(claude plugin marketplace add "$source" </dev/null 2>&1)"; then
+    if err="$(claude plugin marketplace add "$source" </dev/null 2>&1)"; then
+      attempted+="${mkt}"$'\n'
+    else
       mkt_failed+="${mkt}"$'\t'"marketplace add failed: $(printf '%s' "$err" | tr '\n' ' ')"$'\n'
     fi
-  done <<< "$(printf '%s\n' "${plugins[@]}" | sed 's/.*@//' | sort -u)"
+  done <<< "$required_marketplaces"
+
+  # Fail-fast: confirm each freshly-added marketplace registered under the
+  # expected name. A source can resolve to a different marketplace name than
+  # the plugin ids expect (the name comes from the repo's marketplace.json) —
+  # catch it here as one clear error instead of N cryptic install failures.
+  if [ -n "$attempted" ]; then
+    existing_marketplaces="$(claude plugin marketplace list 2>/dev/null || true)"
+    while IFS= read -r mkt; do
+      [ -n "$mkt" ] || continue
+      _marketplace_listed "$existing_marketplaces" "$mkt" && continue
+      mkt_failed+="${mkt}"$'\t'"added but not listed under expected name (source resolved to a different marketplace name)"$'\n'
+    done <<< "$attempted"
+  fi
 
   # ── Phase 2: install plugins (parallel) ──
   local -a pids=()
@@ -153,9 +174,11 @@ install_plugins() {
     fi
   done
 
-  # Wait for remaining
+  # Wait for remaining. Guard the expansion: when every plugin was failed in
+  # Phase 1 (e.g. all marketplaces unresolved), no install was spawned and
+  # `pids` is empty — and `"${pids[@]}"` would abort under `set -u` (bash 3.2).
   local pid
-  for pid in "${pids[@]}"; do
+  for pid in ${pids[@]+"${pids[@]}"}; do
     wait "$pid" 2>/dev/null || true
     progress_tick
   done
