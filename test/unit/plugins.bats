@@ -132,10 +132,12 @@ teardown() {
 
 # Stateful `claude` mock for install_plugins tests:
 #   - records argv to $CLAUDE_CALLS
-#   - `marketplace add <source>` makes the mapped marketplace NAME appear in
-#     subsequent `marketplace list` output (mirrors real source->name
-#     resolution) — unless $MOCK_ADD_NO_REGISTER is set (simulates a source
-#     that resolves to an unexpected name)
+#   - `marketplace list --json` emits a JSON array of registered marketplaces
+#     (one {"name": ...} per name recorded in $MKT_STATE), matching the real
+#     CLI's machine-readable output
+#   - `marketplace add <source>` records the mapped marketplace NAME (mirrors
+#     real source->name resolution) — unless $MOCK_ADD_NO_REGISTER is set
+#     (simulates a source that resolves to an unexpected name)
 #   - `plugin install <plugin>` fails with multiline stderr when $* matches
 #     the substring in $MOCK_INSTALL_FAIL
 # Also stubs progress_*/warn so output is deterministic.
@@ -150,12 +152,13 @@ mock_claude() {
     printf '%s\n' "$*" >> "$CLAUDE_CALLS"
     case "$*" in
       *"marketplace list"*)
-        cat "$MKT_STATE" ;;
+        # JSON array of {"name": ...} from the recorded names.
+        jq -R -s 'split("\n") | map(select(length > 0)) | map({name: .})' "$MKT_STATE" ;;
       *"marketplace add "*)
         [ -n "${MOCK_ADD_NO_REGISTER:-}" ] && return 0
         case "$*" in
-          *"wshobson/agents"*) echo "  ❯ claude-code-workflows" >> "$MKT_STATE" ;;
-          *"anthropics/claude-plugins-official"*) echo "  ❯ claude-plugins-official" >> "$MKT_STATE" ;;
+          *"wshobson/agents"*) echo "claude-code-workflows" >> "$MKT_STATE" ;;
+          *"anthropics/claude-plugins-official"*) echo "claude-plugins-official" >> "$MKT_STATE" ;;
         esac ;;
       *"plugin install "*)
         if [ -n "${MOCK_INSTALL_FAIL:-}" ]; then
@@ -195,7 +198,7 @@ context7@claude-plugins-official"
 @test "install_plugins skips adding an already-registered marketplace" {
   mock_claude
   # Pre-register the workflows marketplace.
-  echo "  ❯ claude-code-workflows" > "$MKT_STATE"
+  echo "claude-code-workflows" > "$MKT_STATE"
 
   install_plugins "backend-development@claude-code-workflows"
 

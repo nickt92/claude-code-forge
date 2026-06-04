@@ -32,11 +32,13 @@ _marketplace_source() {
   jq -r --arg n "$name" '.[$n] // empty' "$MARKETPLACES_FILE" 2>/dev/null
 }
 
-# True if marketplace <name> ($2) appears in `claude plugin marketplace list`
-# output ($1). Matches the "❯ <name>" line shape, not a bare substring, so a
-# name cannot false-match inside another marketplace's Source URL.
+# True if marketplace <name> ($2) is present in the JSON array emitted by
+# `claude plugin marketplace list --json` ($1). Parsing machine-readable
+# output (not the human "❯ <name>" text) means a cosmetic change to the CLI's
+# display format cannot silently break registration detection.
 _marketplace_listed() {
-  printf '%s\n' "$1" | grep -qE "❯[[:space:]]+$2([[:space:]]|\$)"
+  [ -n "$1" ] || return 1
+  printf '%s' "$1" | jq -e --arg n "$2" 'any(.[]?; .name == $n)' >/dev/null 2>&1
 }
 
 # Resolve a plugin group name to a newline-separated list of plugin identifiers.
@@ -104,7 +106,7 @@ install_plugins() {
   local mkt_failed="" attempted="" required_marketplaces
   local existing_marketplaces mkt source err
   required_marketplaces="$(printf '%s\n' "${plugins[@]}" | sed 's/.*@//' | sort -u)"
-  existing_marketplaces="$(claude plugin marketplace list 2>/dev/null || true)"
+  existing_marketplaces="$(claude plugin marketplace list --json 2>/dev/null || true)"
 
   while IFS= read -r mkt; do
     [ -n "$mkt" ] || continue
@@ -128,7 +130,7 @@ install_plugins() {
   # the plugin ids expect (the name comes from the repo's marketplace.json) —
   # catch it here as one clear error instead of N cryptic install failures.
   if [ -n "$attempted" ]; then
-    existing_marketplaces="$(claude plugin marketplace list 2>/dev/null || true)"
+    existing_marketplaces="$(claude plugin marketplace list --json 2>/dev/null || true)"
     while IFS= read -r mkt; do
       [ -n "$mkt" ] || continue
       _marketplace_listed "$existing_marketplaces" "$mkt" && continue

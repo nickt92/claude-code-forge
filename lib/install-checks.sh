@@ -69,6 +69,9 @@ _install_run_health_checks() {
     fi
     local plugin_count
     plugin_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
+    # Permissive floor pending 1.4.0: the template enables the 'full' set
+    # regardless of the chosen group, so this only sanity-checks that plugins
+    # were enabled at all — not that they match the installed group.
     if [ "$plugin_count" -ge 5 ]; then
       ((health_pass++))
     elif [ "$plugin_count" -gt 0 ]; then

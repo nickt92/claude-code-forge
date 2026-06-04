@@ -242,6 +242,11 @@ cmd_doctor() {
     expected_count=$(echo "$expected_plugins" | grep -c . || echo 0)
     actual_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
 
+    # NOTE: permissive >= comparison is intentional pending 1.4.0. The template
+    # statically enables the 'full' set regardless of the installed group, so a
+    # minimal/standard install reports more enabled than expected. When 1.4.0
+    # makes enabledPlugins group-derived, switch this to a set-membership check
+    # (actual enabled vs the expected group) rather than a bare count.
     if [ "$actual_count" -ge "$expected_count" ]; then
       [ "$json_output" != true ] && ok "$actual_count plugins enabled (group: $installed_group)"; ((pass++))
       _doctor_add_check "plugins" "Plugins enabled" "pass" "$actual_count plugins (group: $installed_group)"
