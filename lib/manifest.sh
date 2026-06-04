@@ -17,7 +17,7 @@
 #
 # All internal helpers are prefixed _manifest_.
 
-FORGE_VERSION="${FORGE_VERSION:-1.3.0}"
+FORGE_VERSION="${FORGE_VERSION:-1.3.1}"
 MANIFEST_VERSION=2
 BACKUP_DIR="${CLAUDE_DIR}/forge-backup"
 MANIFEST_FILE="${BACKUP_DIR}/manifest.json"

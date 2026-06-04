@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-06-04
+
+### Fixed
+- Plugin installation now works with current Claude Code. `forge install` relied on a plugin command that newer Claude Code removed, so it silently installed no plugins and reported nothing wrong. Installation now registers each plugin's marketplace and installs through the current command, and surfaces the real reason when a plugin can't be installed instead of skipping it silently.
+
+### Changed
+- Plugin installation confirms each marketplace registered under its expected name before installing. If a marketplace source resolves to an unexpected name, you get one clear error up front instead of a string of confusing per-plugin failures.
+
 ## [1.3.0] - 2026-04-25
 
 ### Added

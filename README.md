@@ -11,7 +11,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 
 [![Tests](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml/badge.svg)](https://github.com/nickt92/claude-code-forge/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen?style=flat-square)](https://github.com/nickt92/claude-code-forge/releases)
+[![Version](https://img.shields.io/badge/version-1.3.1-brightgreen?style=flat-square)](https://github.com/nickt92/claude-code-forge/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational?style=flat-square)](#quick-start)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-%E2%89%A51.0-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
@@ -539,7 +539,7 @@ The forge's 4-phase workflow runs on **[agents](https://github.com/wshobson/agen
 
 ### Other Credits
 
-**[claude-code-plugins](https://github.com/anthropics/claude-code-plugins)** by Anthropic | `context7` (library docs) and `frontend-design` (UI/UX quality)
+**[claude-plugins-official](https://github.com/anthropics/claude-plugins-official)** by Anthropic | `context7` (library docs) and `frontend-design` (UI/UX quality)
 
 **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** by Anthropic
 
