@@ -22,7 +22,7 @@ public struct RepoDetailView: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.lg) {
                 header
                 if let score = repo.score {
                     scoreSection(score)
@@ -43,7 +43,7 @@ public struct RepoDetailView: View {
                     findingsSection(audit.findings)
                 }
             }
-            .padding(24)
+            .padding(ForgeTheme.Spacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(repo.name)
@@ -84,7 +84,7 @@ public struct RepoDetailView: View {
                             claudeMdPath: repo.claudeMdAudit?.locations.first,
                             onDismissed: { id in
                                 dismissalService.dismiss(repoPath: repo.path, findingId: id)
-                                withAnimation { _ = dismissedFindings.insert(id) }
+                                forgeWithAnimation { _ = dismissedFindings.insert(id) }
                                 claudeMdRefreshTrigger += 1
                             },
                             onContentChanged: { recomputeContentHash() },
@@ -109,77 +109,91 @@ public struct RepoDetailView: View {
     @State private var isRefreshingAudit = false
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(alignment: .center, spacing: ForgeTheme.Spacing.lg) {
             if let score = repo.score {
-                ScoreRing(score: score.total, grade: score.grade, size: 56)
+                ScoreRing(score: score.total, grade: score.grade, size: 64)
                     .id(repo.path)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(repo.name)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Button { SystemActions.openInFinder(path: repo.path) } label: {
-                            Label("Finder", systemImage: "folder")
-                        }
-                        .help("Open in Finder")
-
-                        Button { SystemActions.openInTerminal(path: repo.path) } label: {
-                            Label("Terminal", systemImage: "terminal")
-                        }
-                        .help("Open in Terminal")
-
-                        Button { SystemActions.openInEditor(path: repo.path) } label: {
-                            Label("Editor", systemImage: "chevron.left.forwardslash.chevron.right")
-                        }
-                        .help("Open in Editor")
-
-                        Menu {
-                            if repo.claudeMd.exists, claudeService.isAvailable {
-                                Button { showOnboarding = true } label: {
-                                    Label("Regenerate CLAUDE.md", systemImage: "sparkles")
-                                }
-                            }
-                            Button {
-                                isRefreshingAudit = true
-                                Task {
-                                    await refreshRepoAudit()
-                                    isRefreshingAudit = false
-                                }
-                            } label: {
-                                Label("Re-audit Repository", systemImage: "arrow.clockwise")
-                            }
-                            .disabled(isRefreshingAudit)
-                        } label: {
-                            if isRefreshingAudit {
-                                ProgressView()
-                                    .controlSize(.mini)
-                            } else {
-                                Label("More", systemImage: "ellipsis.circle")
-                            }
-                        }
-                        .help("Regenerate, re-audit, and more")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs) {
+                Text(repo.name)
+                    .font(ForgeTheme.Typography.screenTitle)
                 Text(repo.path)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(ForgeTheme.Typography.mono)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                 if repo.git.isRepo, !repo.git.branch.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: ForgeTheme.Spacing.xs) {
                         Image(systemName: "arrow.triangle.branch")
+                            .accessibilityHidden(true)
                         Text(repo.git.branch)
                     }
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("Branch \(repo.git.branch)")
                 }
+            }
+
+            Spacer(minLength: ForgeTheme.Spacing.sm)
+
+            HStack(spacing: ForgeTheme.Spacing.xs) {
+                Button { SystemActions.openInFinder(path: repo.path) } label: {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.forgeIcon)
+                .help("Open in Finder")
+                .accessibilityLabel("Open in Finder")
+
+                Button { SystemActions.openInTerminal(path: repo.path) } label: {
+                    Image(systemName: "terminal")
+                }
+                .buttonStyle(.forgeIcon)
+                .help("Open in Terminal")
+                .accessibilityLabel("Open in Terminal")
+
+                Button { SystemActions.openInEditor(path: repo.path) } label: {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                }
+                .buttonStyle(.forgeIcon)
+                .help("Open in Editor")
+                .accessibilityLabel("Open in Editor")
+
+                Menu {
+                    if repo.claudeMd.exists, claudeService.isAvailable {
+                        Button { showOnboarding = true } label: {
+                            Label("Regenerate CLAUDE.md", systemImage: "sparkles")
+                        }
+                    }
+                    Button {
+                        isRefreshingAudit = true
+                        Task {
+                            await refreshRepoAudit()
+                            isRefreshingAudit = false
+                        }
+                    } label: {
+                        Label("Re-audit Repository", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(isRefreshingAudit)
+                } label: {
+                    if isRefreshingAudit {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(
+                                width: ForgeTheme.Metrics.iconButtonSize,
+                                height: ForgeTheme.Metrics.iconButtonSize
+                            )
+                    } else {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(
+                                width: ForgeTheme.Metrics.iconButtonSize,
+                                height: ForgeTheme.Metrics.iconButtonSize
+                            )
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Regenerate, re-audit, and more")
+                .accessibilityLabel("More actions")
             }
         }
     }
@@ -187,10 +201,11 @@ public struct RepoDetailView: View {
     // MARK: - Score
 
     private func scoreSection(_ score: ScoreData) -> some View {
-        ForgeCard("Score Breakdown") {
+        ForgeCard("Score Breakdown", icon: "chart.bar.fill") {
             DimensionBars(dimensions: score.dimensions)
                 .id(repo.path)
         }
+        .staggeredReveal(index: 0)
     }
 
     // MARK: - Onboarding Card
@@ -200,27 +215,28 @@ public struct RepoDetailView: View {
     }
 
     private var onboardingCard: some View {
-        ForgeCard(repo.claudeMd.exists ? "Improve CLAUDE.md" : "Generate CLAUDE.md") {
-            VStack(alignment: .leading, spacing: 10) {
+        ForgeCard(
+            repo.claudeMd.exists ? "Improve CLAUDE.md" : "Generate CLAUDE.md",
+            icon: "sparkles"
+        ) {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
                 Text(repo.claudeMd.exists
                     ? "Your CLAUDE.md scored low. Regenerate it with Claude for comprehensive codebase analysis."
                     : "Analyze this codebase and generate a comprehensive CLAUDE.md with Claude.")
-                    .font(.system(size: 12))
+                    .font(ForgeTheme.Typography.body)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 8) {
+                HStack(spacing: ForgeTheme.Spacing.sm) {
                     Button {
                         showOnboarding = true
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: ForgeTheme.Spacing.xs) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11))
                             Text("Generate with Claude")
-                                .font(.system(size: 12, weight: .medium))
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .buttonStyle(.forgePrimary)
                     .disabled(!claudeService.isAvailable)
 
                     if !claudeService.isAvailable {
@@ -232,9 +248,11 @@ public struct RepoDetailView: View {
             }
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(.blue.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius)
+                .stroke(ForgeTheme.Gradients.forge, lineWidth: 1.5)
+                .opacity(0.5)
         )
+        .staggeredReveal(index: 1)
         .sheet(isPresented: $showOnboarding) {
             if let dashboard = forgeState.dashboard {
                 OnboardingView(
@@ -252,12 +270,10 @@ public struct RepoDetailView: View {
     // MARK: - Config
 
     private var configSection: some View {
-        ForgeCard("Configuration") {
+        ForgeCard("Configuration", icon: "slider.horizontal.3") {
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-            ], alignment: .leading, spacing: 10) {
+                GridItem(.adaptive(minimum: 140), spacing: ForgeTheme.Spacing.md),
+            ], alignment: .leading, spacing: ForgeTheme.Spacing.md) {
                 ConfigChip(label: "CLAUDE.md", value: repo.claudeMd.exists ? "\(repo.claudeMd.lines)L" : "—", ok: repo.claudeMd.exists)
                 ConfigChip(label: "Rules", value: "\(repo.rules.count)", ok: repo.rules.count > 0)
                 ConfigChip(label: "Hooks", value: repo.hooks.present ? "\(repo.hooks.count)" : "—", ok: repo.hooks.present)
@@ -266,12 +282,13 @@ public struct RepoDetailView: View {
                 ConfigChip(label: "ROADMAP", value: nil, ok: repo.docChain.roadmapMd)
             }
         }
+        .staggeredReveal(index: 2)
     }
 
     // MARK: - Audit
 
     private func auditSection(_ audit: AuditData) -> some View {
-        ForgeCard("CLAUDE.md Audit") {
+        ForgeCard("CLAUDE.md Audit", icon: "doc.text.magnifyingglass") {
             VStack(alignment: .leading, spacing: 12) {
                 // Coverage bar
                 HStack {
@@ -297,10 +314,12 @@ public struct RepoDetailView: View {
                 if !audit.sections.found.isEmpty || !audit.sections.missing.isEmpty {
                     FlowLayout(spacing: 5) {
                         ForEach(audit.sections.found, id: \.self) { section in
-                            SectionTag(name: section, present: true)
+                            StatusBadge(section, tint: ForgeTheme.Colors.success)
+                                .accessibilityLabel("\(section) section present")
                         }
                         ForEach(audit.sections.missing, id: \.self) { section in
-                            SectionTag(name: section, present: false)
+                            StatusBadge(section, tint: ForgeTheme.Colors.danger)
+                                .accessibilityLabel("\(section) section missing")
                         }
                     }
                 }
@@ -314,12 +333,7 @@ public struct RepoDetailView: View {
                             .foregroundStyle(.secondary)
                         FlowLayout(spacing: 5) {
                             ForEach(audit.techStack.gaps, id: \.self) { tech in
-                                Text(tech)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(.orange.opacity(0.12), in: Capsule())
-                                    .foregroundStyle(.orange)
+                                StatusBadge(tech, tint: ForgeTheme.Colors.warning)
                             }
                         }
                     }
@@ -343,19 +357,24 @@ public struct RepoDetailView: View {
 
                 // Staleness warning
                 if audit.staleness.stale {
-                    HStack(spacing: 6) {
+                    HStack(spacing: ForgeTheme.Spacing.xs + 2) {
                         Image(systemName: "clock.badge.exclamationmark")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ForgeTheme.Colors.warning)
+                            .accessibilityHidden(true)
                         Text("CLAUDE.md may be stale — \(audit.staleness.claudeMdDays) days since last update")
-                            .font(.system(size: 11))
+                            .font(ForgeTheme.Typography.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(8)
+                    .padding(ForgeTheme.Spacing.sm)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                    .background(
+                        ForgeTheme.Colors.warning.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                    )
                 }
             }
         }
+        .staggeredReveal(index: 3)
     }
 
     // MARK: - Findings
@@ -365,66 +384,19 @@ public struct RepoDetailView: View {
         let fixableCount = visibleFindings.filter(\.fixable).count
         let infoFindings = visibleFindings.filter { $0.severity == "info" }
 
-        return ForgeCard("Findings (\(visibleFindings.count))") {
+        return ForgeCard("Findings (\(visibleFindings.count))", icon: "exclamationmark.bubble", content: {
             if visibleFindings.isEmpty {
-                Text("No findings — looking good!")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
+                HStack(spacing: ForgeTheme.Spacing.sm) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(ForgeTheme.Colors.success)
+                        .accessibilityHidden(true)
+                    Text("No findings — looking good!")
+                        .font(ForgeTheme.Typography.body)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, ForgeTheme.Spacing.xs)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    // Bulk action buttons
-                    HStack(spacing: 8) {
-                        if fixableCount >= 2 {
-                            Button {
-                                fixRunning = true
-                                coordinator?.runBulkFix(
-                                    findings: visibleFindings.filter(\.fixable),
-                                    repoPath: repo.path,
-                                    claudeMdPath: repo.claudeMdAudit?.locations.first,
-                                    contentHashAtLoad: contentHashAtLoad,
-                                    onDismissed: { id in
-                                        dismissalService.dismiss(repoPath: repo.path, findingId: id)
-                                        withAnimation { _ = dismissedFindings.insert(id) }
-                                        claudeMdRefreshTrigger += 1
-                                    },
-                                    onContentChanged: { recomputeContentHash() },
-                                    onRefresh: {
-                                        fixRunning = false
-                                        await refreshRepoAudit()
-                                    }
-                                )
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "wrench.and.screwdriver.fill")
-                                        .font(.system(size: 10))
-                                    Text("Fix All (\(fixableCount))")
-                                        .font(.system(size: 11, weight: .medium))
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(fixRunning || coordinator?.isRunning == true)
-                        }
-
-                        if !infoFindings.isEmpty {
-                            Button {
-                                dismissInfoFindings(infoFindings)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "eye.slash")
-                                        .font(.system(size: 10))
-                                    Text("Dismiss Info (\(infoFindings.count))")
-                                        .font(.system(size: 11, weight: .medium))
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-
-                        Spacer()
-                    }
-
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
                     // Bulk fix progress
                     if let bulk = coordinator?.bulkFixState {
                         BulkFixProgressView(state: bulk)
@@ -433,21 +405,25 @@ public struct RepoDetailView: View {
                     // Pending reviews indicator
                     if let coordinator, coordinator.isReviewing {
                         let remaining = coordinator.totalPendingReviews - coordinator.completedReviews
-                        HStack(spacing: 6) {
+                        HStack(spacing: ForgeTheme.Spacing.xs + 2) {
                             Image(systemName: "eye.circle.fill")
                                 .font(.system(size: 12))
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(ForgeTheme.Colors.info)
+                                .accessibilityHidden(true)
                             Text("\(remaining) change\(remaining == 1 ? "" : "s") awaiting review")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(8)
+                        .padding(ForgeTheme.Spacing.sm)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        .background(
+                            ForgeTheme.Colors.info.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                        )
                     }
 
                     // Individual finding rows
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xxs) {
                         ForEach(visibleFindings) { finding in
                             FindingRow(
                                 finding: finding,
@@ -458,7 +434,7 @@ public struct RepoDetailView: View {
                                 onFixed: { [finding] in
                                     let id = finding.id
                                     dismissalService.dismiss(repoPath: repo.path, findingId: id)
-                                    withAnimation {
+                                    forgeWithAnimation {
                                         _ = dismissedFindings.insert(id)
                                     }
                                     claudeMdRefreshTrigger += 1
@@ -472,7 +448,51 @@ public struct RepoDetailView: View {
                     }
                 }
             }
-        }
+        }, trailing: {
+            HStack(spacing: ForgeTheme.Spacing.xs + 2) {
+                if fixableCount >= 2 {
+                    Button {
+                        fixRunning = true
+                        coordinator?.runBulkFix(
+                            findings: visibleFindings.filter(\.fixable),
+                            repoPath: repo.path,
+                            claudeMdPath: repo.claudeMdAudit?.locations.first,
+                            contentHashAtLoad: contentHashAtLoad,
+                            onDismissed: { id in
+                                dismissalService.dismiss(repoPath: repo.path, findingId: id)
+                                forgeWithAnimation { _ = dismissedFindings.insert(id) }
+                                claudeMdRefreshTrigger += 1
+                            },
+                            onContentChanged: { recomputeContentHash() },
+                            onRefresh: {
+                                fixRunning = false
+                                await refreshRepoAudit()
+                            }
+                        )
+                    } label: {
+                        Label("Fix All (\(fixableCount))", systemImage: "wrench.and.screwdriver.fill")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(fixRunning || coordinator?.isRunning == true)
+                    .accessibilityLabel("Fix all \(fixableCount) fixable findings")
+                }
+
+                if !infoFindings.isEmpty {
+                    Button {
+                        dismissInfoFindings(infoFindings)
+                    } label: {
+                        Label("Dismiss Info (\(infoFindings.count))", systemImage: "eye.slash")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("Dismiss \(infoFindings.count) informational findings")
+                }
+            }
+        })
+        .staggeredReveal(index: 4)
     }
 
     // MARK: - Bulk Operations
@@ -480,7 +500,7 @@ public struct RepoDetailView: View {
     private func dismissInfoFindings(_ findings: [Finding]) {
         let ids = findings.map(\.id)
         dismissalService.dismissAll(repoPath: repo.path, findingIds: ids)
-        withAnimation {
+        forgeWithAnimation {
             for id in ids {
                 dismissedFindings.insert(id)
             }
@@ -502,5 +522,35 @@ public struct RepoDetailView: View {
         } catch {
             // Refresh is best-effort — don't surface errors for background refresh
         }
+    }
+}
+
+// MARK: - Staggered Reveal
+
+/// Gentle one-time entrance for detail cards. Fires only when the view first joins
+/// the hierarchy (not on repo re-selection — view identity persists), and the total
+/// stagger is capped by `Animations.staggerBudget` so it never reads theatrical.
+private struct StaggeredRevealModifier: ViewModifier {
+    let index: Int
+    @State private var revealed = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(revealed ? 1 : 0)
+            .onAppear {
+                let delay = min(
+                    Double(index) * ForgeTheme.Animations.staggerDelay,
+                    ForgeTheme.Animations.staggerBudget
+                )
+                forgeWithAnimation(ForgeTheme.Animations.easeReveal.delay(delay)) {
+                    revealed = true
+                }
+            }
+    }
+}
+
+extension View {
+    fileprivate func staggeredReveal(index: Int) -> some View {
+        modifier(StaggeredRevealModifier(index: index))
     }
 }

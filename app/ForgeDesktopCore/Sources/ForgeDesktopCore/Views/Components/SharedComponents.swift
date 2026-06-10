@@ -25,22 +25,6 @@ struct ConfigChip: View {
     }
 }
 
-// MARK: - Section Tag
-
-struct SectionTag: View {
-    let name: String
-    let present: Bool
-
-    var body: some View {
-        Text(name)
-            .font(.system(size: 10, weight: .medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(present ? .green.opacity(0.1) : .red.opacity(0.08), in: Capsule())
-            .foregroundStyle(present ? .green : .red)
-    }
-}
-
 // MARK: - Flow Layout
 
 struct FlowLayout: Layout {
