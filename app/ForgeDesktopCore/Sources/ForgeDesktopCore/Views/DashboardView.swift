@@ -4,9 +4,6 @@ public struct DashboardView: View {
     @Bindable var state: ForgeState
     let onRefresh: () -> Void
     @State private var searchText = ""
-    @State private var selectedRepoPath: String?
-    @State private var lastSelectedRepo: RepoData?
-    @State private var showDoctor = false
     @State private var showPersonaSwitcher = false
     @State private var showNewProject = false
     @State private var showTelemetry = false
@@ -17,19 +14,6 @@ public struct DashboardView: View {
     public init(state: ForgeState, onRefresh: @escaping () -> Void) {
         self.state = state
         self.onRefresh = onRefresh
-    }
-
-    /// Derives the selected repo from ForgeState so it always reflects the latest data
-    /// (audit results, scores) after fixes and re-audits.
-    /// Falls back to `lastSelectedRepo` during loading to prevent detail pane flicker.
-    private var selectedRepo: RepoData? {
-        guard let path = selectedRepoPath else { return nil }
-        if case .loaded(let data) = state.loadState {
-            let repo = data.repos.first { $0.path == path }
-            if let repo { lastSelectedRepo = repo }
-            return repo
-        }
-        return lastSelectedRepo
     }
 
     /// Case discriminator so load-state swaps can be keyed for transitions
@@ -48,7 +32,7 @@ public struct DashboardView: View {
             sidebarContent
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
-            if let repo = selectedRepo {
+            if let repo = state.selectedRepo {
                 RepoDetailView(repo: repo, onDashboardRefresh: onRefresh)
             } else {
                 ForgeEmptyState(
@@ -79,7 +63,7 @@ public struct DashboardView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button { showDoctor = true } label: {
+                    Button { state.showDoctor = true } label: {
                         Label("Doctor", systemImage: "stethoscope")
                     }
                     Button { openSettings() } label: {
@@ -93,7 +77,7 @@ public struct DashboardView: View {
                 .help("Doctor, Settings, and more")
             }
         }
-        .sheet(isPresented: $showDoctor) {
+        .sheet(isPresented: $state.showDoctor) {
             DoctorView(state: state)
         }
         .sheet(isPresented: $showTelemetry) {
@@ -214,7 +198,7 @@ public struct DashboardView: View {
                 .padding(.top, ForgeTheme.Spacing.sm)
                 .padding(.bottom, ForgeTheme.Spacing.xs)
 
-                List(selection: $selectedRepoPath) {
+                List(selection: $state.selectedRepoPath) {
                     Section("Repositories (\(filteredRepos.count))") {
                         ForEach(filteredRepos) { repo in
                             RepoRow(repo: repo)

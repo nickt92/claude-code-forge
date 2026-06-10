@@ -4,7 +4,6 @@ import ForgeDesktopCore
 @main
 struct ForgeApp: App {
     @State private var forgeState = ForgeState()
-    @State private var showDoctor = false
     @State private var showNewProject = false
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
@@ -55,7 +54,13 @@ struct ForgeApp: App {
                 },
                 onRunDoctor: {
                     openWindow(id: "dashboard")
-                    showDoctor = true
+                    NSApp.activate(ignoringOtherApps: true)
+                    forgeState.showDoctor = true
+                },
+                onSelectRepo: { path in
+                    forgeState.selectedRepoPath = path
+                    openWindow(id: "dashboard")
+                    NSApp.activate(ignoringOtherApps: true)
                 }
             )
             .onAppear {
@@ -80,9 +85,6 @@ struct ForgeApp: App {
                         onComplete: { setupComplete = true }
                     )
                     .interactiveDismissDisabled()
-                }
-                .sheet(isPresented: $showDoctor) {
-                    DoctorView(state: forgeState)
                 }
                 .environment(\.fixService, fixService)
                 .environment(\.doctorService, doctorService)

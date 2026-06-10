@@ -4,12 +4,44 @@ import SwiftUI
 @MainActor
 @Observable
 public final class ForgeState {
-    public var loadState: LoadState = .idle
+    public var loadState: LoadState = .idle {
+        didSet { refreshSelectedRepoCache() }
+    }
     public var forgePath: String?
     public var setupPhase: SetupPhase = .complete
     public var doctorResult: DoctorResult?
     public var doctorLoading: Bool = false
     public var claudeAvailable: Bool = false
+    /// Single source of truth for the doctor sheet — previously duplicated across
+    /// ForgeApp and DashboardView, which could race two sheets.
+    public var showDoctor: Bool = false
+
+    /// Sidebar selection, owned here so the menu bar can deep-link into the dashboard.
+    public var selectedRepoPath: String? {
+        didSet { refreshSelectedRepoCache() }
+    }
+
+    /// Last resolved selection, served while `loadState` is not `.loaded` so the
+    /// detail pane doesn't flicker during re-audits. Updated only from property
+    /// observers — never during view body evaluation.
+    @ObservationIgnored private var cachedSelectedRepo: RepoData?
+
+    /// The selected repo derived from the latest dashboard data. Pure read:
+    /// falls back to the cached value while loading.
+    public var selectedRepo: RepoData? {
+        guard let path = selectedRepoPath else { return nil }
+        if case .loaded(let data) = loadState {
+            return data.repos.first { $0.path == path }
+        }
+        return cachedSelectedRepo
+    }
+
+    private func refreshSelectedRepoCache() {
+        guard case .loaded(let data) = loadState, let path = selectedRepoPath else { return }
+        if let repo = data.repos.first(where: { $0.path == path }) {
+            cachedSelectedRepo = repo
+        }
+    }
 
     public var dashboard: DashboardData? {
         if case .loaded(let data) = loadState { return data }
