@@ -32,6 +32,17 @@ public struct DashboardView: View {
         return lastSelectedRepo
     }
 
+    /// Case discriminator so load-state swaps can be keyed for transitions
+    /// without requiring DashboardData/Error to be Equatable.
+    private var loadPhase: String {
+        switch state.loadState {
+        case .idle: "idle"
+        case .loading: "loading"
+        case .loaded: "loaded"
+        case .failed: "failed"
+        }
+    }
+
     public var body: some View {
         NavigationSplitView {
             sidebarContent
@@ -40,10 +51,10 @@ public struct DashboardView: View {
             if let repo = selectedRepo {
                 RepoDetailView(repo: repo, onDashboardRefresh: onRefresh)
             } else {
-                ContentUnavailableView(
-                    "Select a Repository",
-                    systemImage: "folder",
-                    description: Text("Choose a repository from the sidebar.")
+                ForgeEmptyState(
+                    icon: "folder",
+                    title: "Select a Repository",
+                    message: "Choose a repository from the sidebar to see its health, audit findings, and fixes."
                 )
             }
         }
@@ -111,107 +122,147 @@ public struct DashboardView: View {
 
     @ViewBuilder
     private var sidebarContent: some View {
-        switch state.loadState {
-        case .idle:
-            ContentUnavailableView("No Data", systemImage: "tray", description: Text("Press ⌘R to load."))
-        case .loading:
-            VStack(spacing: 12) {
-                Image(systemName: "hammer.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(ForgeTheme.Colors.forgeOrange)
-                    .symbolEffect(.pulse, options: .repeating)
-                Text("Scanning repositories...")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .loaded(let data):
-            loadedSidebar(data)
-        case .failed(let error):
-            ContentUnavailableView {
-                Label("Error", systemImage: "exclamationmark.triangle.fill")
-            } description: {
-                Text(error.localizedDescription)
-            } actions: {
-                Button("Retry") { onRefresh() }
-                    .buttonStyle(.bordered)
+        Group {
+            switch state.loadState {
+            case .idle:
+                ForgeEmptyState(
+                    icon: "tray",
+                    title: "No Data",
+                    message: "Press ⌘R to scan your repositories."
+                )
+                .transition(.opacity)
+            case .loading:
+                loadingSidebar
+                    .transition(.opacity)
+            case .loaded(let data):
+                loadedSidebar(data)
+                    .transition(.opacity)
+            case .failed(let error):
+                ForgeEmptyState(
+                    icon: "exclamationmark.triangle",
+                    title: "Couldn't Load Dashboard",
+                    message: error.localizedDescription
+                ) {
+                    Button("Retry") { onRefresh() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+                .transition(.opacity)
             }
         }
+        .forgeAnimation(ForgeTheme.Animations.easeReveal, value: loadPhase)
+    }
+
+    private var loadingSidebar: some View {
+        SkeletonGroup {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
+                SkeletonHealthCard()
+                VStack(spacing: ForgeTheme.Spacing.xs) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        SkeletonRepoRow()
+                    }
+                }
+                .padding(.horizontal, ForgeTheme.Spacing.xs)
+                Spacer()
+            }
+            .padding(.horizontal, ForgeTheme.Spacing.md)
+            .padding(.top, ForgeTheme.Spacing.sm)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Scanning repositories")
     }
 
     @ViewBuilder
     private func loadedSidebar(_ data: DashboardData) -> some View {
         if data.repos.isEmpty {
-            VStack(spacing: 16) {
-                GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true }, onTelemetryTap: { showTelemetry = true })
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
+            VStack(spacing: ForgeTheme.Spacing.lg) {
+                GlobalHealthCard(
+                    data: data,
+                    onPersonaTap: { showPersonaSwitcher = true },
+                    onTelemetryTap: { showTelemetry = true }
+                )
+                .padding(.horizontal, ForgeTheme.Spacing.md)
+                .padding(.top, ForgeTheme.Spacing.sm)
 
-                Spacer()
-
-                ContentUnavailableView {
-                    Label("No Repositories Found", systemImage: "folder.badge.questionmark")
-                } description: {
-                    Text("Set a scan path in Settings so Forge knows where to find your projects.")
-                } actions: {
-                    Button("Open Settings") {
-                        openSettings()
+                ForgeEmptyState(
+                    icon: "folder.badge.questionmark",
+                    title: "No Repositories Found",
+                    message: "Set a scan path in Settings so Forge knows where to find your projects."
+                ) {
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
+                        Button("Open Settings") { openSettings() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        Button("Refresh") { onRefresh() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-
-                    Button("Refresh") { onRefresh() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                 }
-
-                Spacer()
             }
         } else {
-            List(selection: $selectedRepoPath) {
-                Section {
-                    GlobalHealthCard(data: data, onPersonaTap: { showPersonaSwitcher = true }, onTelemetryTap: { showTelemetry = true })
+            let filteredRepos = sortedAndFilteredRepos(data)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
+                    GlobalHealthCard(
+                        data: data,
+                        onPersonaTap: { showPersonaSwitcher = true },
+                        onTelemetryTap: { showTelemetry = true }
+                    )
+                    controlsRow
                 }
+                .padding(.horizontal, ForgeTheme.Spacing.md)
+                .padding(.top, ForgeTheme.Spacing.sm)
+                .padding(.bottom, ForgeTheme.Spacing.xs)
 
-                Section {
-                    HStack(spacing: 6) {
-                        Picker("Sort", selection: $sortOrder) {
-                            Text("Name (A-Z)").tag("name")
-                            Text("Score (Low)").tag("score_asc")
-                            Text("Score (High)").tag("score_desc")
-                            Text("Findings").tag("findings")
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    FlowLayout(spacing: 4) {
-                        ForEach(SidebarFilter.allCases, id: \.self) { filter in
-                            FilterChip(
-                                label: filter.label,
-                                isActive: activeFilters.contains(filter),
-                                onToggle: {
-                                    if activeFilters.contains(filter) {
-                                        activeFilters.remove(filter)
-                                    } else {
-                                        activeFilters.insert(filter)
-                                    }
-                                }
-                            )
+                List(selection: $selectedRepoPath) {
+                    Section("Repositories (\(filteredRepos.count))") {
+                        ForEach(filteredRepos) { repo in
+                            RepoRow(repo: repo)
+                                .tag(repo.path)
                         }
                     }
                 }
+                .listStyle(.sidebar)
+                .forgeAnimation(
+                    ForgeTheme.Animations.springSnappy,
+                    value: filteredRepos.map(\.path)
+                )
+            }
+        }
+    }
 
-                let filteredRepos = sortedAndFilteredRepos(data)
-                Section("Repositories (\(filteredRepos.count))") {
-                    ForEach(filteredRepos) { repo in
-                        RepoRow(repo: repo)
-                            .tag(repo.path)
-                    }
+    private var controlsRow: some View {
+        HStack(alignment: .center, spacing: ForgeTheme.Spacing.sm) {
+            FlowLayout(spacing: ForgeTheme.Spacing.xs) {
+                ForEach(SidebarFilter.allCases, id: \.self) { filter in
+                    FilterChip(
+                        label: filter.label,
+                        isActive: activeFilters.contains(filter),
+                        onToggle: {
+                            if activeFilters.contains(filter) {
+                                activeFilters.remove(filter)
+                            } else {
+                                activeFilters.insert(filter)
+                            }
+                        }
+                    )
                 }
             }
-            .listStyle(.sidebar)
+
+            Spacer(minLength: ForgeTheme.Spacing.xs)
+
+            Picker("Sort", selection: $sortOrder) {
+                Text("Name (A-Z)").tag("name")
+                Text("Score (Low)").tag("score_asc")
+                Text("Score (High)").tag("score_desc")
+                Text("Findings").tag("findings")
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+            .help("Sort repositories")
+            .accessibilityLabel("Sort repositories")
         }
     }
 
@@ -251,46 +302,69 @@ struct GlobalHealthCard: View {
     var onPersonaTap: (() -> Void)?
     var onTelemetryTap: (() -> Void)?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                ScoreRing(score: data.globalScore.total, grade: data.globalScore.grade, size: 48)
+    @State private var personaHovered = false
 
-                VStack(alignment: .leading, spacing: 2) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
+            HStack(alignment: .top, spacing: ForgeTheme.Spacing.md) {
+                ScoreRing(score: data.globalScore.total, grade: data.globalScore.grade, size: 56)
+
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xxs) {
                     Button { onPersonaTap?() } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: ForgeTheme.Spacing.xs) {
                             Text(data.global.persona.label)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(ForgeTheme.Typography.rowTitle)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(personaHovered ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
+                                .offset(x: personaHovered ? 2 : 0)
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    HStack(spacing: 4) {
+                    .onHover { personaHovered = $0 }
+                    .onDisappear { personaHovered = false }
+                    .forgeAnimation(ForgeTheme.Animations.springSnappy, value: personaHovered)
+                    .help("Switch persona")
+                    .accessibilityLabel("Switch persona. Current: \(data.global.persona.label)")
+
+                    HStack(spacing: ForgeTheme.Spacing.xs) {
                         Text("v\(data.global.install.forgeVersion)")
                         Text("·")
                         Text("\(data.global.plugins.group) plugins")
-                        if onTelemetryTap != nil {
-                            Text("·")
-                            Button { onTelemetryTap?() } label: {
-                                Image(systemName: "chart.bar.fill")
-                                    .font(.system(size: 10))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(ForgeTheme.Colors.forgeOrange)
-                            .help("Hook Telemetry")
-                        }
                     }
-                    .font(.system(size: 11))
+                    .font(ForgeTheme.Typography.caption)
                     .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if onTelemetryTap != nil {
+                    Button { onTelemetryTap?() } label: {
+                        Image(systemName: "chart.bar.fill")
+                    }
+                    .buttonStyle(.forgeIcon)
+                    .help("Hook Telemetry")
+                    .accessibilityLabel("Hook telemetry")
                 }
             }
 
             DimensionBars(dimensions: data.globalScore.dimensions)
         }
-        .padding(.vertical, 6)
-        .background(ForgeTheme.Gradients.subtleBg)
+        .padding(ForgeTheme.Spacing.lg)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius)
+                    .fill(ForgeTheme.Colors.surface)
+                RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius)
+                    .fill(ForgeTheme.Gradients.subtleBg)
+            }
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius)
+                .stroke(.quaternary)
+        )
+        .forgeShadow(ForgeTheme.Elevation.card)
     }
 }
 
@@ -300,7 +374,7 @@ struct RepoRow: View {
     let repo: RepoData
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: ForgeTheme.Spacing.sm + 2) {
             if let score = repo.score {
                 ScoreRing(score: score.total, grade: score.grade, size: 28)
             } else {
@@ -312,6 +386,7 @@ struct RepoRow: View {
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityLabel("Not scored")
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -319,13 +394,15 @@ struct RepoRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
+                HStack(spacing: ForgeTheme.Spacing.xs + 2) {
                     if repo.git.isRepo, !repo.git.branch.isEmpty {
-                        HStack(spacing: 2) {
+                        HStack(spacing: ForgeTheme.Spacing.xxs) {
                             Image(systemName: "arrow.triangle.branch")
                                 .font(.system(size: 9))
+                                .accessibilityHidden(true)
                             Text(repo.git.branch)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -335,10 +412,12 @@ struct RepoRow: View {
                         let errorCount = audit.findings.filter { $0.severity == "error" }.count
                         let warnCount = audit.findings.filter { $0.severity == "warn" }.count
                         if errorCount > 0 {
-                            CountBadge(count: errorCount, color: .red)
+                            StatusBadge("\(errorCount)", tint: ForgeTheme.Colors.danger)
+                                .accessibilityLabel("\(errorCount) errors")
                         }
                         if warnCount > 0 {
-                            CountBadge(count: warnCount, color: .orange)
+                            StatusBadge("\(warnCount)", tint: ForgeTheme.Colors.warning)
+                                .accessibilityLabel("\(warnCount) warnings")
                         }
                     }
                 }
@@ -349,29 +428,13 @@ struct RepoRow: View {
     }
 }
 
-// MARK: - Count Badge
-
-struct CountBadge: View {
-    let count: Int
-    let color: Color
-
-    var body: some View {
-        Text("\(count)")
-            .font(.system(size: 9, weight: .bold, design: .rounded))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-    }
-}
-
 // MARK: - Dimension Bars
 
 struct DimensionBars: View {
     let dimensions: [String: DimensionScore]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs) {
             ForEach(Array(sortedDimensions.enumerated()), id: \.element.key) { index, entry in
                 DimensionBarRow(key: entry.key, dim: entry.value, index: index)
             }
@@ -393,7 +456,7 @@ private struct DimensionBarRow: View {
     @State private var barWidth: CGFloat = 0
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: ForgeTheme.Spacing.xs + 2) {
             Text(key.formattedAsTitle)
                 .font(.system(size: 10))
                 .frame(width: 100, alignment: .trailing)
@@ -409,13 +472,18 @@ private struct DimensionBarRow: View {
                 }
             }
             .frame(height: 6)
+            .accessibilityHidden(true)
             .onAppear {
-                withAnimation(ForgeTheme.Animations.springSnappy.delay(Double(index) * ForgeTheme.Animations.staggerDelay)) {
+                let delay = min(
+                    Double(index) * ForgeTheme.Animations.staggerDelay,
+                    ForgeTheme.Animations.staggerBudget
+                )
+                forgeWithAnimation(ForgeTheme.Animations.springSnappy.delay(delay)) {
                     barWidth = CGFloat(dim.score) / 100
                 }
             }
             .onChange(of: dim.score) { _, newValue in
-                withAnimation(ForgeTheme.Animations.springSnappy) {
+                forgeWithAnimation(ForgeTheme.Animations.springSnappy) {
                     barWidth = CGFloat(newValue) / 100
                 }
             }
@@ -425,6 +493,8 @@ private struct DimensionBarRow: View {
                 .frame(width: 24, alignment: .trailing)
                 .foregroundStyle(scoreColor(dim.score))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(key.formattedAsTitle): \(dim.score) out of 100")
     }
 }
 
@@ -463,15 +533,10 @@ struct FilterChip: View {
     let onToggle: () -> Void
 
     var body: some View {
-        Button(action: onToggle) {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(isActive ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.15), in: Capsule())
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-        }
-        .buttonStyle(.plain)
+        Button(label, action: onToggle)
+            .buttonStyle(.forgePill(tint: ForgeTheme.Colors.forgeText, isActive: isActive))
+            .accessibilityLabel("\(label) filter")
+            .accessibilityValue(isActive ? "on" : "off")
     }
 }
 
