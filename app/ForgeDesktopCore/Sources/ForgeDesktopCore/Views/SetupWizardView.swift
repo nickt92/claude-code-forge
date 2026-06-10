@@ -32,27 +32,29 @@ public struct SetupWizardView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header
-            VStack(spacing: 10) {
+            VStack(spacing: ForgeTheme.Spacing.sm + 2) {
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(ForgeTheme.Colors.forgeOrange.opacity(0.12))
                         .frame(width: 64, height: 64)
                     Image(systemName: "hammer.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(ForgeTheme.Gradients.forge)
                 }
+                .accessibilityHidden(true)
 
                 Text("Welcome to Forge")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(ForgeTheme.Typography.screenTitle)
                 Text("Let's get your environment set up.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 28)
-            .padding(.bottom, 24)
+            .padding(.bottom, ForgeTheme.Spacing.xl)
 
             stepIndicator
-                .padding(.bottom, 24)
+                .padding(.bottom, ForgeTheme.Spacing.xl)
+                .forgeAnimation(ForgeTheme.Animations.springSnappy, value: stepNumber)
 
             Divider()
 
@@ -112,8 +114,9 @@ public struct SetupWizardView: View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(done ? Color.green : active ? Color.accentColor : Color.secondary.opacity(0.15))
+                    .fill(done ? ForgeTheme.Colors.success : active ? Color.accentColor : Color.secondary.opacity(0.15))
                     .frame(width: 28, height: 28)
+                    .scaleEffect(active ? 1.1 : 1.0)
                 if done {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
@@ -464,12 +467,7 @@ public struct SetupWizardView: View {
                         .foregroundStyle(.primary)
 
                     if recommended {
-                        Text("Recommended")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor, in: Capsule())
+                        StatusBadge("Recommended", tint: ForgeTheme.Colors.forgeText, style: .filled)
                     }
                 }
 
@@ -487,7 +485,7 @@ public struct SetupWizardView: View {
                 }
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    forgeWithAnimation(.easeInOut(duration: 0.2)) {
                         expandedPreset = expandedPreset == id ? nil : id
                     }
                 } label: {

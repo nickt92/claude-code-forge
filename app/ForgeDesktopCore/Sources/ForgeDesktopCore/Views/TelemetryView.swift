@@ -12,23 +12,33 @@ public struct TelemetryView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    loadingState
-                } else if let error = loadError {
-                    errorState(error)
-                } else {
-                    loadedState
+        ForgeSheet(
+            icon: "chart.bar.fill",
+            title: "Hook Telemetry",
+            subtitle: "Enforcement activity across your sessions",
+            isResizable: true,
+            content: {
+                Group {
+                    if isLoading {
+                        loadingState
+                    } else if let error = loadError {
+                        errorState(error)
+                    } else {
+                        loadedState
+                    }
                 }
-            }
-            .navigationTitle("Hook Telemetry")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                .frame(minHeight: 360)
+            },
+            footer: {
+                HStack {
+                    Spacer()
                     Button("Done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.cancelAction)
                 }
             }
-        }
+        )
         .frame(minWidth: 480, minHeight: 400)
         .task { await loadData() }
     }
@@ -36,36 +46,38 @@ public struct TelemetryView: View {
     // MARK: - States
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "hammer.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(ForgeTheme.Colors.forgeOrange)
-                .symbolEffect(.pulse, options: .repeating)
-            Text("Loading telemetry...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        SkeletonGroup {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.lg) {
+                SkeletonBox(width: nil, height: 80, radius: ForgeTheme.Metrics.cardRadius)
+                SkeletonDetailCard()
+                SkeletonDetailCard()
+                Spacer()
+            }
+            .padding(ForgeTheme.Spacing.xl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading telemetry")
     }
 
     private func errorState(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Error", systemImage: "exclamationmark.triangle.fill")
-        } description: {
-            Text(message)
-        } actions: {
+        ForgeEmptyState(
+            icon: "exclamationmark.triangle",
+            title: "Couldn't Load Telemetry",
+            message: message
+        ) {
             Button("Retry") {
                 isLoading = true
                 loadError = nil
                 Task { await loadData() }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
         }
     }
 
     private var loadedState: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.lg) {
                 if let hooks = hookData {
                     hookTelemetrySection(hooks)
                 }
@@ -73,7 +85,7 @@ public struct TelemetryView: View {
                     sessionScorecardSection(session)
                 }
             }
-            .padding(24)
+            .padding(ForgeTheme.Spacing.xl)
         }
     }
 
@@ -86,7 +98,7 @@ public struct TelemetryView: View {
                 VStack(spacing: 2) {
                     Text("\(data.totalInvocations)")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundStyle(ForgeTheme.Colors.forgeOrange)
+                        .foregroundStyle(ForgeTheme.Colors.forgeText)
                     Text("invocations")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)

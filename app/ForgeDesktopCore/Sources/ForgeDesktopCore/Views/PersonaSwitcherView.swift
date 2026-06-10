@@ -19,27 +19,36 @@ public struct PersonaSwitcherView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-
-            if isLoading {
-                Spacer()
-                ProgressView("Loading personas...")
-                Spacer()
-            } else if let error {
-                Spacer()
-                ContentUnavailableView {
-                    Label("Error", systemImage: "exclamationmark.triangle.fill")
-                } description: {
-                    Text(error)
+        ForgeSheet(
+            icon: "person.crop.circle",
+            title: "Switch Persona",
+            subtitle: "Tailor Claude Code's behavior to how you work",
+            content: {
+                Group {
+                    if isLoading {
+                        loadingContent
+                    } else if let error {
+                        ForgeEmptyState(
+                            icon: "exclamationmark.triangle",
+                            title: "Couldn't Load Personas",
+                            message: error
+                        )
+                    } else {
+                        personaList
+                    }
                 }
-                Spacer()
-            } else {
-                personaList
+                .frame(minHeight: 400, maxHeight: 560)
+            },
+            footer: {
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.cancelAction)
+                }
             }
-        }
-        .frame(minWidth: 500, minHeight: 450)
+        )
         .task { await loadPersonas() }
         .alert("Switch Persona?", isPresented: Binding(
             get: { confirmPersona != nil },
@@ -58,16 +67,18 @@ public struct PersonaSwitcherView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            Text("Switch Persona")
-                .font(.title3)
-                .fontWeight(.semibold)
-            Spacer()
-            Button("Done") { dismiss() }
-                .keyboardShortcut(.cancelAction)
+    private var loadingContent: some View {
+        SkeletonGroup {
+            VStack(spacing: ForgeTheme.Spacing.sm) {
+                ForEach(0..<4, id: \.self) { _ in
+                    SkeletonDetailCard()
+                }
+                Spacer()
+            }
+            .padding(ForgeTheme.Spacing.lg)
         }
-        .padding(16)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading personas")
     }
 
     private var personaList: some View {
@@ -75,7 +86,7 @@ public struct PersonaSwitcherView: View {
         let custom = personas.filter { $0.source == "custom" }
 
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
                 if !builtIn.isEmpty {
                     sectionHeader("Built-in")
                     ForEach(builtIn) { persona in
@@ -84,19 +95,19 @@ public struct PersonaSwitcherView: View {
                 }
                 if !custom.isEmpty {
                     sectionHeader("Custom")
-                        .padding(.top, 8)
+                        .padding(.top, ForgeTheme.Spacing.sm)
                     ForEach(custom) { persona in
                         personaCard(persona)
                     }
                 }
             }
-            .padding(16)
+            .padding(ForgeTheme.Spacing.lg)
         }
     }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .bold))
+            .font(ForgeTheme.Typography.cardTitle)
             .foregroundStyle(.secondary)
             .textCase(.uppercase)
             .tracking(0.5)
@@ -111,66 +122,76 @@ public struct PersonaSwitcherView: View {
                 confirmPersona = persona
             }
         } label: {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: ForgeTheme.Spacing.md) {
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs + 2) {
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
                         Text(persona.label)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(ForgeTheme.Typography.rowTitle)
                         if isCurrent {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.green)
+                            StatusBadge("Current", icon: "checkmark", tint: ForgeTheme.Colors.success)
                         }
                     }
                     Text(persona.description)
-                        .font(.system(size: 11))
+                        .font(ForgeTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
 
-                    HStack(spacing: 4) {
-                        axisCapsule(persona.axes.communication, label: "comm")
-                        axisCapsule(persona.axes.autonomy, label: "auto")
-                        axisCapsule(persona.axes.workflow, label: "flow")
-                        axisCapsule(persona.axes.depth, label: "depth")
+                    HStack(spacing: ForgeTheme.Spacing.xs) {
+                        axisBadge(persona.axes.communication, label: "comm")
+                        axisBadge(persona.axes.autonomy, label: "auto")
+                        axisBadge(persona.axes.workflow, label: "flow")
+                        axisBadge(persona.axes.depth, label: "depth")
                     }
                 }
                 Spacer()
             }
-            .padding(10)
+            .padding(ForgeTheme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(
                 isCurrent ? ForgeTheme.Colors.forgeAmber.opacity(0.08) :
-                (isHovered ? Color.primary.opacity(0.04) : Color.clear),
-                in: RoundedRectangle(cornerRadius: 8)
+                    (isHovered ? ForgeTheme.Colors.hoverWash : Color.clear),
+                in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
             )
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(
-                isCurrent ? ForgeTheme.Colors.forgeAmber.opacity(0.3) : Color.gray.opacity(0.2)
-            ))
+            .overlay {
+                if isCurrent {
+                    RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                        .stroke(ForgeTheme.Gradients.forge, lineWidth: 1.5)
+                        .opacity(0.6)
+                } else {
+                    RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                        .stroke(.quaternary)
+                }
+            }
+            .forgeShadow(isHovered && !isCurrent ? ForgeTheme.Elevation.card : ForgeTheme.Elevation.flat)
         }
         .buttonStyle(.plain)
+        .forgeAnimation(.easeOut(duration: 0.12), value: isHovered)
         .onHover { hovering in
             hoveredPersona = hovering ? persona.persona : nil
         }
+        .onDisappear {
+            if hoveredPersona == persona.persona { hoveredPersona = nil }
+        }
         .disabled(isSwitching)
         .opacity(isSwitching && !isCurrent ? 0.5 : 1)
+        .accessibilityLabel(
+            isCurrent
+                ? "\(persona.label), current persona"
+                : "Switch to \(persona.label)"
+        )
     }
 
-    private func axisCapsule(_ value: String, label: String) -> some View {
-        Text("\(label): \(value)")
-            .font(.system(size: 9, weight: .medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(axisColor(value).opacity(0.12), in: Capsule())
-            .foregroundStyle(axisColor(value))
+    private func axisBadge(_ value: String, label: String) -> some View {
+        StatusBadge("\(label): \(value)", tint: axisColor(value))
     }
 
     private func axisColor(_ value: String) -> Color {
         switch value {
         case "expert", "full", "high", "engineering", "advanced":
-            return .green
+            return ForgeTheme.Colors.success
         case "detailed", "moderate", "guided", "standard", "technical":
-            return .blue
+            return ForgeTheme.Colors.info
         default:
             return .secondary
         }
