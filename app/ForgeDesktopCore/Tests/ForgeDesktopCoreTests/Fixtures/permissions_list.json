@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ask-before-changes",
+    "label": "Ask Before Changes",
+    "tier": 1,
+    "description": "Claude browses your code without asking, but asks permission before making any changes.",
+    "detail": "Auto-approves: reading files, searching code, inspecting directories and git history, system info. You approve: file edits, running any command that modifies state.",
+    "permissions": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "inherits": null
+  },
+  {
+    "id": "auto-edit",
+    "label": "Auto-Edit",
+    "tier": 2,
+    "description": "Claude browses and edits files without asking. Still asks before running dev tools and git operations.",
+    "detail": "Auto-approves: everything above, plus creating/editing/copying/moving files. You approve: build commands, test runners, git commits/pushes.",
+    "permissions": [
+      "Write",
+      "Edit",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)"
+    ],
+    "inherits": "ask-before-changes"
+  },
+  {
+    "id": "full-autonomy",
+    "label": "Full Autonomy",
+    "tier": 3,
+    "description": "Claude runs development commands without asking. Still asks before destructive operations.",
+    "detail": "Auto-approves: everything above, plus git, package managers, compilers, build tools, test runners, linters, Docker, and web access. You approve: rm, sudo, force pushes, hard resets.",
+    "permissions": [
+      "Bash(git -C:*)",
+      "Bash(git -c:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "inherits": "auto-edit"
+  }
+]

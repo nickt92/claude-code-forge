@@ -13,7 +13,6 @@ public struct SetupWizardView: View {
     @State private var selectedPreset: String = "full-autonomy"
     @State private var applyingPreset: Bool = false
     @State private var presetError: String?
-    @State private var expandedPreset: String?
     @AppStorage("claudeBinaryPath") private var claudeBinaryPath: String = ""
 
     @Environment(\.permissionsService) private var permissionsService
@@ -382,30 +381,14 @@ public struct SetupWizardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 8) {
-                permissionPresetRow(
-                    id: "ask-before-changes",
-                    label: "Ask Before Changes",
-                    description: "Claude browses your code without asking, but asks permission before making any changes.",
-                    detail: "Auto-approves: reading files, searching code, listing directories.\nYou approve: file edits, running commands.",
-                    recommended: false
-                )
-                permissionPresetRow(
-                    id: "auto-edit",
-                    label: "Auto-Edit",
-                    description: "Claude browses and edits files without asking. Still asks before running commands.",
-                    detail: "Auto-approves: everything above, plus creating and editing files, viewing git status.\nYou approve: running build/test commands, git operations.",
-                    recommended: false
-                )
-                permissionPresetRow(
-                    id: "full-autonomy",
-                    label: "Full Autonomy",
-                    description: "Claude runs development commands without asking. Still asks before destructive operations.",
-                    detail: "Auto-approves: everything above, plus git operations, package managers, build tools.\nYou approve: force pushes, deletions, arbitrary scripts.",
-                    recommended: true
-                )
-            }
-            .padding(.horizontal, 8)
+            PermissionPresetPicker(
+                selection: Binding(
+                    get: { selectedPreset },
+                    set: { if let preset = $0 { selectedPreset = preset } }
+                ),
+                isDisabled: applyingPreset
+            )
+            .padding(.horizontal, ForgeTheme.Spacing.sm)
 
             if let error = presetError {
                 Text(error)
@@ -444,71 +427,6 @@ public struct SetupWizardView: View {
                 .disabled(applyingPreset)
             }
         }
-    }
-
-    private func permissionPresetRow(
-        id: String,
-        label: String,
-        description: String,
-        detail: String,
-        recommended: Bool
-    ) -> some View {
-        Button {
-            selectedPreset = id
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: selectedPreset == id ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(selectedPreset == id ? Color.accentColor : .secondary)
-                        .font(.system(size: 14))
-
-                    Text(label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    if recommended {
-                        StatusBadge("Recommended", tint: ForgeTheme.Colors.forgeText, style: .filled)
-                    }
-                }
-
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 20)
-
-                if expandedPreset == id {
-                    Text(detail)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 20)
-                        .padding(.top, 2)
-                }
-
-                Button {
-                    forgeWithAnimation(.easeInOut(duration: 0.2)) {
-                        expandedPreset = expandedPreset == id ? nil : id
-                    }
-                } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: expandedPreset == id ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8))
-                        Text("Details")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 20)
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selectedPreset == id ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selectedPreset == id ? 1.5 : 1)
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     private func applyPermissionPreset() {

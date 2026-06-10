@@ -15,6 +15,7 @@ public struct SettingsView: View {
     @State private var showPermissionPicker = false
     @State private var applyingPreset = false
     @State private var presetError: String?
+    @State private var loadedPresets: [PermissionPreset] = []
     @State private var showStatuslineLegend = false
     @Environment(\.configService) private var configService
     @Environment(\.permissionsService) private var permissionsService
@@ -86,7 +87,7 @@ public struct SettingsView: View {
                     Spacer()
 
                     Button(showPermissionPicker ? "Done" : "Change...") {
-                        withAnimation { showPermissionPicker.toggle() }
+                        forgeWithAnimation { showPermissionPicker.toggle() }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -98,7 +99,21 @@ public struct SettingsView: View {
                 }
 
                 if showPermissionPicker {
-                    permissionPickerRows
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
+                        PermissionPresetPicker(
+                            selection: Binding(
+                                get: { currentPresetName },
+                                set: { newValue in
+                                    if let newValue { applyPreset(newValue) }
+                                }
+                            ),
+                            isDisabled: applyingPreset,
+                            onPresetsLoaded: { loadedPresets = $0 }
+                        )
+                        if applyingPreset {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
                 }
 
                 if let presetError {
@@ -255,68 +270,16 @@ public struct SettingsView: View {
 
     // MARK: - Permissions Helpers
 
+    /// Resolved from the CLI's preset list when loaded; falls back to a formatted id
+    /// so the summary row never shows a stale hardcoded label.
     private var currentPresetLabel: String {
-        switch currentPresetName {
-        case "ask-before-changes": return "Ask Before Changes"
-        case "auto-edit": return "Auto-Edit"
-        case "full-autonomy": return "Full Autonomy (Recommended)"
-        case nil: return "None"
-        default: return currentPresetName ?? "None"
-        }
+        guard let currentPresetName else { return "None" }
+        return loadedPresets.first { $0.id == currentPresetName }?.label
+            ?? currentPresetName.formattedAsTitle
     }
 
     private func presetDescription(for name: String) -> String {
-        switch name {
-        case "ask-before-changes":
-            return "Claude browses your code without asking, but asks before making changes."
-        case "auto-edit":
-            return "Claude browses and edits files without asking. Still asks before running commands."
-        case "full-autonomy":
-            return "Claude runs dev commands without asking. Still asks before destructive operations."
-        default:
-            return ""
-        }
-    }
-
-    private var permissionPickerRows: some View {
-        VStack(spacing: 6) {
-            ForEach(
-                [("ask-before-changes", "Ask Before Changes", false),
-                 ("auto-edit", "Auto-Edit", false),
-                 ("full-autonomy", "Full Autonomy", true)],
-                id: \.0
-            ) { id, label, recommended in
-                HStack {
-                    Image(systemName: currentPresetName == id ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(currentPresetName == id ? Color.accentColor : .secondary)
-                        .font(.system(size: 13))
-
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium))
-
-                    if recommended {
-                        Text("Recommended")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.accentColor, in: Capsule())
-                    }
-
-                    Spacer()
-
-                    if applyingPreset && currentPresetName != id {
-                        ProgressView().controlSize(.mini)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard !applyingPreset, currentPresetName != id else { return }
-                    applyPreset(id)
-                }
-                .padding(.vertical, 4)
-            }
-        }
+        loadedPresets.first { $0.id == name }?.description ?? ""
     }
 
     private func loadCurrentPreset() async {
