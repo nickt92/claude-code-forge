@@ -25,7 +25,7 @@ struct ForgeApp: App {
         let claudePath = UserDefaults.standard.string(forKey: "claudeBinaryPath")
         let resolvedClaudePath = claudePath?.isEmpty == true ? nil : claudePath
 
-        self.forgeService = ForgeService(forgePath: resolvedPath)
+        self.forgeService = ForgeService(forgePath: resolvedPath, cache: DashboardCache())
         self.doctorService = DoctorService(forgePath: resolvedPath)
         self.claudeService = ClaudeService(claudePath: resolvedClaudePath)
 
@@ -65,6 +65,7 @@ struct ForgeApp: App {
             )
             .onAppear {
                 if setupComplete, case .idle = forgeState.loadState {
+                    hydrateFromCache()
                     refresh()
                 }
             }
@@ -128,8 +129,17 @@ struct ForgeApp: App {
         if !setupComplete {
             forgeState.setupPhase = .detectCLI
         } else if case .idle = forgeState.loadState {
+            hydrateFromCache()
             refresh()
         }
+    }
+
+    /// Render the last successful dashboard immediately; the subsequent refresh
+    /// runs behind it (stale-while-revalidate).
+    private func hydrateFromCache() {
+        guard case .idle = forgeState.loadState,
+              let cached = forgeService.cachedDashboard() else { return }
+        forgeState.loadState = .loaded(cached)
     }
 
     private func refresh() {
@@ -137,16 +147,27 @@ struct ForgeApp: App {
     }
 
     private func refreshAsync() async {
-        guard !forgeState.isLoading else { return }
-        forgeState.loadState = .loading
+        guard !forgeState.isBusy else { return }
+        let hasVisibleData = forgeState.dashboard != nil
+        if hasVisibleData {
+            forgeState.isRefreshing = true
+        } else {
+            forgeState.loadState = .loading
+        }
 
         do {
             let data = try await forgeService.loadDashboard()
             forgeState.loadState = .loaded(data)
-        } catch let error as ForgeError {
-            forgeState.loadState = .failed(error)
+            forgeState.refreshError = nil
         } catch {
-            forgeState.loadState = .failed(.unexpected(error.localizedDescription))
+            let forgeError = (error as? ForgeError) ?? .unexpected(error.localizedDescription)
+            if hasVisibleData {
+                // Keep the usable dashboard on screen; surface the failure non-destructively.
+                forgeState.refreshError = forgeError.localizedDescription
+            } else {
+                forgeState.loadState = .failed(forgeError)
+            }
         }
+        forgeState.isRefreshing = false
     }
 }

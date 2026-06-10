@@ -78,7 +78,7 @@ public struct MenuBarView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.forgeIcon)
-                .disabled(state.isLoading)
+                .disabled(state.isBusy)
                 .help("Refresh")
                 .accessibilityLabel("Refresh repositories")
 

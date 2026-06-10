@@ -58,7 +58,7 @@ public struct DashboardView: View {
                         .labelStyle(.titleAndIcon)
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(state.isLoading)
+                .disabled(state.isBusy)
                 .help("Rescan all repositories (⌘R)")
             }
             ToolbarItem(placement: .primaryAction) {
@@ -193,6 +193,25 @@ public struct DashboardView: View {
                         onTelemetryTap: { showTelemetry = true }
                     )
                     controlsRow
+                    if let refreshError = state.refreshError {
+                        HStack(spacing: ForgeTheme.Spacing.xs + 2) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 10))
+                                .foregroundStyle(ForgeTheme.Colors.warning)
+                                .accessibilityHidden(true)
+                            Text("Refresh failed — showing last results")
+                                .font(ForgeTheme.Typography.micro)
+                                .foregroundStyle(.secondary)
+                                .help(refreshError)
+                        }
+                        .padding(.horizontal, ForgeTheme.Spacing.sm)
+                        .padding(.vertical, ForgeTheme.Spacing.xs)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            ForgeTheme.Colors.warning.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius)
+                        )
+                    }
                 }
                 .padding(.horizontal, ForgeTheme.Spacing.md)
                 .padding(.top, ForgeTheme.Spacing.sm)
@@ -234,6 +253,14 @@ public struct DashboardView: View {
             }
 
             Spacer(minLength: ForgeTheme.Spacing.xs)
+
+            if state.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+                    .help("Refreshing repositories…")
+                    .accessibilityLabel("Refreshing repositories")
+                    .transition(.opacity)
+            }
 
             Picker("Sort", selection: $sortOrder) {
                 Text("Name (A-Z)").tag("name")

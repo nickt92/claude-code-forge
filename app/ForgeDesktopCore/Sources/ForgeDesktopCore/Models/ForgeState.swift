@@ -53,10 +53,22 @@ public final class ForgeState {
         return nil
     }
 
+    /// True while a background refresh runs behind already-rendered (cached or
+    /// stale) data — the stale-while-revalidate path. Distinct from `.loading`,
+    /// which means there is nothing to show yet.
+    public var isRefreshing: Bool = false
+
+    /// Set when a background refresh fails while cached data is on screen, so the
+    /// failure is surfaced without discarding a usable dashboard.
+    public var refreshError: String?
+
     public var isLoading: Bool {
         if case .loading = loadState { return true }
         return false
     }
+
+    /// Any load activity — used to disable refresh controls.
+    public var isBusy: Bool { isLoading || isRefreshing }
 
     public enum LoadState: Sendable {
         case idle
