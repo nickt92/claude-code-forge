@@ -110,7 +110,7 @@ public struct TelemetryView: View {
 
             // Per-hook bars
             if !data.byHook.isEmpty {
-                DetailCard("By Hook", accentColor: ForgeTheme.Colors.forgeOrange) {
+                ForgeCard("By Hook", accent: ForgeTheme.Colors.forgeText) {
                     let sorted = data.byHook.sorted { $0.value > $1.value }
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(sorted.enumerated()), id: \.element.key) { index, entry in
@@ -130,7 +130,7 @@ public struct TelemetryView: View {
     // MARK: - Session Scorecard Section
 
     private func sessionScorecardSection(_ data: SessionScorecard) -> some View {
-        DetailCard("Session Scorecard") {
+        ForgeCard("Session Scorecard") {
             if data.totalEvents == 0 {
                 Text("No session events yet.")
                     .font(.system(size: 12))

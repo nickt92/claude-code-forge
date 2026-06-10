@@ -187,7 +187,7 @@ public struct RepoDetailView: View {
     // MARK: - Score
 
     private func scoreSection(_ score: ScoreData) -> some View {
-        DetailCard("Score Breakdown") {
+        ForgeCard("Score Breakdown") {
             DimensionBars(dimensions: score.dimensions)
                 .id(repo.path)
         }
@@ -200,7 +200,7 @@ public struct RepoDetailView: View {
     }
 
     private var onboardingCard: some View {
-        DetailCard(repo.claudeMd.exists ? "Improve CLAUDE.md" : "Generate CLAUDE.md") {
+        ForgeCard(repo.claudeMd.exists ? "Improve CLAUDE.md" : "Generate CLAUDE.md") {
             VStack(alignment: .leading, spacing: 10) {
                 Text(repo.claudeMd.exists
                     ? "Your CLAUDE.md scored low. Regenerate it with Claude for comprehensive codebase analysis."
@@ -252,7 +252,7 @@ public struct RepoDetailView: View {
     // MARK: - Config
 
     private var configSection: some View {
-        DetailCard("Configuration") {
+        ForgeCard("Configuration") {
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: 12),
                 GridItem(.flexible(), spacing: 12),
@@ -271,7 +271,7 @@ public struct RepoDetailView: View {
     // MARK: - Audit
 
     private func auditSection(_ audit: AuditData) -> some View {
-        DetailCard("CLAUDE.md Audit") {
+        ForgeCard("CLAUDE.md Audit") {
             VStack(alignment: .leading, spacing: 12) {
                 // Coverage bar
                 HStack {
@@ -365,7 +365,7 @@ public struct RepoDetailView: View {
         let fixableCount = visibleFindings.filter(\.fixable).count
         let infoFindings = visibleFindings.filter { $0.severity == "info" }
 
-        return DetailCard("Findings (\(visibleFindings.count))") {
+        return ForgeCard("Findings (\(visibleFindings.count))") {
             if visibleFindings.isEmpty {
                 Text("No findings — looking good!")
                     .font(.system(size: 12))
