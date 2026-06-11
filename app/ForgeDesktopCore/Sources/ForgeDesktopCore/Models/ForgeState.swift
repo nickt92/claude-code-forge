@@ -30,13 +30,15 @@ public final class ForgeState {
     @ObservationIgnored private var cachedSelectedRepo: RepoData?
 
     /// The selected repo derived from the latest dashboard data. Pure read:
-    /// falls back to the cached value while loading.
+    /// falls back to the cached value while loading, but only when the cache
+    /// matches the current selection — a deep-link selection change mid-load
+    /// must never show the previous repo's data under the new selection.
     public var selectedRepo: RepoData? {
         guard let path = selectedRepoPath else { return nil }
         if case .loaded(let data) = loadState {
             return data.repos.first { $0.path == path }
         }
-        return cachedSelectedRepo
+        return cachedSelectedRepo?.path == path ? cachedSelectedRepo : nil
     }
 
     private func refreshSelectedRepoCache() {

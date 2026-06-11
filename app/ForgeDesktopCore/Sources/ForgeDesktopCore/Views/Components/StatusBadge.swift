@@ -51,7 +51,7 @@ struct StatusBadge: View {
 
     private var foreground: Color {
         switch style {
-        case .filled: .white
+        case .filled: ForgeTheme.Colors.onTint
         case .subtle, .outline: tint
         }
     }

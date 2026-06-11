@@ -179,11 +179,12 @@ public struct MenuBarView: View {
                 Spacer()
             }
 
-            // Repos needing attention
+            // Repos needing attention — filter BEFORE taking the top 3, or an
+            // unscored repo consumes a slot and hides a genuinely low scorer.
             let needsAttention = data.repos
+                .filter { ($0.score?.total ?? 100) < 80 }
                 .sorted { ($0.score?.total ?? 0) < ($1.score?.total ?? 0) }
                 .prefix(3)
-                .filter { ($0.score?.total ?? 100) < 80 }
 
             if !needsAttention.isEmpty {
                 VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs + 2) {

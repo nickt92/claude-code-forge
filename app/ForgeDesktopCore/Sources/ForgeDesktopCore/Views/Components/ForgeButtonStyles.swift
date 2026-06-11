@@ -135,7 +135,7 @@ struct ForgePillButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .font(ForgeTheme.Typography.micro)
-                .foregroundStyle(isActive ? Color.white : tint)
+                .foregroundStyle(isActive ? ForgeTheme.Colors.onTint : tint)
                 .padding(.horizontal, ForgeTheme.Spacing.sm + 2)
                 .padding(.vertical, ForgeTheme.Spacing.xs)
                 .background(

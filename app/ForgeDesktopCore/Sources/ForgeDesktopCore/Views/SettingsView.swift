@@ -27,6 +27,7 @@ public struct SettingsView: View {
     @Environment(\.permissionsService) private var permissionsService
     @Environment(\.statusService) private var statusService
     @Environment(\.updateService) private var updateService
+    @Environment(\.forgeState) private var forgeState
 
     var onRescan: (() async -> Void)?
 
@@ -127,7 +128,7 @@ public struct SettingsView: View {
                 if let presetError {
                     Text(presetError)
                         .font(.system(size: 11))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ForgeTheme.Colors.danger)
                 }
             } header: {
                 Text("Permissions")
@@ -169,7 +170,7 @@ public struct SettingsView: View {
                 if Self.isBroadScanPath(scanPath) {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ForgeTheme.Colors.warning)
                             .font(.system(size: 11))
                         Text("Scanning a broad directory may be slow and trigger macOS permission prompts. Consider a specific directory like ~/code.")
                             .font(.system(size: 10))
@@ -177,7 +178,7 @@ public struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(8)
-                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                    .background(ForgeTheme.Colors.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                 }
 
                 Button {
@@ -328,6 +329,10 @@ public struct SettingsView: View {
         statusLoadFailed = false
         do {
             forgeStatus = try await statusService.status()
+            // Keep the shared state in sync so the menu bar and dashboard badges
+            // clear immediately after an in-app update instead of lagging until
+            // the next dashboard refresh.
+            forgeState.forgeStatus = forgeStatus
         } catch {
             statusLoadFailed = true
         }
@@ -355,14 +360,14 @@ public struct SettingsView: View {
                     .controlSize(.mini)
             } else if !resolvedPath.isEmpty {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(ForgeTheme.Colors.success)
                     .font(.system(size: 12))
                 Text("Found: \(resolvedPath)")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(ForgeTheme.Colors.warning)
                     .font(.system(size: 12))
                 Text("\(label) not found — set the path above")
                     .font(.system(size: 11))

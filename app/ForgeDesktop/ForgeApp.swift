@@ -126,6 +126,7 @@ struct ForgeApp: App {
                 .environment(\.permissionsService, permissionsService)
                 .environment(\.statusService, statusService)
                 .environment(\.updateService, updateService)
+                .environment(\.forgeState, forgeState)
         }
         .commands {
             CommandGroup(after: .newItem) {

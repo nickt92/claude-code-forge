@@ -30,10 +30,6 @@ public struct PersonaBuilderView: View {
         draft.validateName(builtinIds: builtinIds, customIds: customIds)
     }
 
-    private var nameExists: Bool {
-        customIds.contains(draft.personaKey)
-    }
-
     public var body: some View {
         ForgeSheet(
             icon: "person.crop.circle.badge.plus",

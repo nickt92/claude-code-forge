@@ -19,9 +19,17 @@ public enum ForgeTheme {
         )
 
         /// Deep ember fills for the hero gradient button — dark enough that white
-        /// body-size text clears 4.5:1.
-        public static let emberLight = Color(red: 0.851, green: 0.282, blue: 0.059)
+        /// body-size text clears 4.5:1 (emberLight ≈ 4.7:1, emberDeep ≈ 5.6:1).
+        public static let emberLight = Color(red: 0.82, green: 0.26, blue: 0.059)
         public static let emberDeep = Color(red: 0.737, green: 0.231, blue: 0.043)
+
+        /// Foreground for text rendered ON a tint fill (filled badges, active pills).
+        /// Dark-mode tints are light (e.g. forgeText's dark variant), so white-on-tint
+        /// fails there — this flips to near-black where the tint is light.
+        public static let onTint = dynamic(
+            light: NSColor.white,
+            dark: NSColor.black.withAlphaComponent(0.85)
+        )
 
         // Semantic
         public static let success = Color.green

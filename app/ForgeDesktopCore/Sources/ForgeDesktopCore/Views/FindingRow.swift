@@ -254,7 +254,7 @@ struct FindingRow: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(ForgeTheme.Colors.info)
                 Text("Apply Fix?")
                     .font(.system(size: 13, weight: .semibold))
             }

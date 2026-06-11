@@ -134,7 +134,7 @@ public struct SetupWizardView: View {
 
     private func stepLine(done: Bool) -> some View {
         Rectangle()
-            .fill(done ? Color.green.opacity(0.6) : Color.secondary.opacity(0.15))
+            .fill(done ? ForgeTheme.Colors.success.opacity(0.6) : Color.secondary.opacity(0.15))
             .frame(height: 2)
             .frame(maxWidth: 50)
             .padding(.bottom, 18) // align with dot centers
@@ -148,7 +148,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(ForgeTheme.Colors.success)
                     Text("Forge CLI found")
                         .font(.system(size: 14, weight: .semibold))
                     Text(path)
@@ -156,7 +156,7 @@ public struct SetupWizardView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                         .textSelection(.enabled)
                 }
 
@@ -173,7 +173,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                     Text(error)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
@@ -241,7 +241,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(ForgeTheme.Colors.success)
                     Text("Claude Code found")
                         .font(.system(size: 13, weight: .medium))
                     Text(path)
@@ -249,7 +249,7 @@ public struct SetupWizardView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                         .textSelection(.enabled)
                     if let version = claudeVersion {
                         Text("Version: \(version)")
@@ -272,7 +272,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                     Text("Claude Code CLI not found")
                         .font(.system(size: 13, weight: .medium))
                     Text("Install it to enable intelligent fixes:")
@@ -285,7 +285,7 @@ public struct SetupWizardView: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                             .textSelection(.enabled)
 
                         Button {
@@ -393,7 +393,7 @@ public struct SetupWizardView: View {
             if let error = presetError {
                 Text(error)
                     .font(.system(size: 11))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(ForgeTheme.Colors.danger)
             }
 
             HStack(spacing: 6) {
@@ -468,7 +468,7 @@ public struct SetupWizardView: View {
             if SettingsView.isBroadScanPath(scanPath) {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                         .font(.system(size: 11))
                     Text("This will scan your entire home directory, which may be slow and trigger macOS permission prompts.")
                         .font(.system(size: 11))
@@ -517,7 +517,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ForgeTheme.Colors.danger)
                     Text(error)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)

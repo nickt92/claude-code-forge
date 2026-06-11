@@ -28,14 +28,27 @@ public struct PersonaSwitcherView: View {
                 Group {
                     if isLoading {
                         loadingContent
-                    } else if let error {
+                    } else if personas.isEmpty, let error {
+                        // Nothing usable to show — full error state with retry.
                         ForgeEmptyState(
                             icon: "exclamationmark.triangle",
                             title: "Couldn't Load Personas",
                             message: error
-                        )
+                        ) {
+                            Button("Retry") {
+                                Task { await loadPersonas() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
                     } else {
-                        personaList
+                        // A switch failure renders inline; the list stays usable.
+                        VStack(spacing: 0) {
+                            if let error {
+                                inlineErrorBanner(error)
+                            }
+                            personaList
+                        }
                     }
                 }
                 .frame(minHeight: 400, maxHeight: 560)
@@ -87,6 +100,25 @@ public struct PersonaSwitcherView: View {
                 Text("Switch to \(persona.label)? This will reassemble your CLAUDE.md.")
             }
         }
+    }
+
+    private func inlineErrorBanner(_ message: String) -> some View {
+        HStack(spacing: ForgeTheme.Spacing.xs + 2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(ForgeTheme.Colors.danger)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(ForgeTheme.Typography.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer()
+            Button("Dismiss") { error = nil }
+                .buttonStyle(.plain)
+                .font(ForgeTheme.Typography.micro)
+                .foregroundStyle(ForgeTheme.Colors.info)
+        }
+        .padding(ForgeTheme.Spacing.sm)
+        .background(ForgeTheme.Colors.danger.opacity(0.08))
     }
 
     private var loadingContent: some View {
@@ -221,6 +253,7 @@ public struct PersonaSwitcherView: View {
 
     private func loadPersonas() async {
         isLoading = true
+        error = nil
         defer { isLoading = false }
         do {
             personas = try await personaService.listPersonas()
