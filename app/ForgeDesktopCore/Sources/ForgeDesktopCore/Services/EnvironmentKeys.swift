@@ -58,6 +58,18 @@ private struct PermissionsServiceKey: EnvironmentKey {
     static let defaultValue: PermissionsService = PermissionsService()
 }
 
+// MARK: - Status Service Key
+
+private struct StatusServiceKey: EnvironmentKey {
+    static let defaultValue: StatusService = StatusService()
+}
+
+// MARK: - Update Service Key
+
+private struct UpdateServiceKey: EnvironmentKey {
+    static let defaultValue: UpdateService = UpdateService()
+}
+
 // MARK: - Forge State Key
 
 private struct ForgeStateKey: @preconcurrency EnvironmentKey {
@@ -70,6 +82,16 @@ extension EnvironmentValues {
     public var fixService: FixService {
         get { self[FixServiceKey.self] }
         set { self[FixServiceKey.self] = newValue }
+    }
+
+    public var statusService: StatusService {
+        get { self[StatusServiceKey.self] }
+        set { self[StatusServiceKey.self] = newValue }
+    }
+
+    public var updateService: UpdateService {
+        get { self[UpdateServiceKey.self] }
+        set { self[UpdateServiceKey.self] = newValue }
     }
 
     public var doctorService: DoctorService {

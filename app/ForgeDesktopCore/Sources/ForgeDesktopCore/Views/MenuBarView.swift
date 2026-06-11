@@ -49,6 +49,41 @@ public struct MenuBarView: View {
             }
             .forgeAnimation(ForgeTheme.Animations.easeReveal, value: loadPhase)
 
+            if state.forgeStatus?.reinstallPending == true {
+                Button { onOpenSettings() } label: {
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ForgeTheme.Colors.info)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Forge update ready to install")
+                                .font(.system(size: 11, weight: .medium))
+                            if let source = state.forgeStatus?.version.source {
+                                Text("v\(source) is in your source repo")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(ForgeTheme.Spacing.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .forgeHoverHighlight(radius: ForgeTheme.Metrics.chipRadius)
+                .background(
+                    ForgeTheme.Colors.info.opacity(0.06),
+                    in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                )
+                .accessibilityLabel("Forge update ready to install. Open settings.")
+                .padding(.top, ForgeTheme.Spacing.sm)
+            }
+
             Divider()
                 .padding(.vertical, ForgeTheme.Spacing.sm)
 

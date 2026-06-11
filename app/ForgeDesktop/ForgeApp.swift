@@ -18,6 +18,8 @@ struct ForgeApp: App {
     private let onboardingService: OnboardingService
     private let dismissalService: DismissalService
     private let permissionsService: PermissionsService
+    private let statusService: StatusService
+    private let updateService: UpdateService
 
     init() {
         let forgePath = UserDefaults.standard.string(forKey: "forgeBinaryPath")
@@ -40,6 +42,8 @@ struct ForgeApp: App {
         )
         self.dismissalService = DismissalService()
         self.permissionsService = PermissionsService(forgePath: resolvedPath)
+        self.statusService = StatusService(forgePath: resolvedPath)
+        self.updateService = UpdateService(forgePath: resolvedPath)
     }
 
     var body: some Scene {
@@ -99,6 +103,8 @@ struct ForgeApp: App {
                 .environment(\.dismissalService, dismissalService)
                 .environment(\.onboardingService, onboardingService)
                 .environment(\.permissionsService, permissionsService)
+                .environment(\.statusService, statusService)
+                .environment(\.updateService, updateService)
                 .sheet(isPresented: $showNewProject) {
                     if let dashboard = forgeState.dashboard {
                         OnboardingView(
@@ -115,6 +121,8 @@ struct ForgeApp: App {
             SettingsView(onRescan: { await refreshAsync() })
                 .environment(\.configService, configService)
                 .environment(\.permissionsService, permissionsService)
+                .environment(\.statusService, statusService)
+                .environment(\.updateService, updateService)
         }
         .commands {
             CommandGroup(after: .newItem) {
@@ -163,6 +171,8 @@ struct ForgeApp: App {
             let data = try await forgeService.loadDashboard()
             forgeState.loadState = .loaded(data)
             forgeState.refreshError = nil
+            // Best-effort: status drives the update-ready affordances only.
+            forgeState.forgeStatus = try? await statusService.status()
         } catch {
             let forgeError = (error as? ForgeError) ?? .unexpected(error.localizedDescription)
             if hasVisibleData {

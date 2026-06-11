@@ -189,8 +189,10 @@ public struct DashboardView: View {
                 VStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
                     GlobalHealthCard(
                         data: data,
+                        updateReady: state.forgeStatus?.reinstallPending == true,
                         onPersonaTap: { showPersonaSwitcher = true },
-                        onTelemetryTap: { showTelemetry = true }
+                        onTelemetryTap: { showTelemetry = true },
+                        onUpdateTap: { openSettings() }
                     )
                     controlsRow
                     if let refreshError = state.refreshError {
@@ -310,8 +312,10 @@ public struct DashboardView: View {
 
 struct GlobalHealthCard: View {
     let data: DashboardData
+    var updateReady: Bool = false
     var onPersonaTap: (() -> Void)?
     var onTelemetryTap: (() -> Void)?
+    var onUpdateTap: (() -> Void)?
 
     @State private var personaHovered = false
 
@@ -346,6 +350,20 @@ struct GlobalHealthCard: View {
                     }
                     .font(ForgeTheme.Typography.caption)
                     .foregroundStyle(.secondary)
+
+                    if updateReady {
+                        Button { onUpdateTap?() } label: {
+                            StatusBadge(
+                                "Update ready to install",
+                                icon: "arrow.down.circle",
+                                tint: ForgeTheme.Colors.info
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help("A newer forge version is in your source repo — install it from Settings")
+                        .accessibilityLabel("Forge update ready to install. Open settings.")
+                        .padding(.top, ForgeTheme.Spacing.xxs)
+                    }
                 }
 
                 Spacer(minLength: 0)

@@ -12,6 +12,9 @@ public final class ForgeState {
     public var doctorResult: DoctorResult?
     public var doctorLoading: Bool = false
     public var claudeAvailable: Bool = false
+    /// Latest `forge status --json`, refreshed alongside the dashboard.
+    /// Drives the "update ready to install" affordances.
+    public var forgeStatus: ForgeStatus?
     /// Single source of truth for the doctor sheet — previously duplicated across
     /// ForgeApp and DashboardView, which could race two sheets.
     public var showDoctor: Bool = false
