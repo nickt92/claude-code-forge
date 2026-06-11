@@ -123,6 +123,26 @@ build_args() {
   assert_output --partial "Unknown option"
 }
 
+@test "build value-flag with no value fails with a message" {
+  run cmd_build --name
+  assert_failure
+  assert_output --partial "requires a value"
+}
+
+# Through the real entrypoint: `set -euo pipefail` is active there, which is
+# exactly the mode where an unguarded `shift 2` aborts with no output.
+@test "build trailing value-flag fails with message via real entrypoint" {
+  run "$SCRIPT_DIR/forge" build --name
+  assert_failure
+  assert_output --partial "requires a value"
+}
+
+@test "build missing required flags fails with message via real entrypoint" {
+  run "$SCRIPT_DIR/forge" build --communication technical
+  assert_failure
+  assert_output --partial "--name is required"
+}
+
 @test "build validates assembled output line count" {
   run build_args asm-persona
   assert_success

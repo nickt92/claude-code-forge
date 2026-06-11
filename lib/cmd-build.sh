@@ -36,15 +36,28 @@ cmd_build() {
   local ni_quality="core" ni_plugins="full" ni_switch=0 ni_force=0
   local non_interactive=0
 
+  # Value-flags must verify a value exists BEFORE `shift 2`: under the
+  # entrypoint's `set -e`, shifting past the end of args aborts the function
+  # silently, never reaching the validation messages below.
   while [ $# -gt 0 ]; do
     case "$1" in
-      --name)          ni_name="${2:-}"; non_interactive=1; shift 2 ;;
-      --communication) ni_comm="${2:-}"; non_interactive=1; shift 2 ;;
-      --autonomy)      ni_auto="${2:-}"; non_interactive=1; shift 2 ;;
-      --workflow)      ni_work="${2:-}"; non_interactive=1; shift 2 ;;
-      --depth)         ni_depth="${2:-}"; non_interactive=1; shift 2 ;;
-      --quality)       ni_quality="${2:-}"; non_interactive=1; shift 2 ;;
-      --plugins)       ni_plugins="${2:-}"; non_interactive=1; shift 2 ;;
+      --name|--communication|--autonomy|--workflow|--depth|--quality|--plugins)
+        if [ $# -lt 2 ]; then
+          fail "$1 requires a value (see forge build --help)"
+          return 1
+        fi
+        case "$1" in
+          --name)          ni_name="$2" ;;
+          --communication) ni_comm="$2" ;;
+          --autonomy)      ni_auto="$2" ;;
+          --workflow)      ni_work="$2" ;;
+          --depth)         ni_depth="$2" ;;
+          --quality)       ni_quality="$2" ;;
+          --plugins)       ni_plugins="$2" ;;
+        esac
+        non_interactive=1
+        shift 2
+        ;;
       --switch)        ni_switch=1; non_interactive=1; shift ;;
       --no-switch)     ni_switch=0; non_interactive=1; shift ;;
       --force)         ni_force=1; non_interactive=1; shift ;;
