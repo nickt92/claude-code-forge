@@ -137,20 +137,25 @@ public struct DashboardView: View {
         .forgeAnimation(ForgeTheme.Animations.easeReveal, value: loadPhase)
     }
 
+    // Top-anchored sidebar content must live in a scrollable container (List or
+    // ScrollView): macOS lays plain stacks out under the translucent titlebar,
+    // clipping whatever sits at the top of the column.
+
     private var loadingSidebar: some View {
-        SkeletonGroup {
-            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
-                SkeletonHealthCard()
-                VStack(spacing: ForgeTheme.Spacing.xs) {
-                    ForEach(0..<6, id: \.self) { _ in
-                        SkeletonRepoRow()
+        ScrollView {
+            SkeletonGroup {
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
+                    SkeletonHealthCard()
+                    VStack(spacing: ForgeTheme.Spacing.xs) {
+                        ForEach(0..<6, id: \.self) { _ in
+                            SkeletonRepoRow()
+                        }
                     }
+                    .padding(.horizontal, ForgeTheme.Spacing.xs)
                 }
-                .padding(.horizontal, ForgeTheme.Spacing.xs)
-                Spacer()
+                .padding(.horizontal, ForgeTheme.Spacing.md)
+                .padding(.top, ForgeTheme.Spacing.sm)
             }
-            .padding(.horizontal, ForgeTheme.Spacing.md)
-            .padding(.top, ForgeTheme.Spacing.sm)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Scanning repositories")
@@ -159,34 +164,37 @@ public struct DashboardView: View {
     @ViewBuilder
     private func loadedSidebar(_ data: DashboardData) -> some View {
         if data.repos.isEmpty {
-            VStack(spacing: ForgeTheme.Spacing.lg) {
-                GlobalHealthCard(
-                    data: data,
-                    onPersonaTap: { showPersonaSwitcher = true },
-                    onTelemetryTap: { showTelemetry = true }
-                )
-                .padding(.horizontal, ForgeTheme.Spacing.md)
-                .padding(.top, ForgeTheme.Spacing.sm)
+            ScrollView {
+                VStack(spacing: ForgeTheme.Spacing.lg) {
+                    GlobalHealthCard(
+                        data: data,
+                        onPersonaTap: { showPersonaSwitcher = true },
+                        onTelemetryTap: { showTelemetry = true }
+                    )
+                    .padding(.horizontal, ForgeTheme.Spacing.md)
+                    .padding(.top, ForgeTheme.Spacing.sm)
 
-                ForgeEmptyState(
-                    icon: "folder.badge.questionmark",
-                    title: "No Repositories Found",
-                    message: "Set a scan path in Settings so Forge knows where to find your projects."
-                ) {
-                    HStack(spacing: ForgeTheme.Spacing.sm) {
-                        Button("Open Settings") { openSettings() }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        Button("Refresh") { onRefresh() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                    ForgeEmptyState(
+                        icon: "folder.badge.questionmark",
+                        title: "No Repositories Found",
+                        message: "Set a scan path in Settings so Forge knows where to find your projects."
+                    ) {
+                        HStack(spacing: ForgeTheme.Spacing.sm) {
+                            Button("Open Settings") { openSettings() }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            Button("Refresh") { onRefresh() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
                     }
+                    .padding(.top, ForgeTheme.Spacing.xl)
                 }
             }
         } else {
             let filteredRepos = sortedAndFilteredRepos(data)
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
+            List(selection: $state.selectedRepoPath) {
+                Section {
                     GlobalHealthCard(
                         data: data,
                         updateReady: state.forgeStatus?.reinstallPending == true,
@@ -194,7 +202,13 @@ public struct DashboardView: View {
                         onTelemetryTap: { showTelemetry = true },
                         onUpdateTap: { openSettings() }
                     )
+                    .listRowSeparator(.hidden)
+                    .selectionDisabled()
+
                     controlsRow
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
+
                     if let refreshError = state.refreshError {
                         HStack(spacing: ForgeTheme.Spacing.xs + 2) {
                             Image(systemName: "wifi.exclamationmark")
@@ -213,26 +227,23 @@ public struct DashboardView: View {
                             ForgeTheme.Colors.warning.opacity(0.08),
                             in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius)
                         )
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
                     }
                 }
-                .padding(.horizontal, ForgeTheme.Spacing.md)
-                .padding(.top, ForgeTheme.Spacing.sm)
-                .padding(.bottom, ForgeTheme.Spacing.xs)
 
-                List(selection: $state.selectedRepoPath) {
-                    Section("Repositories (\(filteredRepos.count))") {
-                        ForEach(filteredRepos) { repo in
-                            RepoRow(repo: repo)
-                                .tag(repo.path)
-                        }
+                Section("Repositories (\(filteredRepos.count))") {
+                    ForEach(filteredRepos) { repo in
+                        RepoRow(repo: repo)
+                            .tag(repo.path)
                     }
                 }
-                .listStyle(.sidebar)
-                .forgeAnimation(
-                    ForgeTheme.Animations.springSnappy,
-                    value: filteredRepos.map(\.path)
-                )
             }
+            .listStyle(.sidebar)
+            .forgeAnimation(
+                ForgeTheme.Animations.springSnappy,
+                value: filteredRepos.map(\.path)
+            )
         }
     }
 
