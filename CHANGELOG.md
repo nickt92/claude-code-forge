@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-11
+
+Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities.
+
+### Added
+- Design system v2 for Forge Desktop: spacing and typography scales, elevation
+  with dark-mode-aware shadows, semantic colors, WCAG AA text-grade brand
+  orange, motion tokens that honor Reduce Motion, and a component library
+  (cards, four button styles with hover states, unified sheet chrome, skeleton
+  loading, branded empty states, status badges)
+- Brand accent color: stock buttons, selections, and toggles now render in
+  forge ember instead of system blue
+- Instant launch: the dashboard renders from the last successful scan
+  immediately and refreshes in the background; a failed refresh keeps the
+  usable data on screen with a non-destructive warning
+- Data-driven permission preset picker in Settings and the setup wizard, fed
+  by `forge permissions --list --json` (labels, tiers, rule counts, and the
+  inheritance chain come from the CLI)
+- Status card in Settings: installed vs source CLI version, persona, plugin
+  and hook counts, install date — with a one-click, confirmed in-app
+  `forge update` flow and update log
+- "Update ready to install" indicators in the dashboard health card and menu
+  bar, replacing the terminal nag loop
+- Native persona builder: three-step wizard creating custom personas through
+  the new non-interactive `forge build` flags (`--name`, axis flags,
+  `--quality`, `--plugins`, `--switch/--no-switch`, `--force`)
+- Menu bar deep links: repos needing attention open the dashboard with that
+  repository selected
+- Version-sync test guard: CLI, app, and README versions can no longer drift
+
+### Changed
+- Every screen overhauled on the design system: dashboard sidebar with
+  skeleton loading and animated health card, repo detail with hero header and
+  adaptive layout, findings with severity edge bars and hover states, unified
+  Doctor/Telemetry/Persona/Setup sheet chrome, restyled menu bar
+- VoiceOver labels on all icon-only controls; decorative elements hidden from
+  assistive tech; all animations respect Reduce Motion
+
+### Fixed
+- Desktop app version drift (the app claimed 1.3.0 while the CLI was 1.3.1)
+- CLI failures from `forge update` and `forge build` now reach the app with
+  their real error message instead of an empty string
+- `forge build` with a value flag missing its value fails with a clear message
+  instead of aborting silently
+- Doctor sheet could be presented twice from different windows
+
 ## [1.3.1] - 2026-06-04
 
 ### Fixed
@@ -110,7 +156,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 7 rules files for engineering standards
 - Onboarding wizard with role selection
 
-[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/nickt92/claude-code-forge/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/nickt92/claude-code-forge/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/nickt92/claude-code-forge/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/nickt92/claude-code-forge/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/nickt92/claude-code-forge/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nickt92/claude-code-forge/compare/v1.0.0...v1.1.0
