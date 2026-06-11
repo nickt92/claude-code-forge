@@ -20,6 +20,7 @@ struct ForgeApp: App {
     private let permissionsService: PermissionsService
     private let statusService: StatusService
     private let updateService: UpdateService
+    private let personaBuilderService: PersonaBuilderService
 
     init() {
         let forgePath = UserDefaults.standard.string(forKey: "forgeBinaryPath")
@@ -44,6 +45,7 @@ struct ForgeApp: App {
         self.permissionsService = PermissionsService(forgePath: resolvedPath)
         self.statusService = StatusService(forgePath: resolvedPath)
         self.updateService = UpdateService(forgePath: resolvedPath)
+        self.personaBuilderService = PersonaBuilderService(forgePath: resolvedPath)
     }
 
     var body: some Scene {
@@ -105,6 +107,7 @@ struct ForgeApp: App {
                 .environment(\.permissionsService, permissionsService)
                 .environment(\.statusService, statusService)
                 .environment(\.updateService, updateService)
+                .environment(\.personaBuilderService, personaBuilderService)
                 .sheet(isPresented: $showNewProject) {
                     if let dashboard = forgeState.dashboard {
                         OnboardingView(

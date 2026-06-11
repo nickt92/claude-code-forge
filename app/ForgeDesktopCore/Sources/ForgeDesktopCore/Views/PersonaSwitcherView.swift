@@ -12,6 +12,7 @@ public struct PersonaSwitcherView: View {
     @State private var error: String?
     @State private var confirmPersona: PersonaProfile?
     @State private var hoveredPersona: String?
+    @State private var showBuilder = false
 
     public init(currentPersona: String, onSwitched: @escaping () -> Void) {
         self.currentPersona = currentPersona
@@ -41,6 +42,17 @@ public struct PersonaSwitcherView: View {
             },
             footer: {
                 HStack {
+                    Button {
+                        showBuilder = true
+                    } label: {
+                        Label("Create Custom Persona…", systemImage: "person.crop.circle.badge.plus")
+                            .font(ForgeTheme.Typography.body)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isLoading || isSwitching)
+                    .accessibilityLabel("Create a custom persona")
+
                     Spacer()
                     Button("Done") { dismiss() }
                         .buttonStyle(.borderedProminent)
@@ -49,6 +61,16 @@ public struct PersonaSwitcherView: View {
                 }
             }
         )
+        .sheet(isPresented: $showBuilder) {
+            PersonaBuilderView(
+                builtinIds: personas.filter { $0.source == "builtin" }.map(\.persona),
+                customIds: personas.filter { $0.source == "custom" }.map(\.persona),
+                onCreated: { _ in
+                    Task { await loadPersonas() }
+                    onSwitched()
+                }
+            )
+        }
         .task { await loadPersonas() }
         .alert("Switch Persona?", isPresented: Binding(
             get: { confirmPersona != nil },

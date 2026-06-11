@@ -70,6 +70,12 @@ private struct UpdateServiceKey: EnvironmentKey {
     static let defaultValue: UpdateService = UpdateService()
 }
 
+// MARK: - Persona Builder Service Key
+
+private struct PersonaBuilderServiceKey: EnvironmentKey {
+    static let defaultValue: PersonaBuilderService = PersonaBuilderService()
+}
+
 // MARK: - Forge State Key
 
 private struct ForgeStateKey: @preconcurrency EnvironmentKey {
@@ -92,6 +98,11 @@ extension EnvironmentValues {
     public var updateService: UpdateService {
         get { self[UpdateServiceKey.self] }
         set { self[UpdateServiceKey.self] = newValue }
+    }
+
+    public var personaBuilderService: PersonaBuilderService {
+        get { self[PersonaBuilderServiceKey.self] }
+        set { self[PersonaBuilderServiceKey.self] = newValue }
     }
 
     public var doctorService: DoctorService {
