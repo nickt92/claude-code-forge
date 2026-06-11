@@ -6,4 +6,4 @@
 .build/
 .swiftpm/
 xcuserdata/
-DerivedData/
+DerivedData/build/
