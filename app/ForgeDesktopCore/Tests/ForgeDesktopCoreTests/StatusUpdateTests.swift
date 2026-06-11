@@ -91,6 +91,47 @@ final class StatusUpdateTests: XCTestCase {
         }
     }
 
+    /// The forge CLI's fail() writes user-facing errors to STDOUT. This exercises a
+    /// real process (not MockExecutor) to pin the executor's stdout fallback —
+    /// without it, every mapped update/build failure reaches the UI as an empty string.
+    func testProcessExecutorSurfacesStdoutWhenStderrEmpty() async {
+        let executor = ProcessExecutor()
+        do {
+            _ = try await executor.run(
+                executable: "/bin/sh",
+                arguments: ["-c", "echo 'Source repo has uncommitted changes'; exit 1"]
+            )
+            XCTFail("Expected failure")
+        } catch let error as ForgeError {
+            guard case .cliExitCode(let code, let detail) = error else {
+                return XCTFail("Wrong error: \(error)")
+            }
+            XCTAssertEqual(code, 1)
+            XCTAssertTrue(detail.contains("uncommitted changes"), "stdout must be surfaced, got: '\(detail)'")
+        } catch {
+            XCTFail("Wrong error type: \(error)")
+        }
+    }
+
+    func testProcessExecutorPrefersStderrWhenPresent() async {
+        let executor = ProcessExecutor()
+        do {
+            _ = try await executor.run(
+                executable: "/bin/sh",
+                arguments: ["-c", "echo 'noise on stdout'; echo 'real error' >&2; exit 1"]
+            )
+            XCTFail("Expected failure")
+        } catch let error as ForgeError {
+            guard case .cliExitCode(_, let detail) = error else {
+                return XCTFail("Wrong error: \(error)")
+            }
+            XCTAssertTrue(detail.contains("real error"))
+            XCTAssertFalse(detail.contains("noise"))
+        } catch {
+            XCTFail("Wrong error type: \(error)")
+        }
+    }
+
     func testFriendlyMessageMappings() {
         XCTAssertTrue(UpdateService.friendlyMessage(for: "fatal: Failed to fetch from origin").contains("network"))
         XCTAssertTrue(UpdateService.friendlyMessage(for: "Fast-forward merge failed — resolve manually").contains("diverged"))
