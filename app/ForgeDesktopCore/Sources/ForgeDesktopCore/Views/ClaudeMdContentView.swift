@@ -20,7 +20,7 @@ public struct ClaudeMdContentView: View {
     }
 
     public var body: some View {
-        DetailCard("CLAUDE.MD CONTENT") {
+        ForgeCard("CLAUDE.MD CONTENT") {
             VStack(alignment: .leading, spacing: 8) {
                 headerRow
                 if showContent {

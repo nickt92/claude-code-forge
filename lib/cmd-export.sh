@@ -138,7 +138,7 @@ cmd_export() {
         ;;
       -o|--output)
         if [ $# -lt 2 ]; then
-          fail "Missing path after $1"
+          forge_fail "Missing path after $1"
           return 1
         fi
         output_path="$2"
@@ -149,7 +149,7 @@ cmd_export() {
         shift
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         echo "Usage: forge export [-o path.tar.gz] [--no-custom-profiles] [--help]"
         return 1
         ;;
@@ -157,7 +157,7 @@ cmd_export() {
   done
 
   if [ ! -f "$MANIFEST_FILE" ]; then
-    fail "Forge is not installed (no manifest found)"
+    forge_fail "Forge is not installed (no manifest found)"
     info "Run: forge install"
     return 1
   fi

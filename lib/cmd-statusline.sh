@@ -35,7 +35,7 @@ cmd_statusline() {
         return 0
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         return 1
         ;;
     esac

@@ -128,7 +128,7 @@ main() {
 
   local cmd_file="$FORGE_SOURCE_DIR/lib/cmd-${subcmd}.sh"
   if [ ! -f "$cmd_file" ]; then
-    fail "Unknown command: $subcmd"
+    forge_fail "Unknown command: $subcmd"
     echo ""
     echo "Available commands:"
     while IFS= read -r cmd; do

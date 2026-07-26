@@ -28,7 +28,7 @@ cmd_status() {
         return 0
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         return 1
         ;;
     esac
@@ -39,7 +39,7 @@ cmd_status() {
     if [ "$json_output" = true ]; then
       jq -n '{schema_version: 1, error: "Forge is not installed (no manifest found)"}'
     else
-      fail "Forge is not installed (no manifest found)"
+      forge_fail "Forge is not installed (no manifest found)"
       info "Run: forge install"
     fi
     return 1

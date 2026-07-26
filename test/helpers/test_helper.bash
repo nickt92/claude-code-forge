@@ -20,15 +20,34 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygw
   jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 fi
 
+# ── Platform skips ───────────────────────────────────────────
+# Use only where the POSIX semantics under test genuinely do not exist on
+# Windows, never to paper over a real cross-platform bug. State the reason.
+skip_on_windows() {
+  if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygwin* ]]; then
+    skip "${1:-not applicable on Windows}"
+  fi
+}
+
 # ── Sandbox setup ────────────────────────────────────────────
 # Creates a temp directory and redirects HOME so tests never
 # modify the real ~/.claude/ directory.
 setup_sandbox() {
   TEST_SANDBOX="$(mktemp -d)"
   REAL_HOME="$HOME"
+  REAL_TMPDIR="${TMPDIR:-}"
   export HOME="$TEST_SANDBOX"
   export CLAUDE_DIR="$TEST_SANDBOX/.claude"
   mkdir -p "$CLAUDE_DIR"/{rules,hooks,scripts,backups,plans}
+
+  # Per-test TMPDIR. Hooks key their marker and state files on ${TMPDIR:-/tmp}
+  # plus a PID, and teardown removes them with a wildcard. run_tests.sh runs the
+  # three suites in parallel against a shared system TMPDIR, so one suite's
+  # teardown could delete a live marker belonging to a test running in another
+  # — an intermittent, order-dependent failure. Giving each test its own TMPDIR
+  # confines both the writes and the wildcard cleanup to this sandbox.
+  export TMPDIR="$TEST_SANDBOX/tmp"
+  mkdir -p "$TMPDIR"
 
   # Project paths for sourcing libs and accessing templates
   export SCRIPT_DIR="$PROJECT_ROOT"
@@ -46,6 +65,14 @@ teardown_sandbox() {
       # Restore real HOME before cleanup
       export HOME="$REAL_HOME"
     fi
+  fi
+
+  # Restore TMPDIR before removing the sandbox it points into, so any later
+  # mktemp does not target a deleted directory.
+  if [ -n "${REAL_TMPDIR:-}" ]; then
+    export TMPDIR="$REAL_TMPDIR"
+  else
+    unset TMPDIR
   fi
 
   # Clean up sandbox

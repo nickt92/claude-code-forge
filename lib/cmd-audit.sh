@@ -24,7 +24,7 @@ cmd_audit() {
         return 0
         ;;
       -*)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         return 1
         ;;
       *)
@@ -38,7 +38,7 @@ cmd_audit() {
   local resolved
   resolved=$(cd "$target_path" 2>/dev/null && pwd)
   if [ -z "$resolved" ] || [ ! -d "$resolved" ]; then
-    fail "Path not found: $target_path"
+    forge_fail "Path not found: $target_path"
     return 1
   fi
 
@@ -73,7 +73,7 @@ _audit_render() {
   lines=$(echo "$audit_json" | jq -r '.lines')
 
   if [ "$has_claude_md" = "false" ]; then
-    fail "No CLAUDE.md found in $repo_path"
+    forge_fail "No CLAUDE.md found in $repo_path"
     info "Checked: $repo_path/CLAUDE.md and $repo_path/.claude/CLAUDE.md"
     info "Run 'forge init' in the repo to create one"
     return 0

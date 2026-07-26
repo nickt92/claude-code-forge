@@ -200,10 +200,17 @@ public struct ProcessExecutor: CLIExecutor {
                     }
                     guard_.resume(with: .success(stdout))
                 } else {
-                    Self.logger.error("Exit \(proc.terminationStatus): \(stderrString, privacy: .public)")
+                    // The forge CLI's fail() writes user-facing errors to STDOUT.
+                    // With an empty stderr, surface stdout instead of discarding
+                    // the only explanation the user would ever get.
+                    var detail = stderrString
+                    if detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        detail = String(data: stdout, encoding: .utf8) ?? ""
+                    }
+                    Self.logger.error("Exit \(proc.terminationStatus): \(detail, privacy: .public)")
                     guard_.resume(with: .failure(ForgeError.cliExitCode(
                         Int(proc.terminationStatus),
-                        stderr: stderrString
+                        stderr: detail
                     )))
                 }
             }

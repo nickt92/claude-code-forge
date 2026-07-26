@@ -4,7 +4,6 @@ import ForgeDesktopCore
 @main
 struct ForgeApp: App {
     @State private var forgeState = ForgeState()
-    @State private var showDoctor = false
     @State private var showNewProject = false
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
@@ -18,6 +17,10 @@ struct ForgeApp: App {
     private let personaService: PersonaService
     private let onboardingService: OnboardingService
     private let dismissalService: DismissalService
+    private let permissionsService: PermissionsService
+    private let statusService: StatusService
+    private let updateService: UpdateService
+    private let personaBuilderService: PersonaBuilderService
 
     init() {
         let forgePath = UserDefaults.standard.string(forKey: "forgeBinaryPath")
@@ -26,7 +29,7 @@ struct ForgeApp: App {
         let claudePath = UserDefaults.standard.string(forKey: "claudeBinaryPath")
         let resolvedClaudePath = claudePath?.isEmpty == true ? nil : claudePath
 
-        self.forgeService = ForgeService(forgePath: resolvedPath)
+        self.forgeService = ForgeService(forgePath: resolvedPath, cache: DashboardCache())
         self.doctorService = DoctorService(forgePath: resolvedPath)
         self.claudeService = ClaudeService(claudePath: resolvedClaudePath)
 
@@ -39,6 +42,10 @@ struct ForgeApp: App {
             forgePath: resolvedPath
         )
         self.dismissalService = DismissalService()
+        self.permissionsService = PermissionsService(forgePath: resolvedPath)
+        self.statusService = StatusService(forgePath: resolvedPath)
+        self.updateService = UpdateService(forgePath: resolvedPath)
+        self.personaBuilderService = PersonaBuilderService(forgePath: resolvedPath)
     }
 
     var body: some Scene {
@@ -55,11 +62,18 @@ struct ForgeApp: App {
                 },
                 onRunDoctor: {
                     openWindow(id: "dashboard")
-                    showDoctor = true
+                    NSApp.activate(ignoringOtherApps: true)
+                    forgeState.showDoctor = true
+                },
+                onSelectRepo: { path in
+                    forgeState.selectedRepoPath = path
+                    openWindow(id: "dashboard")
+                    NSApp.activate(ignoringOtherApps: true)
                 }
             )
             .onAppear {
                 if setupComplete, case .idle = forgeState.loadState {
+                    hydrateFromCache()
                     refresh()
                 }
             }
@@ -81,9 +95,6 @@ struct ForgeApp: App {
                     )
                     .interactiveDismissDisabled()
                 }
-                .sheet(isPresented: $showDoctor) {
-                    DoctorView(state: forgeState)
-                }
                 .environment(\.fixService, fixService)
                 .environment(\.doctorService, doctorService)
                 .environment(\.configService, configService)
@@ -93,6 +104,10 @@ struct ForgeApp: App {
                 .environment(\.forgeState, forgeState)
                 .environment(\.dismissalService, dismissalService)
                 .environment(\.onboardingService, onboardingService)
+                .environment(\.permissionsService, permissionsService)
+                .environment(\.statusService, statusService)
+                .environment(\.updateService, updateService)
+                .environment(\.personaBuilderService, personaBuilderService)
                 .sheet(isPresented: $showNewProject) {
                     if let dashboard = forgeState.dashboard {
                         OnboardingView(
@@ -108,6 +123,10 @@ struct ForgeApp: App {
         Settings {
             SettingsView(onRescan: { await refreshAsync() })
                 .environment(\.configService, configService)
+                .environment(\.permissionsService, permissionsService)
+                .environment(\.statusService, statusService)
+                .environment(\.updateService, updateService)
+                .environment(\.forgeState, forgeState)
         }
         .commands {
             CommandGroup(after: .newItem) {
@@ -126,8 +145,17 @@ struct ForgeApp: App {
         if !setupComplete {
             forgeState.setupPhase = .detectCLI
         } else if case .idle = forgeState.loadState {
+            hydrateFromCache()
             refresh()
         }
+    }
+
+    /// Render the last successful dashboard immediately; the subsequent refresh
+    /// runs behind it (stale-while-revalidate).
+    private func hydrateFromCache() {
+        guard case .idle = forgeState.loadState,
+              let cached = forgeService.cachedDashboard() else { return }
+        forgeState.loadState = .loaded(cached)
     }
 
     private func refresh() {
@@ -135,16 +163,29 @@ struct ForgeApp: App {
     }
 
     private func refreshAsync() async {
-        guard !forgeState.isLoading else { return }
-        forgeState.loadState = .loading
+        guard !forgeState.isBusy else { return }
+        let hasVisibleData = forgeState.dashboard != nil
+        if hasVisibleData {
+            forgeState.isRefreshing = true
+        } else {
+            forgeState.loadState = .loading
+        }
 
         do {
             let data = try await forgeService.loadDashboard()
             forgeState.loadState = .loaded(data)
-        } catch let error as ForgeError {
-            forgeState.loadState = .failed(error)
+            forgeState.refreshError = nil
+            // Best-effort: status drives the update-ready affordances only.
+            forgeState.forgeStatus = try? await statusService.status()
         } catch {
-            forgeState.loadState = .failed(.unexpected(error.localizedDescription))
+            let forgeError = (error as? ForgeError) ?? .unexpected(error.localizedDescription)
+            if hasVisibleData {
+                // Keep the usable dashboard on screen; surface the failure non-destructively.
+                forgeState.refreshError = forgeError.localizedDescription
+            } else {
+                forgeState.loadState = .failed(forgeError)
+            }
         }
+        forgeState.isRefreshing = false
     }
 }

@@ -3,6 +3,7 @@ import Foundation
 public final class ForgeService: Sendable {
     private let executor: CLIExecutor
     private let forgePathOverride: String?
+    private let cache: DashboardCache?
 
     private static let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -10,9 +11,14 @@ public final class ForgeService: Sendable {
         return d
     }()
 
-    public init(executor: CLIExecutor = ProcessExecutor(), forgePath: String? = nil) {
+    public init(
+        executor: CLIExecutor = ProcessExecutor(),
+        forgePath: String? = nil,
+        cache: DashboardCache? = nil
+    ) {
         self.executor = executor
         self.forgePathOverride = forgePath
+        self.cache = cache
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
@@ -26,7 +32,17 @@ public final class ForgeService: Sendable {
     public func loadDashboard() async throws -> DashboardData {
         let forgePath = try await discoverForgePath()
         let data = try await executor.run(executable: forgePath, arguments: ["dashboard"])
-        return try decode(DashboardData.self, from: data)
+        let dashboard = try decode(DashboardData.self, from: data)
+        // Only valid payloads are cached — decode succeeded above.
+        cache?.save(data)
+        return dashboard
+    }
+
+    /// Last successful dashboard payload, decoded from the on-disk cache.
+    /// Returns nil for any miss or decode failure — callers fall back to a live load.
+    public func cachedDashboard() -> DashboardData? {
+        guard let data = cache?.load() else { return nil }
+        return try? Self.decoder.decode(DashboardData.self, from: data)
     }
 
     public func auditRepo(path: String) async throws -> AuditData {

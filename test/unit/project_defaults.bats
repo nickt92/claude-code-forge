@@ -86,6 +86,10 @@ JSON
   rm -f "$CLAUDE_DIR/profile.json"
   source "$SCRIPT_DIR/lib/assembly.sh"
   source "$SCRIPT_DIR/lib/forge-inventory.sh"
+  # cmd_init lives in cmd-init.sh; setup only sources cmd-install.sh. Without
+  # this the call exited 127 (command not found) and a shadowed fail() let the
+  # assert_success pass anyway — so this path was never actually exercised.
+  source "$SCRIPT_DIR/lib/cmd-init.sh"
   run cmd_init --dir "$PROJECT" --skip-docs
   assert_success
   assert_output --partial "Senior Engineer"

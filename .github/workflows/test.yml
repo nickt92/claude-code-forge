@@ -2,9 +2,21 @@ name: Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'release/**', 'hotfix/**']
   pull_request:
-    branches: [main]
+    branches: [main, develop, 'release/**']
+
+# Pinned rather than inherited: the repo default is currently "read", but that
+# setting is mutable, invisible in a diff, and overridable by org policy.
+permissions:
+  contents: read
+
+# A push to release/** that also has an open PR into main fires both the push
+# and pull_request events — two full 3-OS matrices plus the Swift job per push,
+# during the highest-churn period of a release. Supersede in-flight runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -17,8 +29,24 @@ jobs:
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
+      # completions/forge.zsh is excluded: ShellCheck has no zsh support, and
+      # forcing -s bash misparses zsh completion built-ins ($state, $words).
+      # Its syntax is covered by `zsh -n` in test/validation/completions.bats
+      # (which skips where zsh is absent, i.e. the Windows runner).
+      # .bats files are excluded too — bats @test syntax is not shell.
       - name: Run ShellCheck
-        run: shellcheck -x -S error -e SC2034 -e SC1091 forge lib/*.sh hooks/*.sh scripts/*.sh completions/forge.bash
+        run: |
+          shellcheck -x -S error -e SC2034 -e SC1091 \
+            forge \
+            install.sh \
+            statusline-command.sh \
+            lib/*.sh \
+            lib/dashboard/*.sh \
+            hooks/*.sh \
+            scripts/*.sh \
+            test/run_tests.sh \
+            test/helpers/test_helper.bash \
+            completions/forge.bash
 
   test:
     strategy:
@@ -54,3 +82,45 @@ jobs:
 
       - name: Run tests
         run: ./test/run_tests.sh
+
+  # The desktop app: 189 XCTest cases in the ForgeDesktopCore SPM package, plus a
+  # build of the app target itself.
+  #
+  # A shared scheme is committed at app/ForgeDesktop.xcodeproj/xcshareddata/. Note
+  # it is NOT required for this job to pass — verified in a clean worktree with no
+  # xcuserdata, `-scheme ForgeDesktop` resolves and builds via Xcode's implicit
+  # scheme autocreation. It is committed because that autocreation is undocumented
+  # convenience rather than a contract, and because the archive configuration it
+  # pins (Release) is needed by the notarization phase and should be reviewable in
+  # a diff rather than inferred at build time.
+  #
+  # Tests run via `swift test`, not `xcodebuild test`: the scheme's <Testables> is
+  # deliberately empty because the XCTest target lives in the SPM package, not the
+  # xcodeproj. `xcodebuild test -scheme ForgeDesktop` will fail by design.
+  #
+  # Runner image is pinned, not `macos-latest`: Package.swift is
+  # swift-tools-version 6.0, and an image rotation can flip Swift 6 concurrency
+  # diagnostics from warning to error and redden a green branch with no code
+  # change. Bump this deliberately, and re-run the cold-worktree build when you do.
+  swift:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: swift --version && xcodebuild -version
+
+      - name: Run ForgeDesktopCore tests
+        run: swift test --package-path app/ForgeDesktopCore
+
+      - name: Build app target
+        run: |
+          xcodebuild \
+            -project app/ForgeDesktop.xcodeproj \
+            -scheme ForgeDesktop \
+            -destination 'platform=macOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build

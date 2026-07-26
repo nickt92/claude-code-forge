@@ -38,6 +38,18 @@ setup() {
   assert_output "18"
 }
 
+# enabledPlugins and the 'full' plugin group are two separate sources of truth
+# in the same name@marketplace dialect — guard them against silent drift so a
+# plugin added to one without the other turns the build red. (Until 1.4.0
+# derives enabledPlugins from the chosen group, the template's enabled set is
+# the 'full' group.)
+@test "enabledPlugins matches the full plugin group exactly" {
+  local enabled full
+  enabled=$(jq -r '.enabledPlugins | keys[]' "$SETTINGS" | sort)
+  full=$(jq -r '.full[]' "$PROJECT_ROOT/templates/plugin-groups.json" | sort)
+  assert_equal "$enabled" "$full"
+}
+
 # ── Reasonable Timeouts ─────────────────────────────────────
 
 @test "hook timeouts are between 1 and 30 seconds" {

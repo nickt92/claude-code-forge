@@ -32,7 +32,7 @@ cmd_permissions() {
       --preset)
         shift
         preset_name="${1:-}"
-        [ -z "$preset_name" ] && { fail "Missing preset name after --preset"; return 1; }
+        [ -z "$preset_name" ] && { forge_fail "Missing preset name after --preset"; return 1; }
         shift
         ;;
       --help|-h) _permissions_help; return 0 ;;
@@ -156,7 +156,7 @@ _permissions_apply() {
   local valid
   valid=$(jq -r --arg name "$preset_name" '.presets[$name] // empty' "$PRESETS_FILE")
   if [ -z "$valid" ]; then
-    fail "Unknown preset: $preset_name"
+    forge_fail "Unknown preset: $preset_name"
     printf "\n${_C_DIM}Available presets:${_C_RST}\n"
     jq -r '.presets | keys[]' "$PRESETS_FILE" | while IFS= read -r id; do
       printf "  %s\n" "$id"

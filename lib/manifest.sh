@@ -17,7 +17,7 @@
 #
 # All internal helpers are prefixed _manifest_.
 
-FORGE_VERSION="${FORGE_VERSION:-1.3.0}"
+FORGE_VERSION="${FORGE_VERSION:-1.4.0}"
 MANIFEST_VERSION=2
 BACKUP_DIR="${CLAUDE_DIR}/forge-backup"
 MANIFEST_FILE="${BACKUP_DIR}/manifest.json"
@@ -196,7 +196,16 @@ snapshot_pre_install_state() {
 }
 
 # Record what forge installed. Called after install completes.
-# Rewrites the installed section entirely (file set may change between versions).
+# Rewrites the installed file/directory/settings inventory (the file set may
+# change between versions) but PRESERVES the permissions ownership record.
+#
+# That record must survive: only cmd-install's --permissions branch rewrites it,
+# and `forge update` reinstalls without that flag. Dropping it here left the
+# manifest with no memory of what forge had added, which made the unmerge step
+# a no-op on the next preset change — and since merge_permissions is a pure
+# union, permissions could then only ever accumulate. Presets stopped being
+# switchable, and rules forge had added could never be withdrawn.
+#
 # Args: persona [source_dir] [plugin_group]
 update_manifest_installed() {
   local persona="${1:-}"
@@ -204,7 +213,7 @@ update_manifest_installed() {
   local plugin_group="${3:-}"
 
   if [ ! -f "$MANIFEST_FILE" ]; then
-    fail "No manifest found — cannot record installation"
+    forge_fail "No manifest found — cannot record installation"
     return 1
   fi
 
@@ -236,30 +245,42 @@ update_manifest_installed() {
 
   # Update manifest — rewrite installed section, update persona + version + v2 fields
   local tmp_manifest="${MANIFEST_FILE}.tmp"
-  local sd_arg="null"
-  [ -n "$source_dir" ] && sd_arg="\"$source_dir\""
   local pg_arg="null"
   [ -n "$plugin_group" ] && pg_arg="\"$plugin_group\""
 
+  # source_dir is handed to jq as file CONTENT. On Git Bash, MSYS rewrites both
+  # argv entries and environment values that look like absolute POSIX paths
+  # before a native binary sees them, so the manifest recorded
+  # "C:/Program Files/Git/path/to/source". File contents are never rewritten.
+  local sd_file="${MANIFEST_FILE}.sd"
+  printf '%s' "$source_dir" > "$sd_file"
+
   jq \
+    --rawfile sd "$sd_file" \
     --arg persona "$persona" \
     --arg fv "$FORGE_VERSION" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --argjson files "$installed_files" \
     --argjson dirs "$installed_dirs" \
     --argjson sa "$settings_additions" \
-    --argjson sd "$sd_arg" \
     --argjson pg "$pg_arg" \
     '.persona = $persona |
      .forge_version = $fv |
      .install_timestamp = $ts |
-     .source_dir = $sd |
+     .source_dir = (if ($sd | length) == 0 then null else $sd end) |
      .plugin_group = $pg |
-     .installed = {
-       files: $files,
-       directories: $dirs,
-       settings_additions: $sa
-     }' "$MANIFEST_FILE" > "$tmp_manifest"
+     .installed = (
+       (
+         (.installed // {})
+         | with_entries(select(.key == "permissions_preset" or .key == "permissions_added"))
+       )
+       + {
+         files: $files,
+         directories: $dirs,
+         settings_additions: $sa
+       }
+     )' "$MANIFEST_FILE" > "$tmp_manifest"
+  rm -f "$sd_file"
   mv "$tmp_manifest" "$MANIFEST_FILE"
 }
 
@@ -316,13 +337,13 @@ has_legacy_backups() {
 # Validate manifest structure. Fails fast on corruption.
 validate_manifest() {
   if [ ! -f "$MANIFEST_FILE" ]; then
-    fail "No forge manifest found at $MANIFEST_FILE"
+    forge_fail "No forge manifest found at $MANIFEST_FILE"
     return 1
   fi
 
   # Check it's valid JSON
   if ! jq empty "$MANIFEST_FILE" 2>/dev/null; then
-    fail "Manifest is not valid JSON"
+    forge_fail "Manifest is not valid JSON"
     return 1
   fi
 
@@ -330,23 +351,23 @@ validate_manifest() {
   local version
   version=$(jq -r '.manifest_version // empty' "$MANIFEST_FILE" 2>/dev/null)
   if [ -z "$version" ]; then
-    fail "Manifest missing manifest_version field"
+    forge_fail "Manifest missing manifest_version field"
     return 1
   fi
 
   if [ "$version" -lt 1 ] 2>/dev/null || [ "$version" -gt "$MANIFEST_VERSION" ] 2>/dev/null; then
-    fail "Unsupported manifest version: $version (expected: 1-$MANIFEST_VERSION)"
+    forge_fail "Unsupported manifest version: $version (expected: 1-$MANIFEST_VERSION)"
     return 1
   fi
 
   # Check required sections exist
   if ! jq -e '.pre_existing' "$MANIFEST_FILE" >/dev/null 2>&1; then
-    fail "Manifest missing pre_existing section"
+    forge_fail "Manifest missing pre_existing section"
     return 1
   fi
 
   if ! jq -e '.installed' "$MANIFEST_FILE" >/dev/null 2>&1; then
-    fail "Manifest missing installed section"
+    forge_fail "Manifest missing installed section"
     return 1
   fi
 

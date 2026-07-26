@@ -6,40 +6,90 @@ public struct MenuBarView: View {
     let onOpenDashboard: () -> Void
     let onOpenSettings: () -> Void
     let onRunDoctor: () -> Void
+    let onSelectRepo: (String) -> Void
 
     public init(
         state: ForgeState,
         onRefresh: @escaping () -> Void,
         onOpenDashboard: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
-        onRunDoctor: @escaping () -> Void = {}
+        onRunDoctor: @escaping () -> Void = {},
+        onSelectRepo: @escaping (String) -> Void = { _ in }
     ) {
         self.state = state
         self.onRefresh = onRefresh
         self.onOpenDashboard = onOpenDashboard
         self.onOpenSettings = onOpenSettings
         self.onRunDoctor = onRunDoctor
+        self.onSelectRepo = onSelectRepo
+    }
+
+    private var loadPhase: String {
+        switch state.loadState {
+        case .idle: "idle"
+        case .loading: "loading"
+        case .loaded: "loaded"
+        case .failed: "failed"
+        }
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            switch state.loadState {
-            case .idle:
-                idleView
-            case .loading:
-                loadingView
-            case .loaded(let data):
-                loadedView(data)
-            case .failed(let error):
-                errorView(error)
+            Group {
+                switch state.loadState {
+                case .idle:
+                    idleView.transition(.opacity)
+                case .loading:
+                    loadingView.transition(.opacity)
+                case .loaded(let data):
+                    loadedView(data).transition(.opacity)
+                case .failed(let error):
+                    errorView(error).transition(.opacity)
+                }
+            }
+            .forgeAnimation(ForgeTheme.Animations.easeReveal, value: loadPhase)
+
+            if state.forgeStatus?.reinstallPending == true {
+                Button { onOpenSettings() } label: {
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ForgeTheme.Colors.info)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Forge update ready to install")
+                                .font(.system(size: 11, weight: .medium))
+                            if let source = state.forgeStatus?.version.source {
+                                Text("v\(source) is in your source repo")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(ForgeTheme.Spacing.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .forgeHoverHighlight(radius: ForgeTheme.Metrics.chipRadius)
+                .background(
+                    ForgeTheme.Colors.info.opacity(0.06),
+                    in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                )
+                .accessibilityLabel("Forge update ready to install. Open settings.")
+                .padding(.top, ForgeTheme.Spacing.sm)
             }
 
             Divider()
-                .padding(.vertical, 8)
+                .padding(.vertical, ForgeTheme.Spacing.sm)
 
-            HStack(spacing: 6) {
+            HStack(spacing: ForgeTheme.Spacing.xs + 2) {
                 Button { onOpenDashboard() } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: ForgeTheme.Spacing.xs) {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 11))
                         Text("Dashboard")
@@ -49,78 +99,78 @@ public struct MenuBarView: View {
                     .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(ForgeTheme.Colors.forgeOrange)
                 .controlSize(.small)
+                .accessibilityLabel("Open dashboard")
 
                 Button { onRunDoctor() } label: {
                     Image(systemName: "stethoscope")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.forgeIcon)
                 .help("Run Doctor")
+                .accessibilityLabel("Run doctor")
 
                 Button { onRefresh() } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(state.isLoading)
+                .buttonStyle(.forgeIcon)
+                .disabled(state.isBusy)
+                .help("Refresh")
+                .accessibilityLabel("Refresh repositories")
 
                 Button { onOpenSettings() } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.forgeIcon)
+                .help("Settings")
+                .accessibilityLabel("Open settings")
             }
         }
-        .padding(14)
+        .padding(ForgeTheme.Spacing.lg - 2)
         .frame(width: 320)
     }
 
     // MARK: - States
 
     private var idleView: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "hammer.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(.tertiary)
-            Text("Click refresh to load")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        ForgeEmptyState(
+            icon: "hammer.fill",
+            title: "Forge",
+            message: "Click refresh to scan your repositories."
+        )
+        .padding(.vertical, -ForgeTheme.Spacing.sm)
     }
 
     private var loadingView: some View {
-        VStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.regular)
-            Text("Scanning repositories...")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+        SkeletonGroup {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
+                HStack(spacing: ForgeTheme.Spacing.md) {
+                    SkeletonCircle(diameter: 52)
+                    VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs) {
+                        SkeletonBox(width: 100, height: 12)
+                        SkeletonBox(width: 140, height: 10)
+                    }
+                    Spacer()
+                }
+                SkeletonRepoRow()
+                SkeletonRepoRow()
+            }
+            .padding(.vertical, ForgeTheme.Spacing.sm)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Scanning repositories")
     }
 
     private func loadedView(_ data: DashboardData) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: ForgeTheme.Spacing.md) {
             // Header with score
-            HStack(spacing: 12) {
+            HStack(spacing: ForgeTheme.Spacing.md) {
                 ScoreRing(score: data.globalScore.total, grade: data.globalScore.grade, size: 52)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Forge Health")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(ForgeTheme.Typography.rowTitle)
                     Text("\(data.repos.count) repos · v\(data.global.install.forgeVersion)")
-                        .font(.system(size: 11))
+                        .font(ForgeTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                     Text(data.global.persona.label)
                         .font(.system(size: 10))
@@ -129,65 +179,86 @@ public struct MenuBarView: View {
                 Spacer()
             }
 
-            // Repos needing attention
+            // Repos needing attention — filter BEFORE taking the top 3, or an
+            // unscored repo consumes a slot and hides a genuinely low scorer.
             let needsAttention = data.repos
+                .filter { ($0.score?.total ?? 100) < 80 }
                 .sorted { ($0.score?.total ?? 0) < ($1.score?.total ?? 0) }
                 .prefix(3)
-                .filter { ($0.score?.total ?? 100) < 80 }
 
             if !needsAttention.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: ForgeTheme.Spacing.xs + 2) {
                     Text("NEEDS ATTENTION")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
 
                     ForEach(Array(needsAttention.enumerated()), id: \.element.id) { index, repo in
-                        HStack(spacing: 8) {
-                            if let score = repo.score {
-                                ScoreRing(score: score.total, grade: score.grade, size: 22)
-                            }
-                            Text(repo.name)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                            Spacer()
-                            if let audit = repo.claudeMdAudit {
-                                let warnCount = audit.findings.filter { $0.severity == "warn" || $0.severity == "error" }.count
-                                if warnCount > 0 {
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .font(.system(size: 8))
-                                        Text("\(warnCount)")
-                                            .font(.system(size: 10, weight: .semibold))
-                                    }
-                                    .foregroundStyle(ForgeTheme.Colors.forgeOrange)
+                        Button {
+                            onSelectRepo(repo.path)
+                        } label: {
+                            HStack(spacing: ForgeTheme.Spacing.sm) {
+                                if let score = repo.score {
+                                    ScoreRing(score: score.total, grade: score.grade, size: 22)
                                 }
+                                Text(repo.name)
+                                    .font(ForgeTheme.Typography.body)
+                                    .lineLimit(1)
+                                Spacer()
+                                if let audit = repo.claudeMdAudit {
+                                    let warnCount = audit.findings.filter { $0.severity == "warn" || $0.severity == "error" }.count
+                                    if warnCount > 0 {
+                                        HStack(spacing: ForgeTheme.Spacing.xxs) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .font(.system(size: 8))
+                                                .accessibilityHidden(true)
+                                            Text("\(warnCount)")
+                                                .font(.system(size: 10, weight: .semibold))
+                                        }
+                                        .foregroundStyle(ForgeTheme.Colors.forgeText)
+                                    }
+                                }
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 8, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .accessibilityHidden(true)
                             }
+                            .padding(.vertical, ForgeTheme.Spacing.xs)
+                            .padding(.horizontal, ForgeTheme.Spacing.xs + 2)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 2)
+                        .buttonStyle(.plain)
+                        .forgeHoverHighlight(radius: ForgeTheme.Metrics.chipRadius)
+                        .accessibilityLabel("Open \(repo.name) in dashboard")
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
-                        .animation(ForgeTheme.Animations.easeReveal.delay(Double(index) * ForgeTheme.Animations.staggerDelay), value: needsAttention.count)
+                        .forgeAnimation(
+                            ForgeTheme.Animations.easeReveal.delay(
+                                min(Double(index) * ForgeTheme.Animations.staggerDelay, ForgeTheme.Animations.staggerBudget)
+                            ),
+                            value: needsAttention.count
+                        )
                     }
                 }
-                .padding(10)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                .padding(ForgeTheme.Spacing.sm)
+                .background(
+                    .quaternary.opacity(0.5),
+                    in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius)
+                )
             }
         }
     }
 
     private func errorView(_ error: ForgeError) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(.red)
-            Text(error.localizedDescription)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
+        ForgeEmptyState(
+            icon: "exclamationmark.triangle",
+            title: "Couldn't Load",
+            message: error.localizedDescription
+        ) {
+            Button("Retry") { onRefresh() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, -ForgeTheme.Spacing.sm)
     }
 }
 
@@ -220,12 +291,12 @@ public struct ScoreRing: View {
         }
         .frame(width: size, height: size)
         .onAppear {
-            withAnimation(ForgeTheme.Animations.springBouncy) {
+            forgeWithAnimation(ForgeTheme.Animations.springBouncy) {
                 animatedProgress = CGFloat(score) / 100
             }
         }
         .onChange(of: score) { _, newValue in
-            withAnimation(ForgeTheme.Animations.springBouncy) {
+            forgeWithAnimation(ForgeTheme.Animations.springBouncy) {
                 animatedProgress = CGFloat(newValue) / 100
             }
         }

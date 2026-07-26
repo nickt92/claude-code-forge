@@ -29,10 +29,24 @@ teardown() {
   assert_output --partial "Something iffy"
 }
 
-@test "fail() prints error and message" {
-  run fail "Something broke"
+@test "forge_fail() prints error and message" {
+  run forge_fail "Something broke"
   assert_success
   assert_output --partial "Something broke"
+}
+
+# Regression guard. lib/ui.sh must never define a bare fail(): bats-support
+# exports fail() as the primitive behind every assert_* helper, so a project
+# fail() that prints and returns 0 turns all later assertions in a test file
+# into silent no-ops. See the comment on forge_fail() in lib/ui.sh.
+@test "sourcing ui.sh does not shadow bats-support's fail()" {
+  run type -t fail
+  assert_success
+  assert_output "function"
+
+  # Prove it is still bats-support's: bats' fail() must return non-zero.
+  run fail "deliberate"
+  assert_failure
 }
 
 @test "info() prints dim message" {
@@ -80,8 +94,8 @@ teardown() {
   assert_output ""
 }
 
-@test "fail() prints even in quiet mode" {
-  UI_QUIET=true run fail "Critical error"
+@test "forge_fail() prints even in quiet mode" {
+  UI_QUIET=true run forge_fail "Critical error"
   assert_success
   assert_output --partial "Critical error"
 }

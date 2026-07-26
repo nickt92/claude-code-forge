@@ -41,14 +41,34 @@ struct FindingRow: View {
         )
     }
 
+    /// Case discriminator so fix-state changes can drive animations without
+    /// FixState being Equatable.
+    private var fixPhase: String {
+        switch fixState {
+        case .idle: "idle"
+        case .running: "running"
+        case .pendingReview: "pendingReview"
+        case .success: "success"
+        case .failed: "failed"
+        case .claudeDidNotModify: "claudeDidNotModify"
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .top, spacing: ForgeTheme.Spacing.sm + 2) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(severityColor(finding.severity))
+                .frame(width: 3)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 11))
                     .foregroundStyle(severityColor(finding.severity))
                     .frame(width: 16, alignment: .center)
                     .padding(.top, 2)
+                    .accessibilityLabel(severityLabel)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(finding.detail)
@@ -137,16 +157,21 @@ struct FindingRow: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
-                        .padding(8)
+                        .padding(ForgeTheme.Spacing.sm)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .background(
+                            .quaternary.opacity(0.5),
+                            in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius)
+                        )
                 }
             }
+            }
         }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 6)
-        .background(severityColor(finding.severity).opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-        .animation(.easeInOut(duration: 0.2), value: fixActivities.count)
+        .padding(.vertical, 6)
+        .padding(.horizontal, ForgeTheme.Spacing.sm)
+        .forgeHoverHighlight()
+        .forgeAnimation(.easeInOut(duration: 0.2), value: fixActivities.count)
+        .forgeAnimation(ForgeTheme.Animations.springSnappy, value: fixPhase)
         .sheet(isPresented: isPendingReview) {
             if case .pendingReview(let before, let after) = fixState {
                 DiffPreviewView(
@@ -163,113 +188,73 @@ struct FindingRow: View {
 
     @ViewBuilder
     private var fixButton: some View {
-        switch fixState {
-        case .idle:
-            if usesClaudeFix && !fixService.claudeAvailable {
-                HStack(spacing: 3) {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 8))
-                    Text("Fix")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.gray.opacity(0.1), in: Capsule())
-                .foregroundStyle(.gray)
-                .help("Requires Claude Code CLI to generate intelligent fixes")
-            } else {
-                Button {
-                    showConfirm = true
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
-                            .font(.system(size: 8))
-                        Text("Fix")
-                            .font(.system(size: 9, weight: .bold))
+        Group {
+            switch fixState {
+            case .idle:
+                if usesClaudeFix && !fixService.claudeAvailable {
+                    StatusBadge("Fix", icon: "wrench.and.screwdriver.fill", tint: .secondary)
+                        .help("Requires Claude Code CLI to generate intelligent fixes")
+                } else {
+                    Button {
+                        showConfirm = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
+                                .font(.system(size: 9))
+                                .accessibilityHidden(true)
+                            Text("Fix")
+                        }
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.1), in: Capsule())
-                    .foregroundStyle(.blue)
+                    .buttonStyle(.forgePill(tint: ForgeTheme.Colors.forgeText))
+                    .disabled(fixDisabled)
+                    .accessibilityLabel("Fix this finding")
+                    .popover(isPresented: $showConfirm) {
+                        fixConfirmPopover
+                    }
+                }
+            case .running:
+                HStack(spacing: 3) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text(fixActivities.isEmpty
+                        ? (usesClaudeFix ? "Starting Claude..." : "Fixing...")
+                        : (fixActivities.allSatisfy(\.isComplete) ? "Claude is writing..." : "Claude is analyzing..."))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            case .pendingReview:
+                StatusBadge("Reviewing...", icon: "eye.fill", tint: ForgeTheme.Colors.info)
+            case .success:
+                StatusBadge(
+                    usesClaudeFix ? "Section added" : "Fixed",
+                    icon: "checkmark.circle.fill",
+                    tint: ForgeTheme.Colors.success
+                )
+            case .claudeDidNotModify(_, let cost):
+                Button {
+                    showClaudeResponse.toggle()
+                } label: {
+                    StatusBadge(
+                        cost > 0 ? "No changes needed" : "Not processed",
+                        icon: cost > 0 ? "info.circle.fill" : "exclamationmark.circle.fill",
+                        tint: cost > 0 ? ForgeTheme.Colors.warning : ForgeTheme.Colors.danger
+                    )
                 }
                 .buttonStyle(.plain)
-                .disabled(fixDisabled)
-                .opacity(fixDisabled ? 0.4 : 1)
-                .popover(isPresented: $showConfirm) {
-                    fixConfirmPopover
-                }
-            }
-        case .running:
-            HStack(spacing: 3) {
-                ProgressView()
-                    .controlSize(.mini)
-                Text(fixActivities.isEmpty
-                    ? (usesClaudeFix ? "Starting Claude..." : "Fixing...")
-                    : (fixActivities.allSatisfy(\.isComplete) ? "Claude is writing..." : "Claude is analyzing..."))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-        case .pendingReview:
-            HStack(spacing: 3) {
-                Image(systemName: "eye.fill")
-                    .font(.system(size: 9))
-                Text("Reviewing...")
-                    .font(.system(size: 9, weight: .bold))
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.blue.opacity(0.1), in: Capsule())
-            .foregroundStyle(.blue)
-        case .success:
-            HStack(spacing: 3) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
-                Text(usesClaudeFix ? "Section added" : "Fixed")
-                    .font(.system(size: 9, weight: .bold))
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.green.opacity(0.1), in: Capsule())
-            .foregroundStyle(.green)
-        case .claudeDidNotModify(_, let cost):
-            let color: Color = cost > 0 ? .orange : .red
-            Button {
-                showClaudeResponse.toggle()
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: cost > 0 ? "info.circle.fill" : "exclamationmark.circle.fill")
-                        .font(.system(size: 9))
-                    Text(cost > 0 ? "No changes needed" : "Not processed")
-                        .font(.system(size: 9, weight: .bold))
-                    Image(systemName: showClaudeResponse ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 7))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(color.opacity(0.1), in: Capsule())
-                .foregroundStyle(color)
-            }
-            .buttonStyle(.plain)
-        case .failed(let message):
-            HStack(spacing: 3) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 9))
-                Text(message)
-                    .font(.system(size: 9))
+                .accessibilityLabel(showClaudeResponse ? "Hide Claude's response" : "Show Claude's response")
+            case .failed(let message):
+                StatusBadge(message, icon: "xmark.circle.fill", tint: ForgeTheme.Colors.danger)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.red.opacity(0.1), in: Capsule())
-            .foregroundStyle(.red)
         }
+        .contentTransition(.opacity)
     }
 
     private var fixConfirmPopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: usesClaudeFix ? "sparkles" : "wrench.and.screwdriver.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(ForgeTheme.Colors.info)
                 Text("Apply Fix?")
                     .font(.system(size: 13, weight: .semibold))
             }
@@ -423,6 +408,14 @@ struct FindingRow: View {
         case "error": return "xmark.octagon.fill"
         case "warn": return "exclamationmark.triangle.fill"
         default: return "info.circle.fill"
+        }
+    }
+
+    private var severityLabel: String {
+        switch finding.severity {
+        case "error": return "Error"
+        case "warn": return "Warning"
+        default: return "Info"
         }
     }
 }

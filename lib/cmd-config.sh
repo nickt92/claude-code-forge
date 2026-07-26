@@ -28,7 +28,7 @@ _config_ensure_file() {
 _config_jq_path() {
   local key="$1"
   if [[ ! "$key" =~ ^[a-zA-Z0-9_.]+$ ]]; then
-    fail "Invalid key (alphanumeric, dots, underscores only): $key" >&2
+    forge_fail "Invalid key (alphanumeric, dots, underscores only): $key" >&2
     return 1
   fi
   echo ".${key}"
@@ -39,7 +39,7 @@ _config_jq_path() {
 _config_get() {
   local key="$1"
   if [ -z "$key" ]; then
-    fail "Usage: forge config get <key>" >&2
+    forge_fail "Usage: forge config get <key>" >&2
     return 1
   fi
 
@@ -51,7 +51,7 @@ _config_get() {
   value=$(jq -r "$jq_path // empty" "$FORGE_CONFIG_FILE" 2>/dev/null)
 
   if [ -z "$value" ]; then
-    fail "Key not set: $key" >&2
+    forge_fail "Key not set: $key" >&2
     return 1
   fi
 
@@ -63,7 +63,7 @@ _config_set() {
   local value="$2"
 
   if [ -z "$key" ] || [ -z "$value" ]; then
-    fail "Usage: forge config set <key> <value>" >&2
+    forge_fail "Usage: forge config set <key> <value>" >&2
     return 1
   fi
 
@@ -87,7 +87,17 @@ _config_set() {
   if [[ "$value" =~ ^[0-9]+$ ]]; then
     jq "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
   else
-    jq --arg val "$value" "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
+    # The value is handed to jq as file CONTENT, not as an argument or an
+    # environment variable. On Git Bash, MSYS rewrites both argv entries and
+    # environment values that look like absolute POSIX paths before a native
+    # binary sees them, so `forge config set dashboard.scan_path
+    # /home/user/repos` stored "C:/Program Files/Git/home/user/repos". File
+    # contents are never rewritten. jq's own path arguments still go through
+    # argv, where the conversion is needed and correct.
+    local valfile="${FORGE_CONFIG_FILE}.val"
+    printf '%s' "$value" > "$valfile"
+    jq --rawfile val "$valfile" "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
+    rm -f "$valfile"
   fi
 
   if [ "$rc" -eq 0 ] && [ -s "$tmp" ]; then
@@ -95,7 +105,7 @@ _config_set() {
     ok "$key = $value"
   else
     rm -f "$tmp"
-    fail "Failed to set $key" >&2
+    forge_fail "Failed to set $key" >&2
     return 1
   fi
 }
@@ -143,7 +153,7 @@ cmd_config() {
       _config_help
       ;;
     *)
-      fail "Unknown config subcommand: $subcmd"
+      forge_fail "Unknown config subcommand: $subcmd"
       _config_help
       return 1
       ;;

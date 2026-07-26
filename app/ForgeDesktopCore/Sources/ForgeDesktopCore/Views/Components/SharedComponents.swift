@@ -1,35 +1,5 @@
 import SwiftUI
 
-// MARK: - Detail Card
-
-struct DetailCard<Content: View>: View {
-    let title: String
-    let accentColor: Color?
-    @ViewBuilder let content: Content
-
-    init(_ title: String, accentColor: Color? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.accentColor = accentColor
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(accentColor ?? .secondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-
-            content
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius).stroke(.quaternary))
-    }
-}
-
 // MARK: - Config Chip
 
 struct ConfigChip: View {
@@ -52,22 +22,6 @@ struct ConfigChip: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Section Tag
-
-struct SectionTag: View {
-    let name: String
-    let present: Bool
-
-    var body: some View {
-        Text(name)
-            .font(.system(size: 10, weight: .medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(present ? .green.opacity(0.1) : .red.opacity(0.08), in: Capsule())
-            .foregroundStyle(present ? .green : .red)
     }
 }
 

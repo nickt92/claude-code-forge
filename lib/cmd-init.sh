@@ -41,7 +41,7 @@ cmd_init() {
         ;;
       --persona)
         if [[ $# -lt 2 ]]; then
-          fail "Missing persona name after --persona"
+          forge_fail "Missing persona name after --persona"
           return 1
         fi
         persona="$2"
@@ -49,7 +49,7 @@ cmd_init() {
         ;;
       --dir)
         if [[ $# -lt 2 ]]; then
-          fail "Missing path after --dir"
+          forge_fail "Missing path after --dir"
           return 1
         fi
         project_dir="$2"
@@ -64,7 +64,7 @@ cmd_init() {
         shift
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         echo "Usage: forge init [--persona <name>] [--dir <path>] [--docs] [--skip-docs]"
         return 1
         ;;
@@ -92,7 +92,7 @@ cmd_init() {
       persona=$(jq -r '.persona' "$CLAUDE_DIR/profile.json" 2>/dev/null)
     fi
     if [ -z "$persona" ]; then
-      fail "No persona specified and no global profile found"
+      forge_fail "No persona specified and no global profile found"
       echo "Usage: forge init --persona <name>"
       return 1
     fi
@@ -100,7 +100,7 @@ cmd_init() {
 
   local profile_file="$PROFILES_DIR/${persona}.json"
   if [ ! -f "$profile_file" ]; then
-    fail "Unknown persona: $persona"
+    forge_fail "Unknown persona: $persona"
     return 1
   fi
 
@@ -176,7 +176,7 @@ _init_scaffold_docs() {
   local created=0
 
   if [ ! -d "$template_dir" ]; then
-    fail "Document chain templates not found at $template_dir"
+    forge_fail "Document chain templates not found at $template_dir"
     return 1
   fi
 

@@ -102,6 +102,9 @@ EOF
 # ── Non-executable Hooks ────────────────────────────────────
 
 @test "non-executable hook is detected" {
+  # NTFS has no POSIX execute bit; chmod -x is a no-op under Git Bash, so the
+  # file stays executable and there is nothing for the check to detect.
+  skip_on_windows "chmod -x has no effect on NTFS"
   setup_healthy_install
   local first_hook
   first_hook=$(forge_shipped_hooks | head -1)

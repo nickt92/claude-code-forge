@@ -116,6 +116,9 @@ _setup_healthy_install() {
 }
 
 @test "doctor checks forge symlink" {
+  # Creating a symlink under Git Bash needs Developer Mode or elevation;
+  # without it ln -s silently copies, so there is no link for doctor to find.
+  skip_on_windows "symlink creation requires elevation on Windows"
   source "$SCRIPT_DIR/lib/cmd-doctor.sh"
   run cmd_doctor
   assert_output --partial "forge symlink OK"

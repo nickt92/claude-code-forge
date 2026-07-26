@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-26
+
+Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities,
+and a round of correctness work on the test suite and the permissions record.
+
+### Added
+- Design system v2 for Forge Desktop: spacing and typography scales, elevation
+  with dark-mode-aware shadows, semantic colors, WCAG AA text-grade brand
+  orange, motion tokens that honor Reduce Motion, and a component library
+  (cards, four button styles with hover states, unified sheet chrome, skeleton
+  loading, branded empty states, status badges)
+- Brand accent color: stock buttons, selections, and toggles now render in
+  forge ember instead of system blue
+- Instant launch: the dashboard renders from the last successful scan
+  immediately and refreshes in the background; a failed refresh keeps the
+  usable data on screen with a non-destructive warning
+- Data-driven permission preset picker in Settings and the setup wizard, fed
+  by `forge permissions --list --json` (labels, tiers, rule counts, and the
+  inheritance chain come from the CLI)
+- Status card in Settings: installed vs source CLI version, persona, plugin
+  and hook counts, install date — with a one-click, confirmed in-app
+  `forge update` flow and update log
+- "Update ready to install" indicators in the dashboard health card and menu
+  bar, replacing the terminal nag loop
+- Native persona builder: three-step wizard creating custom personas through
+  the new non-interactive `forge build` flags (`--name`, axis flags,
+  `--quality`, `--plugins`, `--switch/--no-switch`, `--force`)
+- Menu bar deep links: repos needing attention open the dashboard with that
+  repository selected
+- Version-sync test guard: CLI, app, and README versions can no longer drift
+- CI now runs on release and hotfix branches, and runs the Swift suite. Release
+  branches previously ran nothing, and the desktop tests had never run in CI
+- `test/validation/bats_namespace.bats` — fails the build if shipped code
+  defines a function name owned by the bats test helpers
+
+### Changed
+- Every screen overhauled on the design system: dashboard sidebar with
+  skeleton loading and animated health card, repo detail with hero header and
+  adaptive layout, findings with severity edge bars and hover states, unified
+  Doctor/Telemetry/Persona/Setup sheet chrome, restyled menu bar
+- VoiceOver labels on all icon-only controls; decorative elements hidden from
+  assistive tech; all animations respect Reduce Motion
+
+### Fixed
+- Desktop app version drift (the app claimed 1.3.0 while the CLI was 1.3.1)
+- CLI failures from `forge update` and `forge build` now reach the app with
+  their real error message instead of an empty string
+- `forge build` with a value flag missing its value fails with a clear message
+  instead of aborting silently
+- Doctor sheet could be presented twice from different windows
+- Test assertions were silently disabled. `lib/ui.sh` defined `fail()`, which is
+  also the function bats-support uses to fail a test, so in the 24 of 44 test
+  files that source it every assertion reported success regardless of outcome.
+  The suite claimed 722 passing while 13 were broken. Renamed to `forge_fail()`
+  and added a guard that compares every bats helper name against every shipped
+  function name, so the whole class of collision now fails the build
+- Switching permission presets could stop working. `forge update` reinstalls
+  without `--permissions`, and the manifest rewrite dropped the record of what
+  forge had added — after which the removal step no-ops and merging can only
+  add. Presets became one-way and rules forge had added could not be withdrawn.
+  The record now survives reinstall
+- `forge stats --session` exited 1 on success whenever a session had no
+  overrides, which is the normal case
+- `forge stats --hooks` and `--session` crashed with "integer expression
+  expected". `grep -c` prints `0` *and* exits non-zero when nothing matches, so
+  the fallback appended a second `0`
+- Intermittent test failures from three suites sharing one temp directory: one
+  suite's teardown could delete a marker file belonging to a test still running
+  in another
+
+## [1.3.1] - 2026-06-04
+
+### Fixed
+- Plugin installation now works with current Claude Code. `forge install` relied on a plugin command that newer Claude Code removed, so it silently installed no plugins and reported nothing wrong. Installation now registers each plugin's marketplace and installs through the current command, and surfaces the real reason when a plugin can't be installed instead of skipping it silently.
+
+### Changed
+- Plugin installation confirms each marketplace registered under its expected name before installing. If a marketplace source resolves to an unexpected name, you get one clear error up front instead of a string of confusing per-plugin failures.
+
 ## [1.3.0] - 2026-04-25
 
 ### Added
@@ -102,7 +180,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 7 rules files for engineering standards
 - Onboarding wizard with role selection
 
-[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/nickt92/claude-code-forge/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/nickt92/claude-code-forge/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/nickt92/claude-code-forge/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/nickt92/claude-code-forge/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/nickt92/claude-code-forge/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/nickt92/claude-code-forge/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nickt92/claude-code-forge/compare/v1.0.0...v1.1.0

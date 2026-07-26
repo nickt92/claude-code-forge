@@ -33,7 +33,7 @@ cmd_analyze() {
         if [ -z "$target_dir" ]; then
           target_dir="$1"
         else
-          fail "Unknown option: $1"
+          forge_fail "Unknown option: $1"
           return 1
         fi
         shift
@@ -44,7 +44,7 @@ cmd_analyze() {
   target_dir="${target_dir:-$(pwd)}"
 
   if [ ! -d "$target_dir" ]; then
-    fail "Directory does not exist: $target_dir"
+    forge_fail "Directory does not exist: $target_dir"
     return 1
   fi
 
@@ -52,7 +52,7 @@ cmd_analyze() {
   target_dir="$(cd "$target_dir" && pwd)"
 
   if [ "$json_mode" != true ]; then
-    fail "forge analyze requires --json flag"
+    forge_fail "forge analyze requires --json flag"
     echo "Usage: forge analyze [path] --json"
     return 1
   fi

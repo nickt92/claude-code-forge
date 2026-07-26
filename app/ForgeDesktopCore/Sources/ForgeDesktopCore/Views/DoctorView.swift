@@ -11,43 +11,36 @@ public struct DoctorView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
-        }
-        .frame(width: 540)
-        .frame(minHeight: 420, maxHeight: 600)
-        .task { runDoctorIfNeeded() }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "stethoscope")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text("Forge Doctor")
-                .font(.system(size: 15, weight: .semibold))
-            Spacer()
-            Button {
-                runDoctor()
-            } label: {
-                Label("Run Again", systemImage: "arrow.clockwise")
-                    .font(.system(size: 12))
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(state.doctorLoading)
-
-            Button("Done") { dismiss() }
-                .buttonStyle(.borderedProminent)
+        ForgeSheet(
+            icon: "stethoscope",
+            title: "Forge Doctor",
+            subtitle: "Health checks for your forge installation",
+            content: {
+                content
+                    .frame(minHeight: 380, maxHeight: 560)
+            },
+            headerTrailing: {
+                Button {
+                    runDoctor()
+                } label: {
+                    Label("Run Again", systemImage: "arrow.clockwise")
+                        .font(ForgeTheme.Typography.body)
+                }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
-                .keyboardShortcut(.cancelAction)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+                .disabled(state.doctorLoading)
+            },
+            footer: {
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.cancelAction)
+                }
+            }
+        )
+        .task { runDoctorIfNeeded() }
     }
 
     // MARK: - Content
@@ -55,39 +48,50 @@ public struct DoctorView: View {
     @ViewBuilder
     private var content: some View {
         if state.doctorLoading {
-            VStack(spacing: 14) {
-                ProgressView()
-                    .controlSize(.regular)
-                Text("Running diagnostics...")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            loadingContent
         } else if let result = state.doctorResult {
             resultContent(result)
         } else if let doctorError {
-            ContentUnavailableView {
-                Label("Diagnostics Failed", systemImage: "exclamationmark.triangle.fill")
-            } description: {
-                Text(doctorError)
-            } actions: {
+            ForgeEmptyState(
+                icon: "exclamationmark.triangle",
+                title: "Diagnostics Failed",
+                message: doctorError
+            ) {
                 Button("Retry") { runDoctor() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
             }
         } else {
-            ContentUnavailableView(
-                "No Results",
-                systemImage: "stethoscope",
-                description: Text("Click \"Run Again\" to start diagnostics.")
+            ForgeEmptyState(
+                icon: "stethoscope",
+                title: "No Results",
+                message: "Click \"Run Again\" to start diagnostics."
             )
         }
+    }
+
+    private var loadingContent: some View {
+        SkeletonGroup {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.lg) {
+                SkeletonBox(width: nil, height: 60, radius: ForgeTheme.Metrics.cardRadius)
+                VStack(spacing: ForgeTheme.Spacing.xxs) {
+                    ForEach(0..<7, id: \.self) { _ in
+                        SkeletonCheckRow()
+                    }
+                }
+                Spacer()
+            }
+            .padding(ForgeTheme.Spacing.xl)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Running diagnostics")
     }
 
     // MARK: - Result Content
 
     private func resultContent(_ result: DoctorResult) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: ForgeTheme.Spacing.lg) {
                 summaryBanner(result.summary)
 
                 let grouped = Dictionary(grouping: result.checks) { $0.category }
@@ -99,7 +103,7 @@ public struct DoctorView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(ForgeTheme.Spacing.xl)
         }
     }
 
@@ -107,27 +111,29 @@ public struct DoctorView: View {
 
     private func summaryBanner(_ summary: DoctorSummary) -> some View {
         HStack(spacing: 0) {
-            summaryPill(count: summary.pass, label: "Passed", color: .green, icon: "checkmark.circle.fill")
+            summaryPill(count: summary.pass, label: "Passed", color: ForgeTheme.Colors.success, icon: "checkmark.circle.fill")
             Divider().frame(height: 32)
-            summaryPill(count: summary.warnings, label: "Warnings", color: .orange, icon: "exclamationmark.triangle.fill")
+            summaryPill(count: summary.warnings, label: "Warnings", color: ForgeTheme.Colors.warning, icon: "exclamationmark.triangle.fill")
             Divider().frame(height: 32)
-            summaryPill(count: summary.failures, label: "Failures", color: .red, icon: "xmark.circle.fill")
+            summaryPill(count: summary.failures, label: "Failures", color: ForgeTheme.Colors.danger, icon: "xmark.circle.fill")
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, ForgeTheme.Spacing.lg - 2)
         .frame(maxWidth: .infinity)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+            RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius, style: .continuous)
+                .fill(ForgeTheme.Colors.surface)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: ForgeTheme.Metrics.cardRadius, style: .continuous)
                 .stroke(.quaternary, lineWidth: 0.5)
         }
+        .forgeShadow(ForgeTheme.Elevation.card)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(summary.pass) passed, \(summary.warnings) warnings, \(summary.failures) failures")
     }
 
     private func summaryPill(count: Int, label: String, color: Color, icon: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: ForgeTheme.Spacing.sm) {
             Image(systemName: icon)
                 .foregroundStyle(count > 0 ? color : .secondary.opacity(0.4))
                 .font(.system(size: 16))
@@ -136,7 +142,7 @@ public struct DoctorView: View {
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(count > 0 ? color : .secondary)
                 Text(label)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(ForgeTheme.Typography.micro)
                     .foregroundStyle(.secondary)
             }
         }
@@ -146,9 +152,9 @@ public struct DoctorView: View {
     // MARK: - Category
 
     private func categorySection(_ category: String, checks: [DoctorCheck]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: ForgeTheme.Spacing.sm) {
             Text(formatCategory(category))
-                .font(.system(size: 11, weight: .bold))
+                .font(ForgeTheme.Typography.cardTitle)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
                 .tracking(0.8)
@@ -163,27 +169,33 @@ public struct DoctorView: View {
                         }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: ForgeTheme.Metrics.rowRadius, style: .continuous)
                     .stroke(.quaternary, lineWidth: 0.5)
             }
         }
     }
 
     private func checkRow(_ check: DoctorCheck) -> some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: ForgeTheme.Spacing.sm + 2) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(statusColor(check.status))
+                .frame(width: 3, height: 24)
+                .accessibilityHidden(true)
+
             Image(systemName: statusIcon(check.status))
                 .font(.system(size: 13))
                 .foregroundStyle(statusColor(check.status))
                 .frame(width: 18, alignment: .center)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(check.name)
                     .font(.system(size: 12, weight: .medium))
                 if let detail = check.detail {
                     Text(detail)
-                        .font(.system(size: 11))
+                        .font(ForgeTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -191,15 +203,11 @@ public struct DoctorView: View {
 
             Spacer()
 
-            Text(check.status.uppercased())
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(statusColor(check.status))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(statusColor(check.status).opacity(0.1), in: Capsule())
+            StatusBadge(check.status.uppercased(), tint: statusColor(check.status))
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, ForgeTheme.Spacing.sm)
+        .padding(.horizontal, ForgeTheme.Spacing.md)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Helpers
@@ -215,9 +223,9 @@ public struct DoctorView: View {
 
     private func statusColor(_ status: String) -> Color {
         switch status {
-        case "pass": return .green
-        case "warn": return .orange
-        case "fail": return .red
+        case "pass": return ForgeTheme.Colors.success
+        case "warn": return ForgeTheme.Colors.warning
+        case "fail": return ForgeTheme.Colors.danger
         default: return .secondary
         }
     }

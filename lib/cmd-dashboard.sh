@@ -26,7 +26,7 @@ cmd_dashboard() {
         return 0
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         _dashboard_help
         return 1
         ;;

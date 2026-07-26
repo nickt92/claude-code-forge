@@ -66,7 +66,7 @@ cmd_switch() {
       printf '{"error": "Unknown persona: %s"}\n' "$persona" >&2
       return 1
     fi
-    fail "Unknown persona: $persona"
+    forge_fail "Unknown persona: $persona"
     echo ""
     printf "${_C_BOLD}Available personas:${_C_RST}\n"
     for f in "$PROFILES_DIR"/*.json; do

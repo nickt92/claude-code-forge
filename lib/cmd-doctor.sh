@@ -54,7 +54,7 @@ cmd_doctor() {
       [ "$json_output" != true ] && ok "Manifest valid"; ((pass++))
       _doctor_add_check "manifest" "Manifest valid" "pass"
     else
-      [ "$json_output" != true ] && fail "Manifest validation failed"; ((failures++))
+      [ "$json_output" != true ] && forge_fail "Manifest validation failed"; ((failures++))
       _doctor_add_check "manifest" "Manifest valid" "fail"
     fi
 
@@ -81,7 +81,7 @@ cmd_doctor() {
       _doctor_add_check "manifest" "Manifest schema" "warn" "v$manifest_ver needs migration to v$MANIFEST_VERSION"
     fi
   else
-    [ "$json_output" != true ] && fail "No manifest found at $MANIFEST_FILE"; ((failures++))
+    [ "$json_output" != true ] && forge_fail "No manifest found at $MANIFEST_FILE"; ((failures++))
     _doctor_add_check "manifest" "Manifest exists" "fail" "No manifest found at $MANIFEST_FILE"
   fi
 
@@ -99,7 +99,7 @@ cmd_doctor() {
     local src="$FORGE_SOURCE_DIR/templates/rules/${rule}.md"
     local dst="$CLAUDE_DIR/rules/${rule}.md"
     if [ ! -f "$dst" ]; then
-      [ "$json_output" != true ] && fail "Missing: rules/${rule}.md"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Missing: rules/${rule}.md"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ -f "$src" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
       [ "$json_output" != true ] && warn "Modified: rules/${rule}.md"; ((warnings++)); ((file_issues++)); ((file_modified++))
     else
@@ -113,9 +113,9 @@ cmd_doctor() {
     local src="$FORGE_SOURCE_DIR/hooks/${hook}.sh"
     local dst="$CLAUDE_DIR/hooks/${hook}.sh"
     if [ ! -f "$dst" ]; then
-      [ "$json_output" != true ] && fail "Missing: hooks/${hook}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Missing: hooks/${hook}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ ! -x "$dst" ]; then
-      [ "$json_output" != true ] && fail "Not executable: hooks/${hook}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Not executable: hooks/${hook}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ -f "$src" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
       [ "$json_output" != true ] && warn "Modified: hooks/${hook}.sh"; ((warnings++)); ((file_issues++)); ((file_modified++))
     else
@@ -129,7 +129,7 @@ cmd_doctor() {
     local src="$FORGE_SOURCE_DIR/scripts/${script}.sh"
     local dst="$CLAUDE_DIR/scripts/${script}.sh"
     if [ ! -f "$dst" ]; then
-      [ "$json_output" != true ] && fail "Missing: scripts/${script}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Missing: scripts/${script}.sh"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ -f "$src" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
       [ "$json_output" != true ] && warn "Modified: scripts/${script}.sh"; ((warnings++)); ((file_issues++)); ((file_modified++))
     else
@@ -142,7 +142,7 @@ cmd_doctor() {
     local src="$FORGE_SOURCE_DIR/$file"
     local dst="$CLAUDE_DIR/$file"
     if [ ! -f "$dst" ]; then
-      [ "$json_output" != true ] && fail "Missing: $file"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Missing: $file"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ -f "$src" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
       [ "$json_output" != true ] && warn "Modified: $file"; ((warnings++)); ((file_issues++)); ((file_modified++))
     else
@@ -155,7 +155,7 @@ cmd_doctor() {
     local src="$FORGE_SOURCE_DIR/lib/$file"
     local dst="$CLAUDE_DIR/lib/$file"
     if [ ! -f "$dst" ]; then
-      [ "$json_output" != true ] && fail "Missing: lib/$file"; ((failures++)); ((file_issues++)); ((file_missing++))
+      [ "$json_output" != true ] && forge_fail "Missing: lib/$file"; ((failures++)); ((file_issues++)); ((file_missing++))
     elif [ -f "$src" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
       [ "$json_output" != true ] && warn "Modified: lib/$file"; ((warnings++)); ((file_issues++)); ((file_modified++))
     else
@@ -197,7 +197,7 @@ cmd_doctor() {
       _doctor_add_check "hooks" "Hook configuration" "warn" "Some hooks not configured"
     fi
   else
-    [ "$json_output" != true ] && fail "settings.json missing — cannot check hooks"; ((failures++))
+    [ "$json_output" != true ] && forge_fail "settings.json missing — cannot check hooks"; ((failures++))
     _doctor_add_check "hooks" "Hook configuration" "fail" "settings.json missing"
   fi
 
@@ -220,11 +220,11 @@ cmd_doctor() {
       fi
       rm -f "$temp_md"
     else
-      [ "$json_output" != true ] && fail "Could not assemble CLAUDE.md for comparison"; ((failures++))
+      [ "$json_output" != true ] && forge_fail "Could not assemble CLAUDE.md for comparison"; ((failures++))
       _doctor_add_check "claude_md" "CLAUDE.md freshness" "fail" "Could not assemble for comparison"
     fi
   else
-    [ "$json_output" != true ] && fail "profile.json or CLAUDE.md missing"; ((failures++))
+    [ "$json_output" != true ] && forge_fail "profile.json or CLAUDE.md missing"; ((failures++))
     _doctor_add_check "claude_md" "CLAUDE.md freshness" "fail" "profile.json or CLAUDE.md missing"
   fi
 
@@ -239,9 +239,14 @@ cmd_doctor() {
 
     local expected_plugins expected_count actual_count
     expected_plugins=$(resolve_plugin_list "$installed_group" 2>/dev/null)
-    expected_count=$(echo "$expected_plugins" | grep -c . || echo 0)
+    expected_count=$(echo "$expected_plugins" | grep -c . || true)
     actual_count=$(jq -r '.enabledPlugins // {} | length' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo 0)
 
+    # NOTE: permissive >= comparison is intentional pending 1.4.0. The template
+    # statically enables the 'full' set regardless of the installed group, so a
+    # minimal/standard install reports more enabled than expected. When 1.4.0
+    # makes enabledPlugins group-derived, switch this to a set-membership check
+    # (actual enabled vs the expected group) rather than a bare count.
     if [ "$actual_count" -ge "$expected_count" ]; then
       [ "$json_output" != true ] && ok "$actual_count plugins enabled (group: $installed_group)"; ((pass++))
       _doctor_add_check "plugins" "Plugins enabled" "pass" "$actual_count plugins (group: $installed_group)"
@@ -249,7 +254,7 @@ cmd_doctor() {
       [ "$json_output" != true ] && warn "$actual_count/$expected_count plugins enabled (group: $installed_group)"; ((warnings++))
       _doctor_add_check "plugins" "Plugins enabled" "warn" "$actual_count/$expected_count (group: $installed_group)"
     else
-      [ "$json_output" != true ] && fail "No plugins enabled"; ((failures++))
+      [ "$json_output" != true ] && forge_fail "No plugins enabled"; ((failures++))
       _doctor_add_check "plugins" "Plugins enabled" "fail" "No plugins enabled"
     fi
   fi

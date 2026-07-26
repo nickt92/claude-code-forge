@@ -20,7 +20,8 @@ teardown() {
   source "$SCRIPT_DIR/lib/cmd-build.sh"
   run cmd_build --help
   assert_success
-  assert_output --partial "Usage: forge build"
+  assert_output --partial "Usage:"
+  assert_output --partial "forge build"
 }
 
 @test "custom profile with valid axes assembles correctly" {

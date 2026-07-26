@@ -61,7 +61,7 @@ teardown() {
 @test "statusline shows context window info" {
   run cmd_statusline
   assert_success
-  assert_output --partial "Token usage"
+  assert_output --partial "Context section"
   assert_output --partial "Gradient bar"
   assert_output --partial "Context used"
   assert_output --partial "Cache hit ratio"
@@ -100,7 +100,9 @@ teardown() {
   run cmd_statusline
   assert_success
   assert_output --partial "feat/thing"
-  assert_output --partial "124k/200k"
+  # The example renders context as a percentage, not raw token counts. It was
+  # "124k/200k" before the statusline v8 redesign.
+  assert_output --partial "62%"
 }
 
 @test "statusline rejects unknown options" {

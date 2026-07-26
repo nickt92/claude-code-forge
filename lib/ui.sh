@@ -74,7 +74,14 @@ warn() {
 }
 
 # Error: red cross + message (always prints, even in quiet)
-fail() {
+#
+# Namespaced, unlike its siblings above, and it must stay that way: bats-support
+# exports fail() as the primitive that every assert_* helper calls to fail a
+# test. Test files load the bats helpers and then source project libs, so a
+# plain fail() here silently replaces the bats one — and because this prints and
+# returns 0, every subsequent assertion in that file becomes a no-op that
+# reports success. Do not rename this back to fail().
+forge_fail() {
   printf "${_C_RED}✗${_C_RST} %s\n" "$1"
 }
 

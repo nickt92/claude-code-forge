@@ -467,3 +467,30 @@ LOG
   run _stats_days_ago "$today"
   assert_output "today"
 }
+
+# ── Degraded inputs ──────────────────────────────────────────
+# jq prints nothing and exits non-zero on a missing or invalid file, so its
+# fallbacks must be `|| echo 0`, not `|| true`. (grep -c is the opposite: it
+# prints 0 AND exits 1 on no match, so `|| echo 0` there yields "0\n0".)
+# Neither case was covered, which is why a blanket sweep over both broke this.
+
+@test "stats installation renders a count when settings.json is missing" {
+  create_test_manifest_v2 "senior-engineer"
+  rm -f "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats
+  assert_success
+  assert_output --partial "0 enabled"
+  refute_output --partial "( enabled)"
+}
+
+@test "stats installation renders counts when the manifest is corrupt" {
+  mkdir -p "$CLAUDE_DIR/forge-backup"
+  echo 'not valid json {' > "$CLAUDE_DIR/forge-backup/manifest.json"
+  echo '{"enabledPlugins": {}}' > "$CLAUDE_DIR/settings.json"
+
+  run cmd_stats
+  assert_success
+  assert_output --partial "0 rules, 0 hooks, 0 scripts, 0 other"
+  refute_output --partial " rules,  hooks"
+}

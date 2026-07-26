@@ -15,9 +15,19 @@ public struct SettingsView: View {
     @State private var showPermissionPicker = false
     @State private var applyingPreset = false
     @State private var presetError: String?
+    @State private var loadedPresets: [PermissionPreset] = []
     @State private var showStatuslineLegend = false
+    @State private var forgeStatus: ForgeStatus?
+    @State private var statusLoadFailed = false
+    @State private var showUpdateConfirm = false
+    @State private var isUpdating = false
+    @State private var updateError: String?
+    @State private var updateLog = ""
     @Environment(\.configService) private var configService
     @Environment(\.permissionsService) private var permissionsService
+    @Environment(\.statusService) private var statusService
+    @Environment(\.updateService) private var updateService
+    @Environment(\.forgeState) private var forgeState
 
     var onRescan: (() async -> Void)?
 
@@ -86,7 +96,7 @@ public struct SettingsView: View {
                     Spacer()
 
                     Button(showPermissionPicker ? "Done" : "Change...") {
-                        withAnimation { showPermissionPicker.toggle() }
+                        forgeWithAnimation { showPermissionPicker.toggle() }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -98,13 +108,27 @@ public struct SettingsView: View {
                 }
 
                 if showPermissionPicker {
-                    permissionPickerRows
+                    HStack(spacing: ForgeTheme.Spacing.sm) {
+                        PermissionPresetPicker(
+                            selection: Binding(
+                                get: { currentPresetName },
+                                set: { newValue in
+                                    if let newValue { applyPreset(newValue) }
+                                }
+                            ),
+                            isDisabled: applyingPreset,
+                            onPresetsLoaded: { loadedPresets = $0 }
+                        )
+                        if applyingPreset {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
                 }
 
                 if let presetError {
                     Text(presetError)
                         .font(.system(size: 11))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ForgeTheme.Colors.danger)
                 }
             } header: {
                 Text("Permissions")
@@ -146,7 +170,7 @@ public struct SettingsView: View {
                 if Self.isBroadScanPath(scanPath) {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ForgeTheme.Colors.warning)
                             .font(.system(size: 11))
                         Text("Scanning a broad directory may be slow and trigger macOS permission prompts. Consider a specific directory like ~/code.")
                             .font(.system(size: 10))
@@ -154,7 +178,7 @@ public struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(8)
-                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                    .background(ForgeTheme.Colors.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                 }
 
                 Button {
@@ -177,13 +201,16 @@ public struct SettingsView: View {
                 .disabled(isRescanning)
             }
 
-            Section("About") {
-                LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
-                Button("Statusline Guide...") {
-                    showStatuslineLegend = true
+            Section {
+                aboutContent
+            } header: {
+                Text("About")
+            } footer: {
+                if forgeStatus?.reinstallPending == true {
+                    Text("Updating fetches the latest changes into your forge source repo (fast-forward only) and reinstalls to ~/.claude.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
             .sheet(isPresented: $showStatuslineLegend) {
                 StatuslineLegendView()
@@ -191,7 +218,139 @@ public struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 500)
-        .frame(minHeight: 400, idealHeight: 520)
+        .frame(minHeight: 400, idealHeight: 560)
+        .task { await loadStatus() }
+        .confirmationDialog(
+            "Update Forge?",
+            isPresented: $showUpdateConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Update and Reinstall") { runUpdate() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This fetches the latest changes from origin into your forge source repo (fast-forward only) and reinstalls forge to ~/.claude. The app itself is not modified.")
+        }
+    }
+
+    // MARK: - About / Status
+
+    @ViewBuilder
+    private var aboutContent: some View {
+        LabeledContent("App Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
+
+        if let status = forgeStatus {
+            LabeledContent("Forge CLI") {
+                HStack(spacing: ForgeTheme.Spacing.sm) {
+                    Text("v\(status.version.installed)")
+                    if status.reinstallPending {
+                        StatusBadge(
+                            "v\(status.version.source) ready to install",
+                            icon: "arrow.down.circle",
+                            tint: ForgeTheme.Colors.info
+                        )
+                    } else {
+                        StatusBadge("Up to date", icon: "checkmark", tint: ForgeTheme.Colors.success)
+                    }
+                }
+            }
+            LabeledContent("Persona", value: status.persona.label)
+            LabeledContent("Plugins", value: "\(status.plugins.count) (\(status.plugins.group) group)")
+            LabeledContent("Hooks", value: "\(status.hooks.count)")
+            if let date = status.installedAtDate {
+                LabeledContent("Installed", value: date.formatted(date: .abbreviated, time: .shortened))
+            }
+
+            if status.reinstallPending {
+                HStack(spacing: ForgeTheme.Spacing.sm) {
+                    Button {
+                        showUpdateConfirm = true
+                    } label: {
+                        HStack(spacing: ForgeTheme.Spacing.xs) {
+                            if isUpdating {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .accessibilityHidden(true)
+                            }
+                            Text(isUpdating ? "Updating…" : "Install Update")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isUpdating)
+                    .accessibilityLabel("Install forge update")
+                }
+            }
+
+            if let updateError {
+                Text(updateError)
+                    .font(ForgeTheme.Typography.caption)
+                    .foregroundStyle(ForgeTheme.Colors.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !updateLog.isEmpty {
+                DisclosureGroup("Update Log") {
+                    Text(updateLog)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(ForgeTheme.Typography.caption)
+            }
+        } else if statusLoadFailed {
+            HStack(spacing: ForgeTheme.Spacing.xs + 2) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(ForgeTheme.Colors.warning)
+                    .font(.system(size: 11))
+                    .accessibilityHidden(true)
+                Text("Couldn't read forge status — is the CLI installed?")
+                    .font(ForgeTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            HStack(spacing: ForgeTheme.Spacing.sm) {
+                ProgressView().controlSize(.mini)
+                Text("Reading installation status…")
+                    .font(ForgeTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        Button("Statusline Guide...") {
+            showStatuslineLegend = true
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    private func loadStatus() async {
+        statusLoadFailed = false
+        do {
+            forgeStatus = try await statusService.status()
+            // Keep the shared state in sync so the menu bar and dashboard badges
+            // clear immediately after an in-app update instead of lagging until
+            // the next dashboard refresh.
+            forgeState.forgeStatus = forgeStatus
+        } catch {
+            statusLoadFailed = true
+        }
+    }
+
+    private func runUpdate() {
+        isUpdating = true
+        updateError = nil
+        updateLog = ""
+        Task {
+            do {
+                updateLog = try await updateService.update()
+                await loadStatus()
+            } catch {
+                updateError = error.localizedDescription
+            }
+            isUpdating = false
+        }
     }
 
     private func autoDetectStatus(isResolving: Bool, resolvedPath: String, label: String) -> some View {
@@ -201,14 +360,14 @@ public struct SettingsView: View {
                     .controlSize(.mini)
             } else if !resolvedPath.isEmpty {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(ForgeTheme.Colors.success)
                     .font(.system(size: 12))
                 Text("Found: \(resolvedPath)")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(ForgeTheme.Colors.warning)
                     .font(.system(size: 12))
                 Text("\(label) not found — set the path above")
                     .font(.system(size: 11))
@@ -255,68 +414,16 @@ public struct SettingsView: View {
 
     // MARK: - Permissions Helpers
 
+    /// Resolved from the CLI's preset list when loaded; falls back to a formatted id
+    /// so the summary row never shows a stale hardcoded label.
     private var currentPresetLabel: String {
-        switch currentPresetName {
-        case "ask-before-changes": return "Ask Before Changes"
-        case "auto-edit": return "Auto-Edit"
-        case "full-autonomy": return "Full Autonomy (Recommended)"
-        case nil: return "None"
-        default: return currentPresetName ?? "None"
-        }
+        guard let currentPresetName else { return "None" }
+        return loadedPresets.first { $0.id == currentPresetName }?.label
+            ?? currentPresetName.formattedAsTitle
     }
 
     private func presetDescription(for name: String) -> String {
-        switch name {
-        case "ask-before-changes":
-            return "Claude browses your code without asking, but asks before making changes."
-        case "auto-edit":
-            return "Claude browses and edits files without asking. Still asks before running commands."
-        case "full-autonomy":
-            return "Claude runs dev commands without asking. Still asks before destructive operations."
-        default:
-            return ""
-        }
-    }
-
-    private var permissionPickerRows: some View {
-        VStack(spacing: 6) {
-            ForEach(
-                [("ask-before-changes", "Ask Before Changes", false),
-                 ("auto-edit", "Auto-Edit", false),
-                 ("full-autonomy", "Full Autonomy", true)],
-                id: \.0
-            ) { id, label, recommended in
-                HStack {
-                    Image(systemName: currentPresetName == id ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(currentPresetName == id ? Color.accentColor : .secondary)
-                        .font(.system(size: 13))
-
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium))
-
-                    if recommended {
-                        Text("Recommended")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.accentColor, in: Capsule())
-                    }
-
-                    Spacer()
-
-                    if applyingPreset && currentPresetName != id {
-                        ProgressView().controlSize(.mini)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard !applyingPreset, currentPresetName != id else { return }
-                    applyPreset(id)
-                }
-                .padding(.vertical, 4)
-            }
-        }
+        loadedPresets.first { $0.id == name }?.description ?? ""
     }
 
     private func loadCurrentPreset() async {

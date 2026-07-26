@@ -13,7 +13,6 @@ public struct SetupWizardView: View {
     @State private var selectedPreset: String = "full-autonomy"
     @State private var applyingPreset: Bool = false
     @State private var presetError: String?
-    @State private var expandedPreset: String?
     @AppStorage("claudeBinaryPath") private var claudeBinaryPath: String = ""
 
     @Environment(\.permissionsService) private var permissionsService
@@ -32,27 +31,29 @@ public struct SetupWizardView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header
-            VStack(spacing: 10) {
+            VStack(spacing: ForgeTheme.Spacing.sm + 2) {
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(ForgeTheme.Colors.forgeOrange.opacity(0.12))
                         .frame(width: 64, height: 64)
                     Image(systemName: "hammer.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(ForgeTheme.Gradients.forge)
                 }
+                .accessibilityHidden(true)
 
                 Text("Welcome to Forge")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(ForgeTheme.Typography.screenTitle)
                 Text("Let's get your environment set up.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 28)
-            .padding(.bottom, 24)
+            .padding(.bottom, ForgeTheme.Spacing.xl)
 
             stepIndicator
-                .padding(.bottom, 24)
+                .padding(.bottom, ForgeTheme.Spacing.xl)
+                .forgeAnimation(ForgeTheme.Animations.springSnappy, value: stepNumber)
 
             Divider()
 
@@ -112,8 +113,9 @@ public struct SetupWizardView: View {
         VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(done ? Color.green : active ? Color.accentColor : Color.secondary.opacity(0.15))
+                    .fill(done ? ForgeTheme.Colors.success : active ? Color.accentColor : Color.secondary.opacity(0.15))
                     .frame(width: 28, height: 28)
+                    .scaleEffect(active ? 1.1 : 1.0)
                 if done {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
@@ -132,7 +134,7 @@ public struct SetupWizardView: View {
 
     private func stepLine(done: Bool) -> some View {
         Rectangle()
-            .fill(done ? Color.green.opacity(0.6) : Color.secondary.opacity(0.15))
+            .fill(done ? ForgeTheme.Colors.success.opacity(0.6) : Color.secondary.opacity(0.15))
             .frame(height: 2)
             .frame(maxWidth: 50)
             .padding(.bottom, 18) // align with dot centers
@@ -146,7 +148,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(ForgeTheme.Colors.success)
                     Text("Forge CLI found")
                         .font(.system(size: 14, weight: .semibold))
                     Text(path)
@@ -154,7 +156,7 @@ public struct SetupWizardView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                         .textSelection(.enabled)
                 }
 
@@ -171,7 +173,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                     Text(error)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
@@ -239,7 +241,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(ForgeTheme.Colors.success)
                     Text("Claude Code found")
                         .font(.system(size: 13, weight: .medium))
                     Text(path)
@@ -247,7 +249,7 @@ public struct SetupWizardView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                         .textSelection(.enabled)
                     if let version = claudeVersion {
                         Text("Version: \(version)")
@@ -270,7 +272,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                     Text("Claude Code CLI not found")
                         .font(.system(size: 13, weight: .medium))
                     Text("Install it to enable intelligent fixes:")
@@ -283,7 +285,7 @@ public struct SetupWizardView: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: ForgeTheme.Metrics.chipRadius))
                             .textSelection(.enabled)
 
                         Button {
@@ -379,35 +381,19 @@ public struct SetupWizardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 8) {
-                permissionPresetRow(
-                    id: "ask-before-changes",
-                    label: "Ask Before Changes",
-                    description: "Claude browses your code without asking, but asks permission before making any changes.",
-                    detail: "Auto-approves: reading files, searching code, listing directories.\nYou approve: file edits, running commands.",
-                    recommended: false
-                )
-                permissionPresetRow(
-                    id: "auto-edit",
-                    label: "Auto-Edit",
-                    description: "Claude browses and edits files without asking. Still asks before running commands.",
-                    detail: "Auto-approves: everything above, plus creating and editing files, viewing git status.\nYou approve: running build/test commands, git operations.",
-                    recommended: false
-                )
-                permissionPresetRow(
-                    id: "full-autonomy",
-                    label: "Full Autonomy",
-                    description: "Claude runs development commands without asking. Still asks before destructive operations.",
-                    detail: "Auto-approves: everything above, plus git operations, package managers, build tools.\nYou approve: force pushes, deletions, arbitrary scripts.",
-                    recommended: true
-                )
-            }
-            .padding(.horizontal, 8)
+            PermissionPresetPicker(
+                selection: Binding(
+                    get: { selectedPreset },
+                    set: { if let preset = $0 { selectedPreset = preset } }
+                ),
+                isDisabled: applyingPreset
+            )
+            .padding(.horizontal, ForgeTheme.Spacing.sm)
 
             if let error = presetError {
                 Text(error)
                     .font(.system(size: 11))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(ForgeTheme.Colors.danger)
             }
 
             HStack(spacing: 6) {
@@ -441,76 +427,6 @@ public struct SetupWizardView: View {
                 .disabled(applyingPreset)
             }
         }
-    }
-
-    private func permissionPresetRow(
-        id: String,
-        label: String,
-        description: String,
-        detail: String,
-        recommended: Bool
-    ) -> some View {
-        Button {
-            selectedPreset = id
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: selectedPreset == id ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(selectedPreset == id ? Color.accentColor : .secondary)
-                        .font(.system(size: 14))
-
-                    Text(label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    if recommended {
-                        Text("Recommended")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor, in: Capsule())
-                    }
-                }
-
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 20)
-
-                if expandedPreset == id {
-                    Text(detail)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 20)
-                        .padding(.top, 2)
-                }
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        expandedPreset = expandedPreset == id ? nil : id
-                    }
-                } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: expandedPreset == id ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8))
-                        Text("Details")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 20)
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selectedPreset == id ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: selectedPreset == id ? 1.5 : 1)
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     private func applyPermissionPreset() {
@@ -552,7 +468,7 @@ public struct SetupWizardView: View {
             if SettingsView.isBroadScanPath(scanPath) {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ForgeTheme.Colors.warning)
                         .font(.system(size: 11))
                     Text("This will scan your entire home directory, which may be slow and trigger macOS permission prompts.")
                         .font(.system(size: 11))
@@ -601,7 +517,7 @@ public struct SetupWizardView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ForgeTheme.Colors.danger)
                     Text(error)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)

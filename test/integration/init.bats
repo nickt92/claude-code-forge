@@ -96,7 +96,8 @@ teardown() {
 @test "init --help shows usage" {
   run cmd_init --help
   assert_success
-  assert_output --partial "Usage: forge init"
+  assert_output --partial "Usage:"
+  assert_output --partial "forge init"
 }
 
 @test "init prints note about hooks being global" {

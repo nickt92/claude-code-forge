@@ -53,7 +53,7 @@ merge_permissions() {
   resolved=$(resolve_preset_permissions "$preset_name" "$presets_file")
 
   if [ "$resolved" = "[]" ]; then
-    fail "Unknown preset: $preset_name"
+    forge_fail "Unknown preset: $preset_name"
     return 1
   fi
 

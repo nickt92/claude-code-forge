@@ -38,11 +38,16 @@ teardown() {
   assert_output --partial "not found"
 }
 
-@test "audit fails without --json flag" {
+# --json is optional for audit (unlike analyze, which requires it — see
+# lib/cmd-analyze.sh:55). Without it, audit prints a human-readable report.
+# This test previously asserted the opposite and only passed because a shadowed
+# fail() made its assertions inert.
+@test "audit without --json prints a human-readable report" {
   mkdir -p "$TEST_SANDBOX/repo"
   run cmd_audit "$TEST_SANDBOX/repo"
-  assert_failure
-  assert_output --partial "--json"
+  assert_success
+  assert_output --partial "CLAUDE.md Audit"
+  assert_output --partial "No CLAUDE.md found"
 }
 
 # ── JSON Output ──────────────────────────────────────────────
