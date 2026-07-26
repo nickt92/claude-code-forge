@@ -16,10 +16,17 @@ teardown() {
 # ── Version ──────────────────────────────────────────────────
 
 @test "forge version prints version number" {
+  # Derived from the single source of truth rather than hardcoded — this
+  # assertion previously pinned a literal and silently went stale on every
+  # release bump. version_sync.bats is what guards the version itself.
+  local expected
+  expected=$(sed -n 's/^FORGE_VERSION="\${FORGE_VERSION:-\(.*\)}"$/\1/p' "$SCRIPT_DIR/lib/manifest.sh")
+  assert [ -n "$expected" ]
+
   run "$SCRIPT_DIR/forge" version
   assert_success
   assert_output --partial "forge"
-  assert_output --partial "1.4.0"
+  assert_output --partial "$expected"
 }
 
 @test "forge --version prints version number" {

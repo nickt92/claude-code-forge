@@ -6,6 +6,7 @@
 _forge() {
   local -a commands
   commands=(
+    'analyze:Extract codebase context as structured JSON'
     'audit:Audit CLAUDE.md quality for a repository'
     'build:Create a custom persona profile'
     'config:Get/set forge settings'
@@ -16,8 +17,11 @@ _forge() {
     'help:Show help'
     'init:Initialize per-project forge config'
     'install:Install or reinstall forge'
+    'permissions:Manage Claude Code permission presets'
+    'restore:Roll settings.json back to an earlier snapshot'
     'stats:Show installation statistics'
     'status:Show current installation status'
+    'statusline:Show the interactive status line legend'
     'switch:Switch to a different persona'
     'update:Update forge from source repository'
     'version:Show forge version'

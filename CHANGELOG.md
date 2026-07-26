@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-26
+
+Protects the config file forge shares with you, and gives you a way back.
+
+### Added
+- `forge restore` — roll `settings.json` back to an earlier snapshot.
+  `--list` shows what is available with readable timestamps and marks the one
+  matching your current settings; restore by name, by bare timestamp,
+  `--latest`, or `--pre-install` for your settings from before forge existed
+- Every operation that rewrites `settings.json` now snapshots it first, labelled
+  and UTC-stamped (install, permissions, uninstall). The 20 most recent are kept.
+  Previously there was exactly one restore point ever — the backup taken at
+  first install — so a user installed for a year had a single snapshot from a
+  year ago and no way to undo one bad operation
+- `analyze`, `permissions`, `restore` and `statusline` in shell completions.
+  The first three were missing entirely
+
+### Fixed
+- **Uninstall could delete hooks and plugins you added yourself.** Ownership of
+  settings entries was inferred as "anything not in the backup", but the backup
+  is frozen at first install — so anything you added afterwards looked like a
+  forge addition, and uninstall removed it. `forge update` re-triggered this on
+  every run. Ownership is now derived from what forge actually ships, so entries
+  you added are neither claimed nor removed
+- An entry forge shipped in an older version but no longer ships is now left in
+  place rather than deleted. `forge doctor` can report it; deleting something
+  forge is no longer sure it owns is the more dangerous mistake
+- `forge restore` and the snapshot history are reachable from the CLI, not just
+  when a library happens to be pre-loaded — the command resolved its history
+  directory from an unset variable and silently found nothing
+
 ## [1.4.0] - 2026-07-26
 
 Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities,

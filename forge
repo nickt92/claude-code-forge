@@ -66,6 +66,7 @@ cmd_help() {
   printf "\n${_C_BOLD}Management${_C_RST}\n"
   printf "  ${_C_BOLD}switch${_C_RST}      Switch to a different persona\n"
   printf "  ${_C_BOLD}update${_C_RST}      Update forge from source repository\n"
+  printf "  ${_C_BOLD}restore${_C_RST}     Roll settings.json back to an earlier snapshot\n"
 
   printf "\n${_C_BOLD}Diagnostics${_C_RST}\n"
   printf "  ${_C_BOLD}status${_C_RST}      Show current installation status\n"

@@ -17,7 +17,7 @@
 #
 # All internal helpers are prefixed _manifest_.
 
-FORGE_VERSION="${FORGE_VERSION:-1.4.0}"
+FORGE_VERSION="${FORGE_VERSION:-1.5.0}"
 MANIFEST_VERSION=2
 BACKUP_DIR="${CLAUDE_DIR}/forge-backup"
 MANIFEST_FILE="${BACKUP_DIR}/manifest.json"
@@ -52,32 +52,67 @@ _manifest_inventory_dir() {
   printf '%s\n' "${files[@]}" | jq -R . | jq -s .
 }
 
-# Compute what forge added to settings.json by diffing current vs backup
+# Record what forge added to settings.json.
+#
+# Ownership is DECLARED, not inferred. It used to be computed as
+# "everything in current that is not in the backup", but the backup is frozen
+# at first install (see snapshot_pre_install_state), so any hook or plugin the
+# user added afterwards was indistinguishable from a forge addition — forge
+# claimed it, and uninstall deleted it. That is data loss in the one file this
+# tool exists to edit carefully.
+#
+# An entry is forge's only if forge actually ships it (it appears in the
+# template forge just installed) AND the user did not already have it before
+# the first install (it is absent from the backup). Anything else is the
+# user's, and is neither claimed nor removed.
+#
+# An entry forge shipped in an older version but no longer ships is left
+# unclaimed rather than deleted. That leaks an orphan, which forge doctor can
+# report; over-claiming would destroy user data, so orphans are the safer
+# direction.
+#
+# Args:
+#   $1 — current settings.json
+#   $2 — backup settings.json (pre-install state; may not exist)
+#   $3 — template settings.json forge installs from
 _manifest_capture_settings_diff() {
   local current="$1"
   local backup="$2"
+  local template="$3"
 
-  if [ ! -f "$backup" ]; then
-    # No backup means everything in current is forge-installed
-    cat "$current"
+  # Without a template there is nothing to attribute ownership from. Claiming
+  # everything is what caused the data loss, so claim nothing instead — but say
+  # so, because the consequence is that uninstall will leave forge's own
+  # settings entries behind rather than removing them.
+  if [ ! -f "$template" ]; then
+    warn "Cannot attribute settings ownership: template not found at ${template:-<unset>}" >&2
+    warn "  Uninstall will leave forge's settings entries in place. Re-run forge install to repair." >&2
+    echo '{}'
     return
   fi
 
-  # Extract the forge-specific additions
-  jq -n --slurpfile cur "$current" --slurpfile bak "$backup" '
+  local backup_arg="$backup"
+  if [ ! -f "$backup" ]; then
+    backup_arg=/dev/null
+  fi
+
+  jq -n --slurpfile cur "$current" --slurpfile tpl "$template" \
+        --argjson bak "$( [ "$backup_arg" = /dev/null ] && echo '{}' || jq '.' "$backup" )" '
     ($cur[0] // {}) as $c |
-    ($bak[0] // {}) as $b |
+    ($tpl[0] // {}) as $t |
+    $bak as $b |
     {
       hooks: (
         ($c.hooks // {}) | to_entries | map(
           .key as $event |
-          .value as $cur_hooks |
+          ($t.hooks[$event] // []) as $tpl_hooks |
           ($b.hooks[$event] // []) as $bak_hooks |
           {
             key: $event,
-            value: ($cur_hooks | map(
+            value: (.value | map(
               select(
                 .hooks[0].command as $cmd |
+                ($tpl_hooks | map(.hooks[0].command) | index($cmd)) != null and
                 ($bak_hooks | map(.hooks[0].command) | index($cmd)) == null
               )
             ))
@@ -85,13 +120,21 @@ _manifest_capture_settings_diff() {
         ) | map(select(.value | length > 0)) | from_entries
       ),
       enabledPlugins: (
-        (($c.enabledPlugins // {}) | to_entries) |
+        (($t.enabledPlugins // {}) | to_entries) |
         map(select(
-          .key as $k | ($b.enabledPlugins // {})[$k] == null
+          .key as $k |
+          (($c.enabledPlugins // {})[$k] != null) and
+          (($b.enabledPlugins // {})[$k] == null)
         )) | from_entries
       ),
-      statusLine: ($c.statusLine // null),
-      alwaysThinkingEnabled: ($c.alwaysThinkingEnabled // null)
+      statusLine: (
+        if ($t | has("statusLine")) and (($b | has("statusLine")) | not)
+        then ($c.statusLine // null) else null end
+      ),
+      alwaysThinkingEnabled: (
+        if ($t | has("alwaysThinkingEnabled")) and (($b | has("alwaysThinkingEnabled")) | not)
+        then ($c.alwaysThinkingEnabled // null) else null end
+      )
     } | with_entries(select(.value != null and .value != {} and .value != []))
   '
 }
@@ -123,6 +166,59 @@ manifest_migrate_v1_to_v2() {
       plugin_group: (.plugin_group // null)
     }' "$MANIFEST_FILE" > "$tmp_manifest"
   mv "$tmp_manifest" "$MANIFEST_FILE"
+}
+
+# ── Settings history ─────────────────────────────────────────
+# snapshot_pre_install_state keeps exactly one backup, taken at first install
+# and never refreshed. That is the right semantics for "what did the user have
+# before forge existed", but it means a user who has been installed for a year
+# has a single restore point from a year ago. Every operation that rewrites
+# settings.json takes its own timestamped copy here, so `forge restore` can go
+# back one step rather than all the way to the beginning.
+
+SETTINGS_HISTORY_DIR="${BACKUP_DIR}/history"
+SETTINGS_HISTORY_KEEP="${SETTINGS_HISTORY_KEEP:-20}"
+
+# Copy the current settings.json into the history, labelled with the operation.
+# Args: $1 — short label, e.g. "install", "permissions", "uninstall"
+snapshot_settings_history() {
+  local label="${1:-manual}"
+  local settings="$CLAUDE_DIR/settings.json"
+  [ -f "$settings" ] || return 0
+
+  # Sanitised so the label can never escape the directory.
+  label="${label//[^a-zA-Z0-9_-]/_}"
+
+  mkdir -p "$SETTINGS_HISTORY_DIR" || return 0
+
+  local stamp
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  local dest="$SETTINGS_HISTORY_DIR/settings-${stamp}-${label}.json"
+
+  # Two operations inside the same second would otherwise overwrite each other.
+  local n=1
+  while [ -e "$dest" ]; do
+    dest="$SETTINGS_HISTORY_DIR/settings-${stamp}-${label}.${n}.json"
+    n=$(( n + 1 ))
+  done
+
+  cp "$settings" "$dest" 2>/dev/null || return 0
+  _prune_settings_history
+}
+
+# Keep the most recent $SETTINGS_HISTORY_KEEP snapshots.
+_prune_settings_history() {
+  [ -d "$SETTINGS_HISTORY_DIR" ] || return 0
+  local count
+  count=$(find "$SETTINGS_HISTORY_DIR" -name 'settings-*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+  [ "$count" -le "$SETTINGS_HISTORY_KEEP" ] && return 0
+
+  # Names are UTC-stamped, so lexical order is chronological.
+  local excess=$(( count - SETTINGS_HISTORY_KEEP ))
+  find "$SETTINGS_HISTORY_DIR" -name 'settings-*.json' -type f 2>/dev/null \
+    | sort | head -n "$excess" | while IFS= read -r old; do
+      rm -f "$old"
+    done
 }
 
 # ── Public API ───────────────────────────────────────────────
@@ -211,6 +307,10 @@ update_manifest_installed() {
   local persona="${1:-}"
   local source_dir="${2:-}"
   local plugin_group="${3:-}"
+  # The template forge installs from. Ownership of settings entries is attributed
+  # against it — see _manifest_capture_settings_diff. Falls back to
+  # FORGE_SOURCE_DIR so the short call form still resolves. Overridable for tests.
+  local template_settings="${4:-${source_dir:-${FORGE_SOURCE_DIR:-}}/templates/settings.json}"
 
   if [ ! -f "$MANIFEST_FILE" ]; then
     forge_fail "No manifest found — cannot record installation"
@@ -240,7 +340,8 @@ update_manifest_installed() {
   local settings_additions='{}'
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     local backup_settings="$BACKUP_DIR/settings.json"
-    settings_additions=$(_manifest_capture_settings_diff "$CLAUDE_DIR/settings.json" "$backup_settings")
+    settings_additions=$(_manifest_capture_settings_diff \
+      "$CLAUDE_DIR/settings.json" "$backup_settings" "$template_settings")
   fi
 
   # Update manifest — rewrite installed section, update persona + version + v2 fields
