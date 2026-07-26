@@ -248,12 +248,15 @@ update_manifest_installed() {
   local pg_arg="null"
   [ -n "$plugin_group" ] && pg_arg="\"$plugin_group\""
 
-  # source_dir goes through the environment, not --arg. On Git Bash, MSYS
-  # rewrites argv entries that look like absolute POSIX paths before the native
-  # jq binary sees them, so the manifest recorded
-  # "C:/Program Files/Git/path/to/source". Environment variables are exempt.
-  FORGE_SOURCE_DIR_VALUE="$source_dir" \
+  # source_dir is handed to jq as file CONTENT. On Git Bash, MSYS rewrites both
+  # argv entries and environment values that look like absolute POSIX paths
+  # before a native binary sees them, so the manifest recorded
+  # "C:/Program Files/Git/path/to/source". File contents are never rewritten.
+  local sd_file="${MANIFEST_FILE}.sd"
+  printf '%s' "$source_dir" > "$sd_file"
+
   jq \
+    --rawfile sd "$sd_file" \
     --arg persona "$persona" \
     --arg fv "$FORGE_VERSION" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -264,7 +267,7 @@ update_manifest_installed() {
     '.persona = $persona |
      .forge_version = $fv |
      .install_timestamp = $ts |
-     .source_dir = (if (env.FORGE_SOURCE_DIR_VALUE // "") == "" then null else env.FORGE_SOURCE_DIR_VALUE end) |
+     .source_dir = (if ($sd | length) == 0 then null else $sd end) |
      .plugin_group = $pg |
      .installed = (
        (
@@ -277,6 +280,7 @@ update_manifest_installed() {
          settings_additions: $sa
        }
      )' "$MANIFEST_FILE" > "$tmp_manifest"
+  rm -f "$sd_file"
   mv "$tmp_manifest" "$MANIFEST_FILE"
 }
 
