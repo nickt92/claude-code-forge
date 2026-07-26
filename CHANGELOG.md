@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-07-27
+
 ### Fixed
 - **The `if:` hook filter never worked.** It was written onto the hook *group*,
   but Claude Code only accepts it on individual hook entries, so it was silently
