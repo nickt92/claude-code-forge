@@ -452,6 +452,9 @@ cmd_install() {
     fi
     rm -f "$CLAUDE_DIR/hooks/prompt-classifier.sh"
 
+    # Undo point before we rewrite the user's settings.
+    snapshot_settings_history "install"
+
     merge_settings "$EXISTING" "$TEMPLATE" "$CLAUDE_DIR/settings.json.tmp"
     mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
     ok "Settings merged (preserved existing config)"
@@ -471,6 +474,11 @@ cmd_install() {
     if [ -z "$valid" ]; then
       warn "Unknown permissions preset: $SELECTED_PERMISSIONS — skipping"
     else
+      # Undo point before the permission arrays are rewritten. install rewrites
+      # them inline rather than going through _permissions_apply, so it needs its
+      # own snapshot.
+      snapshot_settings_history "install-permissions"
+
       # Unmerge old permissions if present
       if [ -f "$MANIFEST_FILE" ]; then
         local old_preset old_added

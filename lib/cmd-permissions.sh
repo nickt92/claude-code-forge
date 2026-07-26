@@ -168,6 +168,9 @@ _permissions_apply() {
   local resolved
   resolved=$(resolve_preset_permissions "$preset_name" "$PRESETS_FILE")
 
+  # Undo point before we rewrite the permission arrays.
+  snapshot_settings_history "permissions"
+
   # If manifest has a previous preset, unmerge old permissions first
   if [ -f "$MANIFEST_FILE" ]; then
     local old_preset old_added

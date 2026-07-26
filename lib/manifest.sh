@@ -168,6 +168,59 @@ manifest_migrate_v1_to_v2() {
   mv "$tmp_manifest" "$MANIFEST_FILE"
 }
 
+# ── Settings history ─────────────────────────────────────────
+# snapshot_pre_install_state keeps exactly one backup, taken at first install
+# and never refreshed. That is the right semantics for "what did the user have
+# before forge existed", but it means a user who has been installed for a year
+# has a single restore point from a year ago. Every operation that rewrites
+# settings.json takes its own timestamped copy here, so `forge restore` can go
+# back one step rather than all the way to the beginning.
+
+SETTINGS_HISTORY_DIR="${BACKUP_DIR}/history"
+SETTINGS_HISTORY_KEEP="${SETTINGS_HISTORY_KEEP:-20}"
+
+# Copy the current settings.json into the history, labelled with the operation.
+# Args: $1 — short label, e.g. "install", "permissions", "uninstall"
+snapshot_settings_history() {
+  local label="${1:-manual}"
+  local settings="$CLAUDE_DIR/settings.json"
+  [ -f "$settings" ] || return 0
+
+  # Sanitised so the label can never escape the directory.
+  label="${label//[^a-zA-Z0-9_-]/_}"
+
+  mkdir -p "$SETTINGS_HISTORY_DIR" || return 0
+
+  local stamp
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  local dest="$SETTINGS_HISTORY_DIR/settings-${stamp}-${label}.json"
+
+  # Two operations inside the same second would otherwise overwrite each other.
+  local n=1
+  while [ -e "$dest" ]; do
+    dest="$SETTINGS_HISTORY_DIR/settings-${stamp}-${label}.${n}.json"
+    n=$(( n + 1 ))
+  done
+
+  cp "$settings" "$dest" 2>/dev/null || return 0
+  _prune_settings_history
+}
+
+# Keep the most recent $SETTINGS_HISTORY_KEEP snapshots.
+_prune_settings_history() {
+  [ -d "$SETTINGS_HISTORY_DIR" ] || return 0
+  local count
+  count=$(find "$SETTINGS_HISTORY_DIR" -name 'settings-*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+  [ "$count" -le "$SETTINGS_HISTORY_KEEP" ] && return 0
+
+  # Names are UTC-stamped, so lexical order is chronological.
+  local excess=$(( count - SETTINGS_HISTORY_KEEP ))
+  find "$SETTINGS_HISTORY_DIR" -name 'settings-*.json' -type f 2>/dev/null \
+    | sort | head -n "$excess" | while IFS= read -r old; do
+      rm -f "$old"
+    done
+}
+
 # ── Public API ───────────────────────────────────────────────
 
 # Snapshot pre-existing state before first install.

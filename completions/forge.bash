@@ -9,7 +9,7 @@ _forge() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="audit build config dashboard diff doctor export help init install stats status switch update version"
+  commands="analyze audit build config dashboard diff doctor export help init install permissions restore stats status statusline switch update version"
 
   case "$prev" in
     forge)

@@ -122,6 +122,9 @@ uninstall_forge() {
     fi
   done < <(jq -r '.pre_existing.directories // {} | keys[]' "$MANIFEST_FILE" 2>/dev/null)
 
+  # Undo point before we strip forge's entries out.
+  snapshot_settings_history "uninstall"
+
   # Handle settings.json unmerge — extract forge additions and pass explicitly
   local forge_additions
   forge_additions=$(jq -r '.installed.settings_additions // {}' "$MANIFEST_FILE" 2>/dev/null)
