@@ -226,17 +226,22 @@ _stats_session() {
 
   # Count by outcome
   local blocks allows
-  blocks=$(grep -c '|block$' "$session_log" 2>/dev/null || echo 0)
-  allows=$(grep -c '|allow$' "$session_log" 2>/dev/null || echo 0)
+  blocks=$(grep -c '|block$' "$session_log" 2>/dev/null || true)
+  allows=$(grep -c '|allow$' "$session_log" 2>/dev/null || true)
   local detects overrides
-  detects=$(grep -c '|detect$' "$session_log" 2>/dev/null || echo 0)
-  overrides=$(grep -c '|override$' "$session_log" 2>/dev/null || echo 0)
+  detects=$(grep -c '|detect$' "$session_log" 2>/dev/null || true)
+  overrides=$(grep -c '|override$' "$session_log" 2>/dev/null || true)
 
   echo ""
   kv "Allowed" "$allows"
   [ "$blocks" -gt 0 ] && kv "Blocked" "$blocks"
   [ "$detects" -gt 0 ] && kv "Detected" "$detects"
   [ "$overrides" -gt 0 ] && kv "Overrides" "$overrides"
+
+  # A function's status is that of its last command. Without this, a session
+  # with no overrides — the normal case — ends on a false test and makes
+  # `forge stats --session` exit 1 despite succeeding.
+  return 0
 }
 
 # ── Hook Telemetry ───────────────────────────────────────────
@@ -270,7 +275,7 @@ _stats_hooks() {
 
   # Block rate
   local blocks
-  blocks=$(grep -c '|block$' "$telemetry_log" 2>/dev/null || echo 0)
+  blocks=$(grep -c '|block$' "$telemetry_log" 2>/dev/null || true)
   if [ "$total" -gt 0 ]; then
     local block_rate=$(( blocks * 100 / total ))
     kv "Block rate" "${block_rate}% ($blocks/$total)"
@@ -393,7 +398,7 @@ cmd_stats() {
         shift
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         echo "Usage: forge stats [--security] [--sessions] [--session] [--hooks] [--json] [--help]"
         return 1
         ;;
@@ -401,7 +406,7 @@ cmd_stats() {
   done
 
   if [ ! -f "$MANIFEST_FILE" ]; then
-    fail "Forge is not installed (no manifest found)"
+    forge_fail "Forge is not installed (no manifest found)"
     info "Run: forge install"
     return 1
   fi
