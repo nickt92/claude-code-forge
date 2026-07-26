@@ -108,11 +108,12 @@ EOF
 
 # ── V2 Manifest Creation ────────────────────────────────────
 
-@test "snapshot creates v2 manifest with source_dir and plugin_group" {
+@test "snapshot creates a current-version manifest with source_dir and plugin_group" {
   snapshot_pre_install_state
 
+  # Derived, not pinned — snapshot writes whatever MANIFEST_VERSION currently is.
   run jq -r '.manifest_version' "$MANIFEST_FILE"
-  assert_output "2"
+  assert_output "$MANIFEST_VERSION"
 
   # source_dir and plugin_group start as null
   run jq -r '.source_dir // "null"' "$MANIFEST_FILE"
@@ -140,51 +141,113 @@ EOF
 
 # ── Permissions ownership record ─────────────────────────────
 # update_manifest_installed rewrites .installed wholesale. The permissions
-# ownership record lives under .installed, and only cmd-install's --permissions
-# branch rewrites it afterwards. `forge update` reinstalls WITHOUT that flag,
+# ownership record lives under .installed, and only the --permissions branch of
+# install rewrites it afterwards. `forge update` reinstalls WITHOUT that flag,
 # so without these guards the record is erased on every update — after which
-# the unmerge step is skipped and merge_permissions (a pure union) can only
+# the removal step is skipped and merge_permissions (a pure union) can only
 # ever add rules. That is a one-way ratchet: presets stop being switchable and
 # a deny list, once shipped, could never be withdrawn.
 
-@test "update_manifest_installed preserves permissions_preset" {
+@test "update_manifest_installed preserves the permissions ownership record" {
   snapshot_pre_install_state
   touch "$CLAUDE_DIR/CLAUDE.md"
   echo '{}' > "$CLAUDE_DIR/settings.json"
 
-  jq '.installed.permissions_preset = "full-autonomy"' "$MANIFEST_FILE" > "$MANIFEST_FILE.tmp"
+  jq '.installed.permissions = {
+        schema: 1, preset: "full-autonomy", provenance: "native",
+        owned: { allow: ["Bash(npm:*)"] }, adopted: { allow: ["Read"] }
+      }' "$MANIFEST_FILE" > "$MANIFEST_FILE.tmp"
   mv "$MANIFEST_FILE.tmp" "$MANIFEST_FILE"
 
   update_manifest_installed "senior-engineer" "/path/to/source" "full"
 
-  run jq -r '.installed.permissions_preset' "$MANIFEST_FILE"
+  run jq -r '.installed.permissions.preset' "$MANIFEST_FILE"
   assert_output "full-autonomy"
+  run jq -c '.installed.permissions.owned.allow' "$MANIFEST_FILE"
+  assert_output '["Bash(npm:*)"]'
+  run jq -c '.installed.permissions.adopted.allow' "$MANIFEST_FILE"
+  assert_output '["Read"]'
 }
 
-@test "update_manifest_installed preserves permissions_added" {
-  snapshot_pre_install_state
-  touch "$CLAUDE_DIR/CLAUDE.md"
-  echo '{}' > "$CLAUDE_DIR/settings.json"
-
-  jq '.installed.permissions_added = ["Read", "Bash(git status:*)"]' "$MANIFEST_FILE" > "$MANIFEST_FILE.tmp"
-  mv "$MANIFEST_FILE.tmp" "$MANIFEST_FILE"
-
-  update_manifest_installed "senior-engineer" "/path/to/source" "full"
-
-  run jq -c '.installed.permissions_added' "$MANIFEST_FILE"
-  assert_output '["Read","Bash(git status:*)"]'
-}
-
-@test "update_manifest_installed leaves permissions keys absent when never set" {
+@test "update_manifest_installed leaves the permissions key absent when never set" {
   snapshot_pre_install_state
   touch "$CLAUDE_DIR/CLAUDE.md"
   echo '{}' > "$CLAUDE_DIR/settings.json"
 
   update_manifest_installed "senior-engineer" "/path/to/source" "full"
 
-  # Absent, not null — an explicit null would make `// "none"` fallbacks work
-  # but would misreport "forge has a record of no preset" in --json output.
-  run jq -r '.installed | has("permissions_preset")' "$MANIFEST_FILE"
+  # Absent, not null — an explicit null would satisfy `// "none"` fallbacks but
+  # would misreport "forge has a record of no preset" in --json output.
+  run jq -r '.installed | has("permissions")' "$MANIFEST_FILE"
+  assert_output "false"
+}
+
+# ── v2 to v3 migration ───────────────────────────────────────
+
+@test "migrate_v2_to_v3 splits the old flat record into owned and adopted" {
+  mkdir -p "$BACKUP_DIR"
+  # The user still has Read; Bash(npm:*) was removed from settings since.
+  echo '{"permissions":{"allow":["Read","Bash(mytool:*)"]}}' > "$CLAUDE_DIR/settings.json"
+  cat > "$MANIFEST_FILE" <<'EOF'
+{
+  "manifest_version": 2,
+  "forge_version": "1.4.0",
+  "persona": "senior-engineer",
+  "pre_existing": {"files": {}, "directories": {}},
+  "installed": {
+    "files": [], "directories": {}, "settings_additions": {},
+    "permissions_preset": "auto-edit",
+    "permissions_added": ["Read", "Bash(npm:*)"]
+  }
+}
+EOF
+  run manifest_migrate_v2_to_v3
+  assert_success
+
+  run jq -r '.manifest_version' "$MANIFEST_FILE"
+  assert_output "3"
+  run jq -r '.installed.permissions.preset' "$MANIFEST_FILE"
+  assert_output "auto-edit"
+  # Only entries still present in settings are claimed; the rest are dropped
+  # rather than resurrected as forge's.
+  run jq -c '.installed.permissions.owned.allow' "$MANIFEST_FILE"
+  assert_output '["Read"]'
+  # v2 cannot distinguish adopted from owned, so the imprecision is marked.
+  run jq -r '.installed.permissions.provenance' "$MANIFEST_FILE"
+  assert_output "migrated"
+  run jq -r '.installed | has("permissions_added")' "$MANIFEST_FILE"
+  assert_output "false"
+}
+
+@test "migrate_v2_to_v3 is idempotent" {
+  mkdir -p "$BACKUP_DIR"
+  echo '{"permissions":{"allow":["Read"]}}' > "$CLAUDE_DIR/settings.json"
+  cat > "$MANIFEST_FILE" <<'EOF'
+{
+  "manifest_version": 2, "forge_version": "1.4.0", "persona": "x",
+  "pre_existing": {}, "installed": {"permissions_preset": "auto-edit", "permissions_added": ["Read"]}
+}
+EOF
+  manifest_migrate_v2_to_v3
+  local first
+  first=$(cat "$MANIFEST_FILE")
+  manifest_migrate_v2_to_v3
+  assert_equal "$(cat "$MANIFEST_FILE")" "$first"
+}
+
+@test "migrate_v2_to_v3 is a no-op on a manifest with no preset recorded" {
+  mkdir -p "$BACKUP_DIR"
+  cat > "$MANIFEST_FILE" <<'EOF'
+{
+  "manifest_version": 2, "forge_version": "1.4.0", "persona": "x",
+  "pre_existing": {}, "installed": {"files": [], "directories": {}}
+}
+EOF
+  run manifest_migrate_v2_to_v3
+  assert_success
+  run jq -r '.manifest_version' "$MANIFEST_FILE"
+  assert_output "3"
+  run jq -r '.installed | has("permissions")' "$MANIFEST_FILE"
   assert_output "false"
 }
 

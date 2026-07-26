@@ -18,7 +18,7 @@
 # All internal helpers are prefixed _manifest_.
 
 FORGE_VERSION="${FORGE_VERSION:-1.5.0}"
-MANIFEST_VERSION=2
+MANIFEST_VERSION=3
 BACKUP_DIR="${CLAUDE_DIR}/forge-backup"
 MANIFEST_FILE="${BACKUP_DIR}/manifest.json"
 
@@ -140,6 +140,53 @@ _manifest_capture_settings_diff() {
 }
 
 # ── Migration ────────────────────────────────────────────────
+
+# Migrate a v2 manifest to v3. Idempotent — no-op if already v3.
+#
+# v2 recorded permissions as two flat fields: the preset name, and
+# permissions_added holding the ENTIRE resolved preset. That over-claimed —
+# rules the user already had were attributed to forge and removed on uninstall.
+# v3 splits them into what forge added (owned) and what it merely found already
+# present (adopted); only owned is ever removed.
+#
+# A v2 manifest cannot distinguish the two after the fact, so migration takes
+# the conservative reading: claim only entries that are BOTH in the old record
+# and still present in settings.json, and mark the record "migrated" so the
+# imprecision is visible rather than implied.
+manifest_migrate_v2_to_v3() {
+  [ -f "$MANIFEST_FILE" ] || return 0
+
+  local version
+  version=$(jq -r '.manifest_version // 0' "$MANIFEST_FILE" 2>/dev/null)
+  [ "$version" -ge 3 ] 2>/dev/null && return 0
+  [ "$version" -eq 2 ] 2>/dev/null || return 0
+
+  local current_allow='[]'
+  if [ -f "$CLAUDE_DIR/settings.json" ]; then
+    current_allow=$(jq -c '.permissions.allow // []' "$CLAUDE_DIR/settings.json" 2>/dev/null || echo '[]')
+  fi
+  [ -n "$current_allow" ] || current_allow='[]'
+
+  local tmp="${MANIFEST_FILE}.tmp"
+  jq -c --argjson current "$current_allow" '
+    (.installed.permissions_preset // null) as $preset |
+    (.installed.permissions_added // []) as $added |
+    .manifest_version = 3 |
+    .installed |= (
+      del(.permissions_preset) | del(.permissions_added) |
+      if $preset == null then .
+      else .permissions = {
+        schema: 1,
+        preset: $preset,
+        provenance: "migrated",
+        owned:   { allow: ($added - ($added - $current)) },
+        adopted: { allow: [] }
+      }
+      end
+    )
+  ' "$MANIFEST_FILE" > "$tmp" || return 1
+  mv "$tmp" "$MANIFEST_FILE"
+}
 
 # Migrate a v1 manifest to v2. Idempotent — no-op if already v2.
 manifest_migrate_v1_to_v2() {
@@ -373,7 +420,7 @@ update_manifest_installed() {
      .installed = (
        (
          (.installed // {})
-         | with_entries(select(.key == "permissions_preset" or .key == "permissions_added"))
+         | with_entries(select(.key == "permissions"))
        )
        + {
          files: $files,

@@ -11,6 +11,7 @@ setup() {
   export FORGE_VERSION="1.2.1"
   source "$SCRIPT_DIR/lib/permissions-merge.sh"
   source "$SCRIPT_DIR/lib/manifest.sh"
+  PRESETS_FILE="$SCRIPT_DIR/templates/permission-presets.json"
 }
 
 teardown() {
@@ -286,7 +287,7 @@ EOF
   refute_output "null"
 
   # Manifest updated
-  run jq -r '.installed.permissions_preset' "$MANIFEST_FILE"
+  run jq -r '.installed.permissions.preset' "$MANIFEST_FILE"
   assert_output "auto-edit"
 }
 
@@ -324,7 +325,7 @@ EOF
   refute_output "null"
 
   # Manifest updated
-  run jq -r '.installed.permissions_preset' "$MANIFEST_FILE"
+  run jq -r '.installed.permissions.preset' "$MANIFEST_FILE"
   assert_output "ask-before-changes"
 }
 
@@ -387,8 +388,13 @@ EOF
   "manifest_version": 2,
   "forge_version": "1.2.1",
   "installed": {
-    "permissions_preset": "auto-edit",
-    "permissions_added": ["Read", "Write"]
+    "permissions": {
+      "schema": 1,
+      "preset": "auto-edit",
+      "provenance": "native",
+      "owned": { "allow": ["Read", "Write"] },
+      "adopted": { "allow": [] }
+    }
   }
 }
 EOF
@@ -407,4 +413,57 @@ EOF
 
   echo "$output" | jq -e '.currentPreset == "auto-edit"' >/dev/null
   echo "$output" | jq -e '.effectivePermissions | length == 3' >/dev/null
+}
+
+# ── Ownership split ──────────────────────────────────────────
+# forge used to record the whole resolved preset as "what forge added", so a
+# user who already had Read had it claimed by forge — and deleted on uninstall
+# or a preset change. Only rules forge genuinely introduced may be taken away.
+
+@test "compute_permission_ownership separates added rules from pre-existing ones" {
+  echo '{"permissions":{"allow":["Read","Bash(mytool:*)"]}}' > "$CLAUDE_DIR/settings.json"
+
+  run compute_permission_ownership "$CLAUDE_DIR/settings.json" '["Read","Glob","Grep"]'
+  assert_success
+
+  # Read was already there — adopted, never owned
+  assert_output --partial '"adopted":{"allow":["Read"]}'
+  assert_output --partial '"Glob"'
+  assert_output --partial '"Grep"'
+  refute_output --partial '"owned":{"allow":["Read"'
+}
+
+@test "compute_permission_ownership claims everything when settings has no rules" {
+  echo '{}' > "$CLAUDE_DIR/settings.json"
+
+  run compute_permission_ownership "$CLAUDE_DIR/settings.json" '["Read","Glob"]'
+  assert_success
+  assert_output --partial '"owned":{"allow":["Read","Glob"]}'
+  assert_output --partial '"adopted":{"allow":[]}'
+}
+
+@test "compute_permission_ownership handles a missing settings file" {
+  rm -f "$CLAUDE_DIR/settings.json"
+  run compute_permission_ownership "$CLAUDE_DIR/settings.json" '["Read"]'
+  assert_success
+  assert_output --partial '"owned":{"allow":["Read"]}'
+}
+
+@test "a rule the user already had survives unmerging the preset" {
+  # The exact data-loss case: user has Read before any preset is applied.
+  echo '{"permissions":{"allow":["Read","Bash(mytool:*)"]}}' > "$CLAUDE_DIR/settings.json"
+
+  local resolved ownership owned
+  resolved=$(resolve_preset_permissions "ask-before-changes" "$PRESETS_FILE")
+  ownership=$(compute_permission_ownership "$CLAUDE_DIR/settings.json" "$resolved")
+  owned=$(echo "$ownership" | jq -c '.owned.allow')
+
+  merge_permissions "$CLAUDE_DIR/settings.json" "ask-before-changes" "$PRESETS_FILE"
+  unmerge_permissions "$CLAUDE_DIR/settings.json" "$owned"
+
+  run jq -c '.permissions.allow' "$CLAUDE_DIR/settings.json"
+  assert_output --partial "Read"
+  assert_output --partial "Bash(mytool:*)"
+  # forge's own additions are gone
+  refute_output --partial "Bash(jq:*)"
 }
