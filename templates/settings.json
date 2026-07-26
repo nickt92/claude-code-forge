@@ -33,12 +33,12 @@
       },
       {
         "matcher": "Bash",
-        "if": "Bash(git commit:*)",
         "hooks": [
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/commit-validator.sh",
-            "timeout": 5
+            "timeout": 5,
+            "if": "Bash(git commit:*)"
           }
         ]
       },
@@ -54,19 +54,19 @@
       },
       {
         "matcher": "Bash",
-        "if": "Bash(psql:*) || Bash(mysql:*) || Bash(sqlite3:*) || Bash(mongosh:*)",
         "hooks": [
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/db-guard.sh",
-            "timeout": 5
+            "timeout": 5,
+            "if": "Bash(psql:*) || Bash(mysql:*) || Bash(sqlite3:*) || Bash(mongosh:*)"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "",
+        "matcher": "Bash|Read|Grep|WebFetch|BashOutput",
         "hooks": [
           {
             "type": "command",

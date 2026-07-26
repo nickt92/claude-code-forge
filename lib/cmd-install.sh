@@ -28,6 +28,31 @@ _cmd_install_load_deps() {
   source "$FORGE_SOURCE_DIR/lib/install-checks.sh"
 }
 
+# ── Orphaned hook scripts ─────────────────────────────────────
+# Delete the script files for hooks forge previously installed and no longer
+# ships, so ~/.claude/hooks/ does not accumulate dead files. Only names the
+# manifest records as forge-installed are considered, so a script the user
+# wrote into that directory is never removed.
+#
+# Args: $1 — JSON array of previously-installed basenames
+#       $2 — JSON array of currently-shipped basenames
+_install_delete_orphan_scripts() {
+  local previously_owned="$1"
+  local currently_shipped="$2"
+  local orphan
+
+  while IFS= read -r orphan; do
+    [ -n "$orphan" ] || continue
+    # Guard against a manifest entry that is not a plain script name.
+    case "$orphan" in
+      */*|.*|"") continue ;;
+    esac
+    local target="$CLAUDE_DIR/hooks/${orphan}.sh"
+    [ -f "$target" ] && rm -- "$target"
+  done < <(jq -r -n --argjson o "$previously_owned" --argjson s "$currently_shipped" \
+             '($o - $s)[]' 2>/dev/null || true)
+}
+
 # ── Project defaults ──────────────────────────────────────────
 # Reads .forge/defaults.json from the current directory if present.
 # Returns defaults via global variables: _DEFAULT_PERSONA, _DEFAULT_PLUGINS,
@@ -446,15 +471,21 @@ cmd_install() {
     local EXISTING="$CLAUDE_DIR/settings.json"
     local TEMPLATE="$FORGE_SOURCE_DIR/templates/settings.json"
 
-    # Migration: replace prompt-classifier with session-init
-    if jq -e '.hooks.UserPromptSubmit[]? | select(.hooks[]?.command | contains("prompt-classifier"))' "$EXISTING" >/dev/null 2>&1; then
-      jq '(.hooks.UserPromptSubmit // []) |= map(select(.hooks[]?.command | contains("prompt-classifier") | not))' "$EXISTING" > "$EXISTING.migrated"
-      mv "$EXISTING.migrated" "$EXISTING"
-    fi
-    rm -f "$CLAUDE_DIR/hooks/prompt-classifier.sh"
-
     # Undo point before we rewrite the user's settings.
     snapshot_settings_history "install"
+
+    # Remove hook registrations forge installed previously but no longer ships.
+    # This replaces a hardcoded prompt-classifier special case that only ever
+    # covered one hook — plan-checkpoint, dropped in 1.3.0, was missed and is
+    # still registered on installed machines. Driven by the manifest, so a
+    # script the user placed in ~/.claude/hooks/ themselves is never touched.
+    local _previously_owned _currently_shipped
+    _previously_owned=$(jq -c '[.installed.directories.hooks[]? | sub("\\.sh$"; "")]' \
+      "$MANIFEST_FILE" 2>/dev/null || echo '[]')
+    [ -n "$_previously_owned" ] || _previously_owned='[]'
+    _currently_shipped=$(forge_shipped_hooks | jq -R . | jq -s -c .)
+    purge_orphaned_hooks "$EXISTING" "$_previously_owned" "$_currently_shipped"
+    _install_delete_orphan_scripts "$_previously_owned" "$_currently_shipped"
 
     merge_settings "$EXISTING" "$TEMPLATE" "$CLAUDE_DIR/settings.json.tmp"
     mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
