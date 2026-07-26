@@ -22,6 +22,15 @@ setup() {
   local commands
   commands=$(jq -r '.. | .command? // empty' "$SETTINGS" | grep "hooks/")
 
+  # Without this, an empty result makes the loop below iterate zero times and
+  # the test passes having validated nothing — which is how a validation suite
+  # silently stops validating. `local x=$(...)` returns the status of `local`,
+  # not of the pipeline, so a failing jq or grep here is otherwise invisible.
+  assert [ -n "$commands" ]
+  local command_count
+  command_count=$(printf '%s\n' "$commands" | grep -c 'hooks/')
+  assert [ "$command_count" -ge 5 ]
+
   while IFS= read -r cmd; do
     # Extract the script path (after "bash ")
     local script_name
@@ -55,6 +64,9 @@ setup() {
 @test "hook timeouts are between 1 and 30 seconds" {
   local timeouts
   timeouts=$(jq -r '.. | .timeout? // empty' "$SETTINGS")
+
+  # See the guard note above: an empty result would pass vacuously.
+  assert [ -n "$timeouts" ]
 
   while IFS= read -r timeout; do
     [ -z "$timeout" ] && continue
