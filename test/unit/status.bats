@@ -7,6 +7,11 @@ setup() {
   load '../helpers/test_helper'
   setup_sandbox
   export FORGE_SOURCE_DIR="$SCRIPT_DIR"
+  # Pinned so the version-mismatch tests below don't drift every release.
+  # cmd_status compares the manifest's forge_version (fixture: 1.1.0) against
+  # $FORGE_VERSION; leaving it unset made these tests track the real release
+  # number, and they silently stopped matching at 1.4.0.
+  export FORGE_VERSION="1.2.0"
   source "$SCRIPT_DIR/lib/ui.sh"
   source "$SCRIPT_DIR/lib/cmd-status.sh"
 }

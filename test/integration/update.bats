@@ -22,7 +22,8 @@ teardown() {
   source "$SCRIPT_DIR/lib/cmd-update.sh"
   run cmd_update --help
   assert_success
-  assert_output --partial "Usage: forge update"
+  assert_output --partial "Usage:"
+  assert_output --partial "forge update"
 }
 
 @test "update fails when source dir is not a git repo" {

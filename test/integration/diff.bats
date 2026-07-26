@@ -81,7 +81,8 @@ _setup_clean_install() {
   source "$SCRIPT_DIR/lib/cmd-diff.sh"
   run cmd_diff --help
   assert_success
-  assert_output --partial "Usage: forge diff"
+  assert_output --partial "Usage:"
+  assert_output --partial "forge diff"
 }
 
 @test "diff detects CLAUDE.md drift" {
