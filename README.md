@@ -17,7 +17,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App (Beta)** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **850+ Tests**
+**`forge` CLI** · **Desktop App (Beta)** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **919 Tests**
 
 </div>
 
@@ -107,8 +107,8 @@ Or run `forge build` to create your own persona from the 4 behavioral axes.
 ### Desktop App (macOS, Beta)
 Native menu bar app with dashboard, audit detail, hook telemetry, persona switcher, Claude-powered onboarding, and doctor diagnostics. Build from source if you clone the repo.
 
-### 850+ Tests
-697 CLI (bats-core) + 162 Swift, cross-platform on every push via GitHub Actions.
+### 919 Tests
+730 CLI (bats-core) + 189 Swift, cross-platform on every push via GitHub Actions.
 
 ## Status Line
 
@@ -471,9 +471,10 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 <details>
 <summary><strong>Testing</strong></summary>
 
-850+ automated tests across two suites, run on every push via GitHub Actions.
+919 automated tests across two suites, run on every push via GitHub Actions —
+including release branches, and including the Swift suite.
 
-**CLI (bats-core)** | 697 tests across macOS, Ubuntu, and Windows:
+**CLI (bats-core)** | 730 tests across macOS, Ubuntu, and Windows:
 
 ```bash
 ./test/run_tests.sh              # All tests
@@ -484,13 +485,13 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 
 | Suite | Files | Covers |
 |:------|------:|:-------|
-| **Unit** | 26 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats (incl. JSON), export, permissions, audit |
+| **Unit** | 29 | Hooks, CLI, plugins, manifest, platform, UI, config, dashboard, stats (incl. JSON), export, permissions, audit |
 | **Integration** | 11 | Assembly, settings merge/unmerge, install, backup/restore, switch, doctor, diff, update, build, init |
-| **Validation** | 4 | Profile schema, section coverage, settings template, completions |
+| **Validation** | 5 | Profile schema, section coverage, settings template, completions, bats namespace |
 
 All tests run in a sandbox. Your real `~/.claude/` is never touched.
 
-**Desktop (Swift)** | 162 tests (XCTest + Swift Testing):
+**Desktop (Swift)** | 189 tests (XCTest):
 
 ```bash
 cd app/ForgeDesktopCore && swift test

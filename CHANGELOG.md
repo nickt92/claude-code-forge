@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-06-11
+## [1.4.0] - 2026-07-26
 
-Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities.
+Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities,
+and a round of correctness work on the test suite and the permissions record.
 
 ### Added
 - Design system v2 for Forge Desktop: spacing and typography scales, elevation
@@ -36,6 +37,10 @@ Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities.
 - Menu bar deep links: repos needing attention open the dashboard with that
   repository selected
 - Version-sync test guard: CLI, app, and README versions can no longer drift
+- CI now runs on release and hotfix branches, and runs the Swift suite. Release
+  branches previously ran nothing, and the desktop tests had never run in CI
+- `test/validation/bats_namespace.bats` — fails the build if shipped code
+  defines a function name owned by the bats test helpers
 
 ### Changed
 - Every screen overhauled on the design system: dashboard sidebar with
@@ -52,6 +57,25 @@ Major UI/UX overhaul of Forge Desktop (macOS app) plus new in-app capabilities.
 - `forge build` with a value flag missing its value fails with a clear message
   instead of aborting silently
 - Doctor sheet could be presented twice from different windows
+- Test assertions were silently disabled. `lib/ui.sh` defined `fail()`, which is
+  also the function bats-support uses to fail a test, so in the 24 of 44 test
+  files that source it every assertion reported success regardless of outcome.
+  The suite claimed 722 passing while 13 were broken. Renamed to `forge_fail()`
+  and added a guard that compares every bats helper name against every shipped
+  function name, so the whole class of collision now fails the build
+- Switching permission presets could stop working. `forge update` reinstalls
+  without `--permissions`, and the manifest rewrite dropped the record of what
+  forge had added — after which the removal step no-ops and merging can only
+  add. Presets became one-way and rules forge had added could not be withdrawn.
+  The record now survives reinstall
+- `forge stats --session` exited 1 on success whenever a session had no
+  overrides, which is the normal case
+- `forge stats --hooks` and `--session` crashed with "integer expression
+  expected". `grep -c` prints `0` *and* exits non-zero when nothing matches, so
+  the fallback appended a second `0`
+- Intermittent test failures from three suites sharing one temp directory: one
+  suite's teardown could delete a marker file belonging to a test still running
+  in another
 
 ## [1.3.1] - 2026-06-04
 
