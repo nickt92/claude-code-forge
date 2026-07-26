@@ -20,6 +20,15 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygw
   jq() { local _rc; command jq "$@" | tr -d '\r'; _rc=${PIPESTATUS[0]}; return "$_rc"; }
 fi
 
+# ── Platform skips ───────────────────────────────────────────
+# Use only where the POSIX semantics under test genuinely do not exist on
+# Windows, never to paper over a real cross-platform bug. State the reason.
+skip_on_windows() {
+  if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == mingw* || "${OSTYPE:-}" == cygwin* ]]; then
+    skip "${1:-not applicable on Windows}"
+  fi
+}
+
 # ── Sandbox setup ────────────────────────────────────────────
 # Creates a temp directory and redirects HOME so tests never
 # modify the real ~/.claude/ directory.

@@ -79,7 +79,13 @@ _config_set() {
   if [[ "$value" =~ ^[0-9]+$ ]]; then
     jq_expr="$jq_path = $value"
   else
-    jq_expr="$jq_path = \$val"
+    # Passed through the environment rather than --arg. On Git Bash, MSYS
+    # rewrites any argv entry that looks like an absolute POSIX path before the
+    # native jq binary sees it, so `forge config set dashboard.scan_path
+    # /home/user/repos` stored "C:/Program Files/Git/home/user/repos".
+    # Environment variables are not converted. jq's own file arguments still go
+    # through argv, where the conversion is needed and correct.
+    jq_expr="$jq_path = env.FORGE_CONFIG_VALUE"
   fi
 
   local tmp="${FORGE_CONFIG_FILE}.tmp"
@@ -87,7 +93,7 @@ _config_set() {
   if [[ "$value" =~ ^[0-9]+$ ]]; then
     jq "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
   else
-    jq --arg val "$value" "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
+    FORGE_CONFIG_VALUE="$value" jq "$jq_expr" "$FORGE_CONFIG_FILE" > "$tmp" 2>/dev/null || rc=$?
   fi
 
   if [ "$rc" -eq 0 ] && [ -s "$tmp" ]; then

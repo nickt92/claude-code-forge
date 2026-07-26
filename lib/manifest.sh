@@ -245,11 +245,14 @@ update_manifest_installed() {
 
   # Update manifest — rewrite installed section, update persona + version + v2 fields
   local tmp_manifest="${MANIFEST_FILE}.tmp"
-  local sd_arg="null"
-  [ -n "$source_dir" ] && sd_arg="\"$source_dir\""
   local pg_arg="null"
   [ -n "$plugin_group" ] && pg_arg="\"$plugin_group\""
 
+  # source_dir goes through the environment, not --arg. On Git Bash, MSYS
+  # rewrites argv entries that look like absolute POSIX paths before the native
+  # jq binary sees them, so the manifest recorded
+  # "C:/Program Files/Git/path/to/source". Environment variables are exempt.
+  FORGE_SOURCE_DIR_VALUE="$source_dir" \
   jq \
     --arg persona "$persona" \
     --arg fv "$FORGE_VERSION" \
@@ -257,12 +260,11 @@ update_manifest_installed() {
     --argjson files "$installed_files" \
     --argjson dirs "$installed_dirs" \
     --argjson sa "$settings_additions" \
-    --argjson sd "$sd_arg" \
     --argjson pg "$pg_arg" \
     '.persona = $persona |
      .forge_version = $fv |
      .install_timestamp = $ts |
-     .source_dir = $sd |
+     .source_dir = (if (env.FORGE_SOURCE_DIR_VALUE // "") == "" then null else env.FORGE_SOURCE_DIR_VALUE end) |
      .plugin_group = $pg |
      .installed = (
        (
