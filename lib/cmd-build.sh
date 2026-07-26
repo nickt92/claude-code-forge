@@ -43,7 +43,7 @@ cmd_build() {
     case "$1" in
       --name|--communication|--autonomy|--workflow|--depth|--quality|--plugins)
         if [ $# -lt 2 ]; then
-          fail "$1 requires a value (see forge build --help)"
+          forge_fail "$1 requires a value (see forge build --help)"
           return 1
         fi
         case "$1" in
@@ -62,7 +62,7 @@ cmd_build() {
       --no-switch)     ni_switch=0; non_interactive=1; shift ;;
       --force)         ni_force=1; non_interactive=1; shift ;;
       *)
-        fail "Unknown option: $1 (see forge build --help)"
+        forge_fail "Unknown option: $1 (see forge build --help)"
         return 1
         ;;
     esac
@@ -73,48 +73,48 @@ cmd_build() {
   if [ "$non_interactive" -eq 1 ]; then
     # ── Non-interactive validation: fail fast, no prompts ──
     if [ -z "$ni_name" ]; then
-      fail "--name is required in non-interactive mode"
+      forge_fail "--name is required in non-interactive mode"
       return 1
     fi
     if [[ ! "$ni_name" =~ ^[a-zA-Z][a-zA-Z0-9-]*$ ]]; then
-      fail "Invalid name '$ni_name'. Use letters, numbers, and hyphens. Must start with a letter."
+      forge_fail "Invalid name '$ni_name'. Use letters, numbers, and hyphens. Must start with a letter."
       return 1
     fi
     if [ -f "$PROFILES_DIR/${ni_name}.json" ]; then
-      fail "A built-in persona named '$ni_name' already exists."
+      forge_fail "A built-in persona named '$ni_name' already exists."
       return 1
     fi
     if [ -f "$CLAUDE_DIR/profiles/custom-${ni_name}.json" ] || [ -f "$PROFILES_DIR/custom-${ni_name}.json" ]; then
       if [ "$ni_force" -ne 1 ]; then
-        fail "Custom persona 'custom-${ni_name}' already exists. Pass --force to overwrite."
+        forge_fail "Custom persona 'custom-${ni_name}' already exists. Pass --force to overwrite."
         return 1
       fi
     fi
 
     case "$ni_comm" in
       plain|technical|expert) ;;
-      *) fail "--communication must be plain, technical, or expert (got '${ni_comm:-missing}')"; return 1 ;;
+      *) forge_fail "--communication must be plain, technical, or expert (got '${ni_comm:-missing}')"; return 1 ;;
     esac
     case "$ni_auto" in
       guided|moderate|high) ;;
-      *) fail "--autonomy must be guided, moderate, or high (got '${ni_auto:-missing}')"; return 1 ;;
+      *) forge_fail "--autonomy must be guided, moderate, or high (got '${ni_auto:-missing}')"; return 1 ;;
     esac
     case "$ni_work" in
       simplified|standard|advanced) ;;
-      *) fail "--workflow must be simplified, standard, or advanced (got '${ni_work:-missing}')"; return 1 ;;
+      *) forge_fail "--workflow must be simplified, standard, or advanced (got '${ni_work:-missing}')"; return 1 ;;
     esac
     case "$ni_depth" in
       conceptual|practical|engineering) ;;
-      *) fail "--depth must be conceptual, practical, or engineering (got '${ni_depth:-missing}')"; return 1 ;;
+      *) forge_fail "--depth must be conceptual, practical, or engineering (got '${ni_depth:-missing}')"; return 1 ;;
     esac
     case "$ni_quality" in
       core)        quality='["core"]' ;;
       engineering) quality='["core", "engineering"]' ;;
-      *) fail "--quality must be core or engineering (got '$ni_quality')"; return 1 ;;
+      *) forge_fail "--quality must be core or engineering (got '$ni_quality')"; return 1 ;;
     esac
     case "$ni_plugins" in
       full|standard|minimal) ;;
-      *) fail "--plugins must be full, standard, or minimal (got '$ni_plugins')"; return 1 ;;
+      *) forge_fail "--plugins must be full, standard, or minimal (got '$ni_plugins')"; return 1 ;;
     esac
 
     name="$ni_name"
@@ -260,7 +260,7 @@ EOF
   local temp_md
   temp_md="$(mktemp)"
   if ! assemble_claude_md "$profile_file" "$temp_md" 2>/dev/null; then
-    fail "Profile generated but assembly failed — check axis values"
+    forge_fail "Profile generated but assembly failed — check axis values"
     rm -f "$temp_md" "$profile_file"
     return 1
   fi

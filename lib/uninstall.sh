@@ -61,7 +61,7 @@ show_uninstall_preview() {
 uninstall_forge() {
   # Require jq
   if ! command -v jq >/dev/null 2>&1; then
-    fail "jq is required for uninstall. Install: brew install jq (macOS) or apt install jq (Linux)"
+    forge_fail "jq is required for uninstall. Install: brew install jq (macOS) or apt install jq (Linux)"
     return 1
   fi
 

@@ -47,7 +47,7 @@ resolve_plugin_list() {
   local group="${1:-full}"
 
   if [ ! -f "$PLUGIN_GROUPS_FILE" ]; then
-    fail "Plugin groups file not found: $PLUGIN_GROUPS_FILE"
+    forge_fail "Plugin groups file not found: $PLUGIN_GROUPS_FILE"
     return 1
   fi
 

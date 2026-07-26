@@ -25,13 +25,13 @@ cmd_update() {
 
   # Verify source dir is a git repo
   if [ ! -d "$source_dir/.git" ]; then
-    fail "Source directory is not a git repository: $source_dir"
+    forge_fail "Source directory is not a git repository: $source_dir"
     return 1
   fi
 
   # Check for clean working tree
   if ! git -C "$source_dir" diff --quiet 2>/dev/null || ! git -C "$source_dir" diff --cached --quiet 2>/dev/null; then
-    fail "Source directory has uncommitted changes: $source_dir"
+    forge_fail "Source directory has uncommitted changes: $source_dir"
     info "Commit or stash changes before updating"
     return 1
   fi
@@ -51,7 +51,7 @@ cmd_update() {
   step "Fetching"
 
   if ! git -C "$source_dir" fetch origin 2>/dev/null; then
-    fail "Failed to fetch from origin"
+    forge_fail "Failed to fetch from origin"
     return 1
   fi
   ok "Fetched latest from origin"
@@ -64,7 +64,7 @@ cmd_update() {
       ok "Already up to date ($FORGE_VERSION)"
       return 0
     fi
-    fail "Fast-forward merge failed — resolve manually"
+    forge_fail "Fast-forward merge failed — resolve manually"
     info "$merge_output"
     return 1
   fi

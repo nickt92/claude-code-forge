@@ -94,7 +94,7 @@ cmd_install() {
       --uninstall)
         # Require jq for manifest-based uninstall
         if ! command -v jq >/dev/null 2>&1; then
-          fail "jq is required for uninstall. Install: brew install jq (macOS) or apt install jq (Linux)"
+          forge_fail "jq is required for uninstall. Install: brew install jq (macOS) or apt install jq (Linux)"
           return 1
         fi
 
@@ -131,7 +131,7 @@ cmd_install() {
         ;;
       --profile)
         if [[ $# -lt 2 ]]; then
-          fail "Missing profile name after --profile"
+          forge_fail "Missing profile name after --profile"
           echo "Usage: forge install --profile <name>"
           return 1
         fi
@@ -140,7 +140,7 @@ cmd_install() {
         ;;
       --plugins)
         if [[ $# -lt 2 ]]; then
-          fail "Missing group name after --plugins"
+          forge_fail "Missing group name after --plugins"
           echo "Available groups: $(get_plugin_group_names | tr '\n' ' ')"
           return 1
         fi
@@ -149,7 +149,7 @@ cmd_install() {
         ;;
       --permissions)
         if [[ $# -lt 2 ]]; then
-          fail "Missing preset name after --permissions"
+          forge_fail "Missing preset name after --permissions"
           echo "Available presets: ask-before-changes, auto-edit, full-autonomy"
           return 1
         fi
@@ -161,7 +161,7 @@ cmd_install() {
         shift
         ;;
       *)
-        fail "Unknown option: $1"
+        forge_fail "Unknown option: $1"
         echo "Usage: forge install [--profile <name>] [--plugins <group>] [--permissions <preset>] [--reconfigure] [--uninstall] [--quiet] [--help]"
         return 1
         ;;
@@ -214,7 +214,7 @@ cmd_install() {
   elif [ -n "$PROFILE_ARG" ]; then
     # Check source profiles, then user-space profiles
     if [ ! -f "$PROFILES_DIR/${PROFILE_ARG}.json" ] && [ ! -f "$CLAUDE_DIR/profiles/${PROFILE_ARG}.json" ]; then
-      fail "Unknown profile: ${PROFILE_ARG}"
+      forge_fail "Unknown profile: ${PROFILE_ARG}"
       echo ""
       echo "Available profiles:"
       for key in "${PERSONA_KEYS[@]}"; do
@@ -318,7 +318,7 @@ cmd_install() {
     kv "Scripts" "$script_count"
 
     local plugin_count
-    plugin_count=$(resolve_plugin_list "$PLUGIN_GROUP" | grep -c . || echo 0)
+    plugin_count=$(resolve_plugin_list "$PLUGIN_GROUP" | grep -c . || true)
     kv "Plugins" "$plugin_count ($PLUGIN_GROUP group)"
 
     echo ""
@@ -331,15 +331,15 @@ cmd_install() {
 
   local prereq_ok=true
   if ! command -v claude >/dev/null 2>&1; then
-    fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
+    forge_fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
     prereq_ok=false
   fi
   if ! command -v jq >/dev/null 2>&1; then
-    fail "jq not found. Install: brew install jq (macOS) or apt install jq (Linux)"
+    forge_fail "jq not found. Install: brew install jq (macOS) or apt install jq (Linux)"
     prereq_ok=false
   fi
   if ! check_platform 2>/dev/null; then
-    fail "Unsupported platform"
+    forge_fail "Unsupported platform"
     prereq_ok=false
   fi
 
