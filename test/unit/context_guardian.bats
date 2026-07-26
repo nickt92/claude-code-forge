@@ -7,6 +7,10 @@ setup() {
   load '../helpers/test_helper'
   setup_sandbox
   HOOK="$SCRIPT_DIR/hooks/context-guardian.sh"
+  # Must be captured AFTER setup_sandbox, which points TMPDIR at this test's
+  # own sandbox. Reading it earlier would resolve to the shared system temp
+  # dir and the wildcard rm below would delete markers belonging to tests
+  # running concurrently in the other suites.
   _TMPDIR="${TMPDIR:-/tmp}"
   # Clean markers
   rm -f "$_TMPDIR"/claude-code-plan-approved-*
