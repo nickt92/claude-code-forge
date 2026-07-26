@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **The `if:` hook filter never worked.** It was written onto the hook *group*,
+  but Claude Code only accepts it on individual hook entries, so it was silently
+  discarded — `commit-validator` and `db-guard` ran on every single Bash call
+  instead of only on git commits and database commands. The v1.3.0 notes claimed
+  a 95-99% reduction in process spawns from this; that reduction never happened.
+  It does now
+- **forge could not update its own hooks on an existing install.** Hook groups
+  were deduplicated by command string, a key that cannot express "same hook, new
+  definition" — so once installed, a hook's timeout, matcher and `if` filter were
+  frozen forever and the installed entry always won. This is why fixing the `if:`
+  placement alone would have reached only fresh installs
+- **Hooks forge stopped shipping were never removed.** A `plan-checkpoint` entry
+  dropped in 1.3.0 is still registered on installed machines; the only cleanup
+  was a hardcoded special case for a different hook. Removal is now driven by the
+  install manifest, so it covers every hook forge has ever installed — and never
+  touches a script you placed in `~/.claude/hooks/` yourself
+- `secret-filter` ran its 13 credential patterns over the output of *every* tool.
+  It is now scoped to the tools whose output can actually carry secrets
 - **Switching or removing a permission preset could delete rules you already
   had.** forge recorded the entire resolved preset as "what forge added", so if
   you already had `Read` or `Bash(git status:*)` in your settings, forge claimed
