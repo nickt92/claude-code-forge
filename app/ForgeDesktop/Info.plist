@@ -2,23 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>LSUIElement</key>
-	<true/>
-	<key>CFBundleName</key>
-	<string>Forge Desktop</string>
 	<key>CFBundleDisplayName</key>
 	<string>Forge Desktop</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.forge.desktop</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.4.0</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
 	<key>CFBundleExecutable</key>
 	<string>ForgeDesktop</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.forge.desktop</string>
+	<key>CFBundleName</key>
+	<string>Forge Desktop</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.5.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>
