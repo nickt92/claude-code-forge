@@ -39,6 +39,39 @@ resolve_preset_permissions() {
   ' "$presets_file"
 }
 
+# Split a resolved preset into what forge is actually adding versus what the
+# user already had.
+#
+# forge used to record the whole resolved preset as "what forge added", so a
+# user who already had Read or Bash(git status:*) had those claimed by forge —
+# and removed on uninstall or a preset change. Only rules forge genuinely
+# introduced may be taken away again.
+#
+# Buckets are objects rather than bare arrays so ask/deny can be added without
+# another manifest migration.
+#
+# Args:
+#   $1 — settings file path
+#   $2 — resolved preset permissions (JSON array)
+# Outputs: {"owned":{"allow":[...]},"adopted":{"allow":[...]}}
+compute_permission_ownership() {
+  local settings_file="$1"
+  local resolved="$2"
+
+  local current='[]'
+  if [ -f "$settings_file" ]; then
+    current=$(jq -c '.permissions.allow // []' "$settings_file" 2>/dev/null || echo '[]')
+  fi
+  [ -n "$current" ] || current='[]'
+
+  jq -n -c --argjson desired "$resolved" --argjson current "$current" '
+    ($desired - $current) as $owned |
+    {
+      owned:   { allow: $owned },
+      adopted: { allow: ($desired - $owned) }
+    }'
+}
+
 # Merge permissions into settings.json from a preset.
 # Args:
 #   $1 — settings file path

@@ -360,6 +360,7 @@ cmd_install() {
 
   # Migrate v1 manifest to v2
   manifest_migrate_v1_to_v2
+  manifest_migrate_v2_to_v3
 
   # Snapshot pre-existing state (no-op on re-install)
   snapshot_pre_install_state
@@ -479,15 +480,19 @@ cmd_install() {
       # own snapshot.
       snapshot_settings_history "install-permissions"
 
-      # Unmerge old permissions if present
+      # Remove only what forge previously added — never rules the user had first.
       if [ -f "$MANIFEST_FILE" ]; then
-        local old_preset old_added
-        old_preset=$(jq -r '.installed.permissions_preset // "none"' "$MANIFEST_FILE" 2>/dev/null)
-        old_added=$(jq '.installed.permissions_added // []' "$MANIFEST_FILE" 2>/dev/null)
-        if [ "$old_preset" != "none" ] && [ "$old_added" != "[]" ]; then
-          unmerge_permissions "$CLAUDE_DIR/settings.json" "$old_added"
+        local old_owned
+        old_owned=$(jq -c '.installed.permissions.owned.allow // []' "$MANIFEST_FILE" 2>/dev/null)
+        [ -n "$old_owned" ] || old_owned='[]'
+        if [ "$old_owned" != "[]" ]; then
+          unmerge_permissions "$CLAUDE_DIR/settings.json" "$old_owned"
         fi
       fi
+
+      # Computed after the unmerge, before the merge — see _permissions_apply.
+      _INSTALL_PERM_OWNERSHIP=$(compute_permission_ownership \
+        "$CLAUDE_DIR/settings.json" "$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$PRESETS_FILE")")
 
       merge_permissions "$CLAUDE_DIR/settings.json" "$SELECTED_PERMISSIONS" "$PRESETS_FILE"
       local perm_count
@@ -499,13 +504,18 @@ cmd_install() {
   # ── Update manifest with installed files ──
   update_manifest_installed "$(jq -r '.persona' "$PROFILE_FILE")" "$FORGE_SOURCE_DIR" "$PLUGIN_GROUP"
 
-  # Record permissions preset in manifest
-  if [ -n "$SELECTED_PERMISSIONS" ] && [ -f "$MANIFEST_FILE" ]; then
-    local resolved_perms
-    resolved_perms=$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$FORGE_SOURCE_DIR/templates/permission-presets.json")
-    jq --arg preset "$SELECTED_PERMISSIONS" --argjson added "$resolved_perms" '
-      .installed.permissions_preset = $preset |
-      .installed.permissions_added = $added
+  # Record which permission rules forge owns, from the split computed before
+  # the merge. update_manifest_installed carries .installed.permissions across,
+  # so this only needs to write it when a preset was applied.
+  if [ -n "$SELECTED_PERMISSIONS" ] && [ -f "$MANIFEST_FILE" ] && [ -n "${_INSTALL_PERM_OWNERSHIP:-}" ]; then
+    jq --arg preset "$SELECTED_PERMISSIONS" --argjson own "$_INSTALL_PERM_OWNERSHIP" '
+      .installed.permissions = {
+        schema: 1,
+        preset: $preset,
+        provenance: "native",
+        owned: $own.owned,
+        adopted: $own.adopted
+      }
     ' "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
     mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
   fi

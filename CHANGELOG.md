@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Switching or removing a permission preset could delete rules you already
+  had.** forge recorded the entire resolved preset as "what forge added", so if
+  you already had `Read` or `Bash(git status:*)` in your settings, forge claimed
+  them — and removed them on the next preset change or uninstall. It now
+  distinguishes rules it actually added from rules it merely found already
+  present, and only ever removes the former
+
+### Changed
+- Manifest schema v3. The flat `permissions_preset` / `permissions_added` fields
+  become a single `permissions` record carrying the preset, what forge owns,
+  what it adopted, and where that record came from. Existing installs migrate
+  automatically on the next `forge install`
+- Migration from v2 is deliberately conservative: a v2 manifest cannot tell
+  owned from adopted after the fact, so it claims only entries still present in
+  your settings and marks the record `migrated` rather than implying precision
+  it does not have
+
 ## [1.5.0] - 2026-07-26
 
 Protects the config file forge shares with you, and gives you a way back.

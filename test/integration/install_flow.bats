@@ -154,7 +154,7 @@ simulate_install() {
 
   assert [ -f "$CLAUDE_DIR/forge-backup/manifest.json" ]
   run jq -r '.manifest_version' "$CLAUDE_DIR/forge-backup/manifest.json"
-  assert_output "2"
+  assert_output "$MANIFEST_VERSION"
   run jq -r '.persona' "$CLAUDE_DIR/forge-backup/manifest.json"
   assert_output "senior-engineer"
 }

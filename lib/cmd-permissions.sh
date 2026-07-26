@@ -104,7 +104,7 @@ _permissions_show() {
 
   # Get preset from manifest
   if [ -f "$MANIFEST_FILE" ]; then
-    current_preset=$(jq -r '.installed.permissions_preset // "none"' "$MANIFEST_FILE" 2>/dev/null)
+    current_preset=$(jq -r '.installed.permissions.preset // "none"' "$MANIFEST_FILE" 2>/dev/null)
   fi
 
   # Get effective permissions from settings
@@ -171,22 +171,25 @@ _permissions_apply() {
   # Undo point before we rewrite the permission arrays.
   snapshot_settings_history "permissions"
 
-  # If manifest has a previous preset, unmerge old permissions first
+  # Remove only what forge previously added — never rules the user had first.
   if [ -f "$MANIFEST_FILE" ]; then
-    local old_preset old_added
-    old_preset=$(jq -r '.installed.permissions_preset // "none"' "$MANIFEST_FILE" 2>/dev/null)
-    old_added=$(jq '.installed.permissions_added // []' "$MANIFEST_FILE" 2>/dev/null)
-
-    if [ "$old_preset" != "none" ] && [ "$old_added" != "[]" ]; then
-      unmerge_permissions "$SETTINGS_FILE" "$old_added"
+    local old_owned
+    old_owned=$(jq -c '.installed.permissions.owned.allow // []' "$MANIFEST_FILE" 2>/dev/null)
+    [ -n "$old_owned" ] || old_owned='[]'
+    if [ "$old_owned" != "[]" ]; then
+      unmerge_permissions "$SETTINGS_FILE" "$old_owned"
     fi
   fi
 
-  # Merge new permissions
+  # Split the new preset into what forge is adding versus what is already
+  # there. This must run after the unmerge above and before the merge below,
+  # or forge would count its own rules as pre-existing and never reclaim them.
+  local ownership
+  ownership=$(compute_permission_ownership "$SETTINGS_FILE" "$resolved")
+
   merge_permissions "$SETTINGS_FILE" "$preset_name" "$PRESETS_FILE"
 
-  # Update manifest
-  _permissions_update_manifest "$preset_name" "$resolved"
+  _permissions_update_manifest "$preset_name" "$ownership"
 
   local label count
   label=$(jq -r --arg id "$preset_name" '.presets[$id].label' "$PRESETS_FILE")
@@ -208,16 +211,21 @@ _permissions_apply() {
 
 _permissions_update_manifest() {
   local preset_name="$1"
-  local resolved_json="$2"
+  local ownership_json="$2"
 
   if [ ! -f "$MANIFEST_FILE" ]; then
     return 0
   fi
 
   local tmp_manifest="${MANIFEST_FILE}.tmp"
-  jq --arg preset "$preset_name" --argjson added "$resolved_json" '
-    .installed.permissions_preset = $preset |
-    .installed.permissions_added = $added
+  jq --arg preset "$preset_name" --argjson own "$ownership_json" '
+    .installed.permissions = {
+      schema: 1,
+      preset: $preset,
+      provenance: "native",
+      owned: $own.owned,
+      adopted: $own.adopted
+    }
   ' "$MANIFEST_FILE" > "$tmp_manifest"
   mv "$tmp_manifest" "$MANIFEST_FILE"
 }
