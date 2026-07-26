@@ -140,7 +140,7 @@ _write() { printf '%s' "$2" > "$1"; }
 
 # ── Orphan removal ───────────────────────────────────────────
 
-@test "merge leaves an unshipped forge script alone — it cannot tell it from a user script" {
+@test "merge leaves an unshipped forge script alone, being unable to tell it from a user script" {
   # Deliberate. ~/.claude/hooks/ may contain scripts the user wrote. Removing
   # by path would destroy them, so merge only claims what the template ships
   # and purge_orphaned_hooks handles the rest using the manifest.

@@ -60,3 +60,26 @@ _forge_functions() {
   [ "$(_bats_helper_functions | wc -l | tr -d ' ')" -gt 20 ]
   [ "$(_forge_functions | wc -l | tr -d ' ')" -gt 50 ]
 }
+
+# ── Test names must be ASCII ─────────────────────────────────
+# bats derives a shell function name from each @test title. A non-ASCII
+# character survives on macOS and Linux but mangles under Git Bash, and bats
+# then aborts the whole file with "unknown test name" — losing every test in
+# it. An em-dash in one title cost a full Windows CI cycle to find.
+
+@test "no test name contains a non-ASCII character" {
+  # [^ -~] is everything outside printable ASCII, in portable BRE. grep -P is
+  # not reliably available (BSD grep lacks it) and silently matched nothing
+  # here, which would have made this guard decorative.
+  local offenders
+  offenders=$(grep -h '^@test' \
+    "$TEST_DIR"/unit/*.bats "$TEST_DIR"/integration/*.bats "$TEST_DIR"/validation/*.bats \
+    | LC_ALL=C grep '[^ -~]' || true)
+
+  if [ -n "$offenders" ]; then
+    printf 'Test names must be ASCII — bats turns them into function names and\n' >&2
+    printf 'non-ASCII breaks under Git Bash, aborting the entire file.\n\n%s\n' "$offenders" >&2
+  fi
+
+  [ -z "$offenders" ]
+}
