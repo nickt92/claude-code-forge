@@ -138,6 +138,56 @@ EOF
   assert_output "full"
 }
 
+# ── Permissions ownership record ─────────────────────────────
+# update_manifest_installed rewrites .installed wholesale. The permissions
+# ownership record lives under .installed, and only cmd-install's --permissions
+# branch rewrites it afterwards. `forge update` reinstalls WITHOUT that flag,
+# so without these guards the record is erased on every update — after which
+# the unmerge step is skipped and merge_permissions (a pure union) can only
+# ever add rules. That is a one-way ratchet: presets stop being switchable and
+# a deny list, once shipped, could never be withdrawn.
+
+@test "update_manifest_installed preserves permissions_preset" {
+  snapshot_pre_install_state
+  touch "$CLAUDE_DIR/CLAUDE.md"
+  echo '{}' > "$CLAUDE_DIR/settings.json"
+
+  jq '.installed.permissions_preset = "full-autonomy"' "$MANIFEST_FILE" > "$MANIFEST_FILE.tmp"
+  mv "$MANIFEST_FILE.tmp" "$MANIFEST_FILE"
+
+  update_manifest_installed "senior-engineer" "/path/to/source" "full"
+
+  run jq -r '.installed.permissions_preset' "$MANIFEST_FILE"
+  assert_output "full-autonomy"
+}
+
+@test "update_manifest_installed preserves permissions_added" {
+  snapshot_pre_install_state
+  touch "$CLAUDE_DIR/CLAUDE.md"
+  echo '{}' > "$CLAUDE_DIR/settings.json"
+
+  jq '.installed.permissions_added = ["Read", "Bash(git status:*)"]' "$MANIFEST_FILE" > "$MANIFEST_FILE.tmp"
+  mv "$MANIFEST_FILE.tmp" "$MANIFEST_FILE"
+
+  update_manifest_installed "senior-engineer" "/path/to/source" "full"
+
+  run jq -c '.installed.permissions_added' "$MANIFEST_FILE"
+  assert_output '["Read","Bash(git status:*)"]'
+}
+
+@test "update_manifest_installed leaves permissions keys absent when never set" {
+  snapshot_pre_install_state
+  touch "$CLAUDE_DIR/CLAUDE.md"
+  echo '{}' > "$CLAUDE_DIR/settings.json"
+
+  update_manifest_installed "senior-engineer" "/path/to/source" "full"
+
+  # Absent, not null — an explicit null would make `// "none"` fallbacks work
+  # but would misreport "forge has a record of no preset" in --json output.
+  run jq -r '.installed | has("permissions_preset")' "$MANIFEST_FILE"
+  assert_output "false"
+}
+
 # ── Validation ───────────────────────────────────────────────
 
 @test "validate_manifest accepts v2 manifest" {
