@@ -517,24 +517,86 @@ cmd_install() {
       # own snapshot.
       snapshot_settings_history "install-permissions"
 
-      # Remove only what forge previously added — never rules the user had first.
+      # Remove only what forge previously added — never rules the user had
+      # first. Manifests written before 2.0 store owned as a bare allow array;
+      # unmerge_permissions accepts either shape.
+      # A bare array is what a pre-2.0 manifest would hold, and it is an allow
+      # list. Mapping it to an empty allow would make install skip the unmerge,
+      # leave the 1.x wildcards in place, and then re-classify them as adopted —
+      # permanently unremovable. uninstall.sh reads it the same way.
       if [ -f "$MANIFEST_FILE" ]; then
         local old_owned
-        old_owned=$(jq -c '.installed.permissions.owned.allow // []' "$MANIFEST_FILE" 2>/dev/null)
-        [ -n "$old_owned" ] || old_owned='[]'
-        if [ "$old_owned" != "[]" ]; then
+        old_owned=$(jq -c '
+          (.installed.permissions.owned // {}) as $o |
+          if ($o | type) == "object"
+          then { allow: ($o.allow // []), ask: ($o.ask // []), deny: ($o.deny // []) }
+          elif ($o | type) == "array" then { allow: $o, ask: [], deny: [] }
+          else { allow: [], ask: [], deny: [] } end
+        ' "$MANIFEST_FILE" 2>/dev/null) || old_owned=""
+        [ -n "$old_owned" ] || old_owned='{"allow":[],"ask":[],"deny":[]}'
+        if [ "$(echo "$old_owned" | jq '[.allow,.ask,.deny]|add|length')" -gt 0 ]; then
           unmerge_permissions "$CLAUDE_DIR/settings.json" "$old_owned"
         fi
       fi
 
+      # deny is opt-in via `forge permissions --with-deny`; install never
+      # writes it. A permission rule has no override, so the first time a user
+      # meets one it should be because they asked for it.
+      #
+      # Exceptions must be subtracted here, not left to merge_permissions —
+      # that re-resolves from the presets file and would silently reinstate a
+      # security rule the user explicitly opted out of.
+      local perm_allow perm_ask perm_exceptions='[]'
+      if [ -f "$MANIFEST_FILE" ]; then
+        perm_exceptions=$(jq -c '.installed.permissions.exceptions // []' \
+          "$MANIFEST_FILE" 2>/dev/null) || perm_exceptions='[]'
+        [ -n "$perm_exceptions" ] || perm_exceptions='[]'
+      fi
+      perm_allow=$(resolve_preset_rules "$SELECTED_PERMISSIONS" "$PRESETS_FILE" allow \
+        | jq -c --argjson ex "$perm_exceptions" '. - $ex')
+      perm_ask=$(resolve_preset_rules "$SELECTED_PERMISSIONS" "$PRESETS_FILE" ask \
+        | jq -c --argjson ex "$perm_exceptions" '. - $ex')
+
+      # A user who opted into deny with `forge permissions --with-deny` keeps
+      # it across reinstalls and `forge update`.
+      local perm_deny='[]'
+      if [ -f "$MANIFEST_FILE" ] \
+         && jq -e '.installed.permissions.with_deny == true' "$MANIFEST_FILE" >/dev/null 2>&1; then
+        perm_deny=$(resolve_preset_rules "$SELECTED_PERMISSIONS" "$PRESETS_FILE" deny \
+          | jq -c --argjson ex "$perm_exceptions" '. - $ex')
+      fi
+
       # Computed after the unmerge, before the merge — see _permissions_apply.
       _INSTALL_PERM_OWNERSHIP=$(compute_permission_ownership \
-        "$CLAUDE_DIR/settings.json" "$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$PRESETS_FILE")")
+        "$CLAUDE_DIR/settings.json" "$perm_allow" "$perm_ask" '[]')
 
-      merge_permissions "$CLAUDE_DIR/settings.json" "$SELECTED_PERMISSIONS" "$PRESETS_FILE"
-      local perm_count
-      perm_count=$(resolve_preset_permissions "$SELECTED_PERMISSIONS" "$PRESETS_FILE" | jq 'length')
-      ok "Permissions: $(jq -r --arg id "$SELECTED_PERMISSIONS" '.presets[$id].label' "$PRESETS_FILE") ($perm_count rules auto-approved)"
+      merge_permission_rules "$CLAUDE_DIR/settings.json" "$perm_allow" "$perm_ask" '[]'
+
+      # Same ownership guard as `forge permissions --preset`: forge writes the
+      # mode only when the key is unset or still holds what forge last wrote.
+      local desired_mode prev_mode=""
+      desired_mode=$(resolve_preset_default_mode "$SELECTED_PERMISSIONS" "$PRESETS_FILE")
+      if [ -f "$MANIFEST_FILE" ]; then
+        prev_mode=$(jq -r '.installed.permissions.default_mode.written // empty' \
+          "$MANIFEST_FILE" 2>/dev/null) || prev_mode=""
+      fi
+      # Captured before the write so pre_existing records what was really there.
+      _INSTALL_PERM_MODE_PRE=$(jq -r '.permissions.defaultMode // empty' \
+        "$CLAUDE_DIR/settings.json" 2>/dev/null) || _INSTALL_PERM_MODE_PRE=""
+
+      # rc 1 and rc 2 are both normal outcomes. install runs under `set -e`, so
+      # a bare call would abort here — after settings.json was rewritten and
+      # before the manifest recorded ownership of any of it.
+      local mode_rc=0
+      merge_default_mode "$CLAUDE_DIR/settings.json" "$desired_mode" "$prev_mode" \
+        || mode_rc=$?
+      case "$mode_rc" in
+        0) _INSTALL_PERM_MODE="$desired_mode" ;;
+        1) warn "Left permissions.defaultMode as you set it"; _INSTALL_PERM_MODE="" ;;
+        *) _INSTALL_PERM_MODE="" ;;
+      esac
+
+      ok "Permissions: $(jq -r --arg id "$SELECTED_PERMISSIONS" '.presets[$id].label' "$PRESETS_FILE") ($(echo "$perm_allow" | jq 'length') auto-approved, $(echo "$perm_ask" | jq 'length') always ask)"
     fi
   fi
 
@@ -545,13 +607,31 @@ cmd_install() {
   # the merge. update_manifest_installed carries .installed.permissions across,
   # so this only needs to write it when a preset was applied.
   if [ -n "$SELECTED_PERMISSIONS" ] && [ -f "$MANIFEST_FILE" ] && [ -n "${_INSTALL_PERM_OWNERSHIP:-}" ]; then
-    jq --arg preset "$SELECTED_PERMISSIONS" --argjson own "$_INSTALL_PERM_OWNERSHIP" '
+    local presets_version
+    presets_version=$(jq -r '.presets_version // "unknown"' \
+      "$FORGE_SOURCE_DIR/templates/permission-presets.json" 2>/dev/null)
+    jq --arg preset "$SELECTED_PERMISSIONS" \
+       --arg pv "$presets_version" \
+       --arg mode "${_INSTALL_PERM_MODE:-}" \
+       --arg mode_pre "${_INSTALL_PERM_MODE_PRE:-}" \
+       --argjson own "$_INSTALL_PERM_OWNERSHIP" '
       .installed.permissions = {
-        schema: 1,
+        schema: 2,
         preset: $preset,
-        provenance: "native",
+        presets_version: $pv,
+        provenance: (.installed.permissions.provenance // "native"),
+        with_deny: (.installed.permissions.with_deny // false),
         owned: $own.owned,
-        adopted: $own.adopted
+        adopted: $own.adopted,
+        exceptions: (.installed.permissions.exceptions // []),
+        default_mode: {
+          written: (if $mode == "" then null else $mode end),
+          pre_existing: (
+            if (.installed.permissions.default_mode.pre_existing) != null
+            then .installed.permissions.default_mode.pre_existing
+            elif $mode_pre == "" then null
+            else $mode_pre end)
+        }
       }
     ' "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
     mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"

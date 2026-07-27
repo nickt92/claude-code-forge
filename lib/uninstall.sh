@@ -130,6 +130,51 @@ uninstall_forge() {
   forge_additions=$(jq -r '.installed.settings_additions // {}' "$MANIFEST_FILE" 2>/dev/null)
   unmerge_settings "$CLAUDE_DIR/settings.json" "$BACKUP_DIR/settings.json" "$forge_additions"
 
+  # Permission rules live under .permissions, which settings_additions never
+  # captured — so before 2.0 uninstall left every rule forge ever added behind.
+  # Only the owned buckets are removed: adopted rules were the user's first.
+  # Both blocks read settings.json, which unmerge_settings may have just
+  # removed. jq exits 2 on a missing file and this function runs under errexit,
+  # so the whole uninstall would abort partway through.
+  if [ -f "$CLAUDE_DIR/settings.json" ]; then
+    local owned_perms=""
+    owned_perms=$(jq -c '
+      (.installed.permissions.owned // {}) as $o |
+      if ($o | type) == "object"
+      then { allow: ($o.allow // []), ask: ($o.ask // []), deny: ($o.deny // []) }
+      else { allow: (if ($o | type) == "array" then $o else [] end), ask: [], deny: [] }
+      end
+    ' "$MANIFEST_FILE" 2>/dev/null) || owned_perms=""
+
+    if [ -n "$owned_perms" ] \
+       && [ "$(echo "$owned_perms" | jq '[.allow,.ask,.deny]|add|length')" -gt 0 ]; then
+      source "$FORGE_SOURCE_DIR/lib/permissions-merge.sh"
+      unmerge_permissions "$CLAUDE_DIR/settings.json" "$owned_perms"
+      ok "Removed forge permission rules"
+    fi
+
+    # defaultMode is only reverted when forge is still the last writer.
+    local mode_written="" mode_pre="" mode_now=""
+    mode_written=$(jq -r '.installed.permissions.default_mode.written // empty' \
+      "$MANIFEST_FILE" 2>/dev/null) || mode_written=""
+    mode_pre=$(jq -r '.installed.permissions.default_mode.pre_existing // empty' \
+      "$MANIFEST_FILE" 2>/dev/null) || mode_pre=""
+    mode_now=$(jq -r '.permissions.defaultMode // empty' \
+      "$CLAUDE_DIR/settings.json" 2>/dev/null) || mode_now=""
+
+    if [ -n "$mode_written" ] && [ "$mode_now" = "$mode_written" ]; then
+      if [ -n "$mode_pre" ]; then
+        jq --arg m "$mode_pre" '.permissions.defaultMode = $m' \
+          "$CLAUDE_DIR/settings.json" > "$CLAUDE_DIR/settings.json.tmp"
+      else
+        jq 'del(.permissions.defaultMode)
+            | if (.permissions | length) == 0 then del(.permissions) else . end' \
+          "$CLAUDE_DIR/settings.json" > "$CLAUDE_DIR/settings.json.tmp"
+      fi
+      mv "$CLAUDE_DIR/settings.json.tmp" "$CLAUDE_DIR/settings.json"
+    fi
+  fi
+
   # ── Phase 2: Remove forge-installed files ────────────────
   while IFS= read -r file; do
     [ -n "$file" ] || continue
