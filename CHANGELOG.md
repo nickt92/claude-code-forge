@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.1] - 2026-07-27
 
 ### Fixed
+- `forge stats` reported an install from today as "1 day ago". The manifest
+  timestamp is UTC but was being read in local time, and on macOS the baseline
+  drifted through the day rather than sitting at midnight
 - **The `if:` hook filter never worked.** It was written onto the hook *group*,
   but Claude Code only accepts it on individual hook entries, so it was silently
   discarded — `commit-validator` and `db-guard` ran on every single Bash call
