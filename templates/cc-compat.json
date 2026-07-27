@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "_doc": [
+    "What forge needs from Claude Code, declared rather than assumed.",
+    "",
+    "forge writes hooks, permission rules and a statusline into ~/.claude and",
+    "then depends on Claude Code to honour them. Every one of those is an",
+    "undocumented coupling until it is written down here. This has already bitten",
+    "twice: a removed `claude plugins add` verb made install silently install zero",
+    "plugins and report success, and an `if:` filter written at the wrong nesting",
+    "level was discarded for three releases while the notes claimed a 95-99%",
+    "reduction in process spawns.",
+    "",
+    "min_claude_code is a hard floor — install refuses below it.",
+    "tested_claude_code is the version this was last verified against; above it",
+    "forge warns but proceeds, because refusing to run on a newer Claude Code",
+    "would be worse than the risk."
+  ],
+
+  "min_claude_code": "2.0.0",
+  "tested_claude_code": "2.1.220",
+
+  "requires": {
+    "hook_events": ["PreToolUse", "PostToolUse", "UserPromptSubmit", "PreCompact"],
+
+    "hook_fields": {
+      "if": {
+        "level": "hook",
+        "_doc": "MUST be on the individual hook object, not the matcher group. The group schema is {matcher?, hooks[]} and unknown keys are stripped, so a misplaced `if` fails silently rather than erroring."
+      },
+      "timeout": { "level": "hook" },
+      "matcher": { "level": "group" }
+    },
+
+    "settings_keys": [
+      "hooks",
+      "statusLine",
+      "enabledPlugins",
+      "permissions.allow"
+    ],
+
+    "cli_verbs": [
+      "plugin install",
+      "plugin marketplace add",
+      "plugin marketplace list"
+    ]
+  },
+
+  "optional": {
+    "permissions.deny": {
+      "min": "2.0.0",
+      "degrade": "skip",
+      "_doc": "Needed by the permissions v2 work. Not yet written by forge."
+    },
+    "permissions.ask": {
+      "min": "2.0.0",
+      "degrade": "skip",
+      "_doc": "Needed by the permissions v2 work. Not yet written by forge."
+    },
+    "sandbox": {
+      "min": "2.1.0",
+      "degrade": "skip",
+      "_doc": "Not yet written by forge. Gated behind its own decision."
+    }
+  },
+
+  "unverified": {
+    "_doc": [
+      "Behaviour forge relies on but has NOT confirmed by execution. Each needs a",
+      "live check before anything is built on top of it. Listed here so the",
+      "assumption is visible rather than buried in a comment."
+    ],
+    "bash_find_covers_exec": "Does Bash(find:*) also permit `find -exec` and `find -delete`? Decides whether the read-only preset tier is genuinely read-only.",
+    "bash_wrapper_stripping": "Which wrapper commands the matcher strips before matching (timeout, nice, xargs, env...). Determines which allow-list entries are inert.",
+    "rule_precedence_under_bypass": "deny is reportedly ignored under bypassPermissions while ask still prompts. If true, anything that must hold in bypass mode belongs in ask, not deny."
+  }
+}

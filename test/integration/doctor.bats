@@ -188,3 +188,25 @@ _setup_healthy_install() {
   run cmd_doctor
   refute_output --partial "Project Context"
 }
+
+@test "doctor still passes when Claude Code cannot be probed" {
+  # Normal in CI and containers. Reporting "missing commands" there would fail
+  # doctor on every machine where forge is checked rather than used — unknown
+  # is not the same as absent.
+  #
+  # A claude that refuses to answer --help exercises the same "could not tell"
+  # branch as claude being absent, without stripping PATH — doing that also
+  # removed jq on Git Bash and failed for an unrelated reason.
+  _setup_healthy_install
+
+  mkdir -p "$TEST_SANDBOX/bin"
+  printf '#!/bin/bash\nexit 1\n' > "$TEST_SANDBOX/bin/claude"
+  chmod +x "$TEST_SANDBOX/bin/claude"
+  PATH="$TEST_SANDBOX/bin:$PATH"
+  hash -r
+
+  source "$SCRIPT_DIR/lib/cmd-doctor.sh"
+  run cmd_doctor
+  assert_success
+  assert_output --partial "Could not check Claude Code commands"
+}
