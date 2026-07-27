@@ -494,3 +494,31 @@ LOG
   assert_output --partial "0 rules, 0 hooks, 0 scripts, 0 other"
   refute_output --partial " rules,  hooks"
 }
+
+@test "_stats_days_ago is stable regardless of local timezone" {
+  # The timestamp is UTC. Parsing it in local time made an install from today
+  # report "1 day ago" wherever the local date differs from the UTC date —
+  # reproduced live at UTC+3 just after local midnight.
+  local today
+  today=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  TZ="Pacific/Kiritimati" run _stats_days_ago "$today"   # UTC+14
+  assert_output "today"
+
+  TZ="Pacific/Midway" run _stats_days_ago "$today"       # UTC-11
+  assert_output "today"
+
+  TZ="UTC" run _stats_days_ago "$today"
+  assert_output "today"
+}
+
+@test "_stats_days_ago counts whole calendar days" {
+  local two_days_ago
+  if two_days_ago=$(date -u -v-2d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null); then
+    : # BSD
+  else
+    two_days_ago=$(date -u -d '2 days ago' +%Y-%m-%dT%H:%M:%SZ)
+  fi
+  run _stats_days_ago "$two_days_ago"
+  assert_output "2 days ago"
+}
