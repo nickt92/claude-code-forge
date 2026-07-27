@@ -355,10 +355,16 @@ cmd_install() {
   step "Checking prerequisites"
 
   local prereq_ok=true
-  if ! command -v claude >/dev/null 2>&1; then
-    forge_fail "Claude Code CLI not found. Install from: https://docs.anthropic.com/en/docs/claude-code"
+
+  # Verify Claude Code can support what we are about to write, BEFORE anything
+  # is backed up or modified — a failure here must cost the user nothing. This
+  # replaces a bare `command -v claude`, which was true the whole time
+  # `claude plugins add` was silently failing to install a single plugin.
+  source "$FORGE_SOURCE_DIR/lib/cc-compat.sh"
+  if ! cc_compat_check "${UI_QUIET:-false}"; then
     prereq_ok=false
   fi
+
   if ! command -v jq >/dev/null 2>&1; then
     forge_fail "jq not found. Install: brew install jq (macOS) or apt install jq (Linux)"
     prereq_ok=false
