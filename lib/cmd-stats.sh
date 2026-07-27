@@ -16,17 +16,29 @@
 _stats_days_ago() {
   local timestamp="$1"
   local date_part="${timestamp%%T*}"
-  local install_epoch now_epoch
-  if install_epoch=$(date -jf "%Y-%m-%d" "$date_part" +%s 2>/dev/null); then
-    : # macOS date succeeded
-  elif install_epoch=$(date -d "$date_part" +%s 2>/dev/null); then
-    : # GNU date succeeded
+  local install_epoch today_epoch today_utc
+
+  # Both sides are UTC midnight, so this counts calendar days rather than
+  # elapsed hours. Two things went wrong before:
+  #   - the timestamp is UTC but was parsed in local time, so anywhere the
+  #     local date differs from the UTC date the count was off by one;
+  #   - BSD `date -jf "%Y-%m-%d"` fills the unspecified time-of-day from NOW,
+  #     not midnight, so the baseline drifted through the day.
+  # Together they reported an install from today as "1 day ago".
+  today_utc=$(date -u +%Y-%m-%d)
+  if install_epoch=$(date -u -jf "%Y-%m-%d %H:%M:%S" "$date_part 00:00:00" +%s 2>/dev/null); then
+    # BSD date
+    today_epoch=$(date -u -jf "%Y-%m-%d %H:%M:%S" "$today_utc 00:00:00" +%s 2>/dev/null)
+  elif install_epoch=$(date -u -d "$date_part" +%s 2>/dev/null); then
+    # GNU date
+    today_epoch=$(date -u -d "$today_utc" +%s 2>/dev/null)
   else
     echo "$timestamp"
     return
   fi
-  now_epoch=$(date +%s)
-  local days=$(( (now_epoch - install_epoch) / 86400 ))
+  [ -n "$today_epoch" ] || { echo "$timestamp"; return; }
+
+  local days=$(( (today_epoch - install_epoch) / 86400 ))
   if [ "$days" -eq 0 ]; then
     echo "today"
   elif [ "$days" -eq 1 ]; then
