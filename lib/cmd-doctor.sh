@@ -311,15 +311,28 @@ cmd_doctor() {
   fi
 
   # The failure that actually bit: right binary, right version, vanished verb.
-  local cc_verb cc_missing=""
+  #
+  # rc 2 means "could not tell" — usually Claude Code is not on PATH at all,
+  # which is normal in CI and containers. Reporting that as a missing command
+  # would fail doctor everywhere forge is merely checked rather than used.
+  # Unknown is not the same as absent.
+  local cc_verb cc_missing="" cc_unknown=false
   while IFS= read -r cc_verb; do
     [ -n "$cc_verb" ] || continue
-    cc_probe_cli_verb "$cc_verb" || cc_missing="${cc_missing}${cc_verb}, "
+    cc_probe_cli_verb "$cc_verb"
+    case $? in
+      0) ;;
+      1) cc_missing="${cc_missing}${cc_verb}, " ;;
+      *) cc_unknown=true ;;
+    esac
   done < <(jq -r '.requires.cli_verbs[]? // empty' "$CC_COMPAT_FILE" 2>/dev/null)
 
   if [ -n "$cc_missing" ]; then
     [ "$json_output" != true ] && forge_fail "Missing Claude Code commands: ${cc_missing%, }"; ((failures++))
     _doctor_add_check "claude_code" "Required commands" "fail" "Missing: ${cc_missing%, }"
+  elif [ "$cc_unknown" = true ]; then
+    [ "$json_output" != true ] && warn "Could not check Claude Code commands (is it installed?)"; ((warnings++))
+    _doctor_add_check "claude_code" "Required commands" "warn" "Could not probe — Claude Code not found"
   else
     [ "$json_output" != true ] && ok "Required Claude Code commands present"; ((pass++))
     _doctor_add_check "claude_code" "Required commands" "pass"
