@@ -51,10 +51,23 @@ _swift_test_count() {
 }
 
 @test "README total test count is the sum of both suites" {
-  local total
+  local total pattern
   total=$(( $(_cli_test_count) + $(_swift_test_count) ))
-  # Appears in the header badge line and the testing section heading.
-  run grep -c "${total} Tests\|${total} automated tests" "$README"
+  # Once past a thousand the README writes the number with a separator, so the
+  # claim is checked in both forms rather than forcing the prose to read "1017".
+  # Built by hand rather than with printf %'d, which only groups digits in some
+  # locales and would silently stop checking anything under LC_ALL=C.
+  # The separator is written reversed ("?,") because the whole string is
+  # reversed again afterwards; grouping from the right is what makes 1017
+  # become 1,?017 rather than 101,?7.
+  #
+  # The leading-separator strip must use a literal "?" — BSD sed reads "\?" as
+  # a literal but GNU sed reads it as the optional-quantifier, so on Linux and
+  # Git Bash "\?" would strip only the comma and leave an invalid ERE. Bites
+  # whenever the digit count is a multiple of three, which 828 already is.
+  pattern=$(echo "$total" | rev | sed 's/[0-9]\{3\}/&?,/g' | rev | sed 's/^,?//')
+
+  run grep -cE "${pattern} Tests|${pattern} automated tests" "$README"
   assert_success
   assert [ "$output" -ge 2 ]
 }

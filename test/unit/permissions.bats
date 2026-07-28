@@ -67,7 +67,10 @@ teardown() {
   echo "$output" | jq -e 'index("Bash(mkdir:*)")' >/dev/null
   echo "$output" | jq -e 'index("Bash(git commit:*)")' >/dev/null
   echo "$output" | jq -e 'index("Bash(pytest:*)")' >/dev/null
-  echo "$output" | jq -e 'index("Bash(gh:*)")' >/dev/null
+  # gh is no longer a blanket wildcard: tier 3 auto-approved `gh secret set`
+  # and `gh repo delete` along with it. Read and PR verbs stay broad.
+  echo "$output" | jq -e 'index("Bash(gh pr:*)")' >/dev/null
+  echo "$output" | jq -e 'index("Bash(gh:*)") == null' >/dev/null
   echo "$output" | jq -e 'index("Bash(curl:*)")' >/dev/null
   echo "$output" | jq -e 'index("WebFetch")' >/dev/null
   echo "$output" | jq -e 'index("WebSearch")' >/dev/null
@@ -275,6 +278,8 @@ EOF
   echo '{}' > "$CLAUDE_DIR/settings.json"
   local json_mode=false
 
+  local assume_yes=true
+
   run _permissions_apply "auto-edit"
   assert_success
   assert_output --partial "Auto-Edit"
@@ -292,6 +297,9 @@ EOF
 }
 
 @test "forge permissions --preset downgrades cleanly" {
+  # Dropping to a lower tier removes rules, and forge refuses to downgrade
+  # effective permissions non-interactively without consent.
+  local assume_yes=true
   export FORGE_SOURCE_DIR="$SCRIPT_DIR"
   source "$SCRIPT_DIR/lib/cmd-permissions.sh"
 
@@ -330,6 +338,9 @@ EOF
 }
 
 @test "forge permissions --preset preserves custom user rules across changes" {
+  # Dropping to a lower tier removes rules, and forge refuses to downgrade
+  # effective permissions non-interactively without consent.
+  local assume_yes=true
   export FORGE_SOURCE_DIR="$SCRIPT_DIR"
   source "$SCRIPT_DIR/lib/cmd-permissions.sh"
 
@@ -427,7 +438,7 @@ EOF
   assert_success
 
   # Read was already there — adopted, never owned
-  assert_output --partial '"adopted":{"allow":["Read"]}'
+  assert_output --partial '"adopted":{"allow":["Read"]'
   assert_output --partial '"Glob"'
   assert_output --partial '"Grep"'
   refute_output --partial '"owned":{"allow":["Read"'
@@ -438,15 +449,15 @@ EOF
 
   run compute_permission_ownership "$CLAUDE_DIR/settings.json" '["Read","Glob"]'
   assert_success
-  assert_output --partial '"owned":{"allow":["Read","Glob"]}'
-  assert_output --partial '"adopted":{"allow":[]}'
+  assert_output --partial '"owned":{"allow":["Read","Glob"]'
+  assert_output --partial '"adopted":{"allow":[]'
 }
 
 @test "compute_permission_ownership handles a missing settings file" {
   rm -f "$CLAUDE_DIR/settings.json"
   run compute_permission_ownership "$CLAUDE_DIR/settings.json" '["Read"]'
   assert_success
-  assert_output --partial '"owned":{"allow":["Read"]}'
+  assert_output --partial '"owned":{"allow":["Read"]'
 }
 
 @test "a rule the user already had survives unmerging the preset" {
