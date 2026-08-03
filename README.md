@@ -17,7 +17,7 @@ ignores long instructions, and treats every user the same. The forge fixes that.
 [![Personas](https://img.shields.io/badge/Personas-12-orange?style=flat-square)](#persona-system)
 [![Plugins](https://img.shields.io/badge/Plugins-18-green?style=flat-square)](#credits)
 
-**`forge` CLI** · **Desktop App (Beta)** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **1,031 Tests**
+**`forge` CLI** · **Desktop App (Beta)** · **12 Personas** · **3 Plugin Groups** · **3 Permission Presets** · **9 Hooks** · **8 Rules Files** · **1,004 Tests**
 
 </div>
 
@@ -107,8 +107,8 @@ Or run `forge build` to create your own persona from the 4 behavioral axes.
 ### Desktop App (macOS, Beta)
 Native menu bar app with dashboard, audit detail, hook telemetry, persona switcher, Claude-powered onboarding, and doctor diagnostics. Build from source if you clone the repo.
 
-### 1,031 Tests
-842 CLI (bats-core) + 189 Swift, cross-platform on every push via GitHub Actions.
+### 1,004 Tests
+815 CLI (bats-core) + 189 Swift, cross-platform on every push via GitHub Actions.
 
 ## Status Line
 
@@ -472,10 +472,10 @@ cd app && xcodebuild -project ForgeDesktop.xcodeproj -scheme ForgeDesktop clean 
 <details>
 <summary><strong>Testing</strong></summary>
 
-1,031 automated tests across two suites, run on every push via GitHub Actions —
+1,004 automated tests across two suites, run on every push via GitHub Actions —
 including release branches, and including the Swift suite.
 
-**CLI (bats-core)** | 842 tests across macOS, Ubuntu, and Windows:
+**CLI (bats-core)** | 815 tests across macOS, Ubuntu, and Windows:
 
 ```bash
 ./test/run_tests.sh              # All tests

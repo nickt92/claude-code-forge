@@ -10,53 +10,83 @@ Forge hooks are **defense-in-depth** — they add friction against common mistak
 |:-----|:--------|:---------------|:------------|
 | `commit-validator` | PreToolUse (Bash) | AI attribution, non-conventional format | Only matches direct `git commit` invocations; indirect commits (scripts, aliases) may bypass |
 | `architect-gate` | PreToolUse (Write/Edit) | Plan files without architect review section; first-edit task classification | Only checks the `plans/` directory; plan content elsewhere is not gated |
-| `command-guard` | PreToolUse (Bash) | Destructive commands (`rm -rf /`), remote code execution (`curl \| bash`), fork bombs, secret leakage | Pattern-based detection; obfuscated commands, heredocs, or variable expansion can bypass |
-| `db-guard` | PreToolUse (Bash) | Destructive SQL (`DROP`, `TRUNCATE`, `DELETE FROM` without `WHERE`) via CLI tools | Only detects SQL in direct command strings; `.sql` file execution or ORM calls are not intercepted |
+| `command-guard` | PreToolUse (Bash) | Fork bombs, downloads piped into a shell, injection via `$(...)`, credentials read and sent to the network | Four checks only — everything else moved to permission rules. Staging a secret through an intermediate file defeats the exfiltration check |
+| `db-guard` | PreToolUse (Bash) | Destructive SQL (`DROP`, `TRUNCATE`, `DELETE FROM` without `WHERE`) and `COPY … TO PROGRAM` via CLI tools | Only detects SQL in direct command strings; `.sql` file execution or ORM calls are not intercepted |
 | `secret-filter` | PostToolUse (all tools) | Credentials in tool output (AWS keys, GitHub tokens, API keys, PEM keys, env vars) | Advisory only — runs after the tool completes, cannot block or mask output. Detects common patterns; encoded or split credentials are not caught |
 | `session-init` | UserPromptSubmit | Skipping task classification; missing document chain for non-trivial projects | Advisory only — nudges behavior, does not enforce |
 | `backup-transcript` | PreCompact | Lost conversation context before compaction | Best-effort; relies on Claude Code's compaction event firing |
 | `forge-update-check` | UserPromptSubmit | Running outdated forge version | Advisory only — prints a notice, does not block |
 
-## Override Mechanism
+## Where enforcement lives
 
-### forge-override
+Two layers, and the split matters:
 
-The `command-guard` and `db-guard` hooks support a user-confirmed bypass via a comment token in the command string. When a blocked command is intentionally needed, Claude can retry with `# forge-override: <reason>` as the first line:
+**Permission rules** are the primary layer. Claude Code evaluates them in-process,
+before dispatch, against a *parsed* command — it strips environment prefixes and
+transparent wrappers, splits compound commands, and matches each part. Precedence
+is deny, then ask, then allow, first match wins. There is no bypass from inside a
+command.
 
-```bash
-# forge-override: dropping test database per user request
-psql -c "DROP TABLE test_users"
-```
+**Hooks** are the small remainder: the checks that need a relationship between
+parts of a command, which a rule cannot express. `command-guard` carries four.
 
-**Requirements:**
-- The reason after `# forge-override:` must be non-empty — bare `# forge-override` (no reason) is rejected and the hook continues to block
-- Claude must explain the block to the user and receive explicit confirmation before using the override
-- The reason must describe the user's intent specifically, not a generic "user confirmed"
+Hooks also matter for a reason that is easy to miss. Under `bypassPermissions`,
+user-scope **deny rules are ignored** — but hooks still run, because Claude Code
+gates them only on whether they are configured, not on the permission mode. So
+the hook is the only enforcement forge retains in the mode where enforcement
+matters most. That is why anything which must hold under bypass belongs in `ask`
+rather than `deny`.
 
-**Security model:**
-- The override bypasses **all** guard checks for the entire command, not just the specific pattern that triggered the initial block. A multi-line command with an override skips every guard in that hook.
-- Claude Code's permission prompt displays the full command including the override comment, so the user sees exactly what will run before approving
-- The override is a communication channel between Claude and the hook — the user's approval happens through the standard permission prompt
-- Overrides are logged to `~/.claude/security.log` for audit purposes
+## There is no override token
 
-**What cannot be overridden:**
-- `secret-filter` — advisory-only by design; fix false positives via better patterns instead
-- `architect-gate` — plan quality enforcement should not be bypassable
-- `commit-validator` — AI attribution block should not be bypassable
+Versions before 2.0 accepted `# forge-override: <reason>` as the first line of a
+command, which made `command-guard` and `db-guard` skip every check for that
+command. **It has been removed.**
+
+Its stated security model was that Claude Code's permission prompt would show the
+user the full command, including the override comment, before anything ran. That
+is false whenever the command is covered by an allow rule, because then there is
+no prompt at all — which is the common case, and precisely the case where the
+guard was the last thing standing. The override silently converted a block into a
+no-op with no human in the loop, on a token the model writes for itself.
+
+The guards now return a permission decision instead:
+
+- **ask** — Claude Code shows the real command and waits for the user. Used for
+  downloads piped into a shell, injection, credential exfiltration, and every
+  destructive SQL pattern.
+- **deny** — reserved for fork bombs, which have no legitimate use.
+
+The user approving that prompt *is* the override, and it needs nothing added to
+the command. For permission rules the equivalent is `forge permissions --except
+<rule>`, which records the exception in the manifest where it can be inspected
+and reverted.
+
+## Degraded mode
+
+Failing open is not a choice — Claude Code fails open when a hook times out,
+regardless of what the hook would have said. What was missing was the difference
+between *nothing to check* and *could not check*: with `jq` absent, every guard
+exited 0 forever and nothing recorded it.
+
+Both guards now write a `DEGRADED` line to `~/.claude/security.log` when they
+cannot inspect a command.
 
 ### Audit Trail
 
-All overrides are logged to `~/.claude/security.log` in the following format:
-
 ```
-2026-03-17T14:22:00Z OVERRIDE_CONFIRMED reason="dropping test database per user request" command="psql -c \"DROP TABLE test_users\""
+2026-08-03T14:22:00Z SECRET_DETECTED tool=Bash types="AWS access key"
+2026-08-03T14:25:11Z DEGRADED hook=command-guard reason="jq not found; command not inspected"
 ```
 
-- ISO 8601 UTC timestamp (consistent with existing `SECRET_DETECTED` entries)
-- Event type: `OVERRIDE_CONFIRMED`
-- Quoted reason and command fields
-- Multi-line commands are truncated with `[+N lines]` indicator
-- Quotes in commands are escaped
+- ISO 8601 UTC timestamp
+- Event types: `SECRET_DETECTED`, `DEGRADED`
+- **No command strings are logged.** Removing `forge-override` also removed the
+  only place forge wrote raw commands — and therefore potentially secrets — into
+  its own audit log. `SECRET_DETECTED` records the *kind* of credential found,
+  never the value.
+- `~/.claude/security.log` and `~/.claude/hook-telemetry.log` are created `0600`
+  and rolled at 1 MB. Before 2.0 the security log was `0644` and unbounded.
 
 ## Known Gaps
 
