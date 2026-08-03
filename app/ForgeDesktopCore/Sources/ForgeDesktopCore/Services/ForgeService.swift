@@ -76,60 +76,76 @@ public final class ForgeService: Sendable {
             return override
         }
 
-        if let whichPath = try? await resolveViaWhich() {
-            return whichPath
+        if let cached = await ForgePathCache.shared.value() {
+            return cached
         }
 
-        let knownPaths = [
-            "\(NSHomeDirectory())/.claude/bin/forge",
-            "\(NSHomeDirectory())/.local/bin/forge",
-            "/usr/local/bin/forge",
-            "/opt/homebrew/bin/forge",
-        ]
+        // Filesystem checks first. This used to spawn `which` on every call,
+        // ahead of four `isExecutableFile` checks that answer the question
+        // without a process — and every service resolves the path before every
+        // command, so the app was forking a subprocess per CLI invocation.
+        for path in Self.knownPaths where FileManager.default.isExecutableFile(atPath: path) {
+            await ForgePathCache.shared.store(path)
+            return path
+        }
 
-        for path in knownPaths {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
-            }
+        if let whichPath = await resolveViaWhich() {
+            await ForgePathCache.shared.store(whichPath)
+            return whichPath
         }
 
         throw ForgeError.cliNotFound
     }
 
-    private func resolveViaWhich() async throws -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["forge"]
+    static let knownPaths = [
+        "\(NSHomeDirectory())/.claude/bin/forge",
+        "\(NSHomeDirectory())/.local/bin/forge",
+        "/usr/local/bin/forge",
+        "/opt/homebrew/bin/forge",
+    ]
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
+    /// Falls back to `which` only when none of the known locations hold a
+    /// binary. Routed through the executor so it inherits the concurrent pipe
+    /// drain and, more importantly, a timeout — the hand-rolled Process here
+    /// had neither, so a `which` that never exited wedged the caller forever.
+    private func resolveViaWhich() async -> String? {
+        guard let data = try? await executor.run(
+            executable: "/usr/bin/which",
+            arguments: ["forge"],
+            workingDirectory: nil,
+            timeout: 5
+        ) else { return nil }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            process.terminationHandler = { _ in
-                guard process.terminationStatus == 0 else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard let path, !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                continuation.resume(returning: path)
-            }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(returning: nil)
-            }
-        }
+        let path = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let path, !path.isEmpty,
+              FileManager.default.isExecutableFile(atPath: path) else { return nil }
+        return path
     }
+}
+
+/// Process-lifetime cache for the discovered forge path.
+///
+/// Resolution is stable for a session and was previously repeated — including a
+/// subprocess spawn — before every single CLI call.
+actor ForgePathCache {
+    static let shared = ForgePathCache()
+
+    private var cached: String?
+
+    func value() -> String? {
+        // A binary can be moved or uninstalled mid-session; re-resolve if the
+        // cached path stopped being executable rather than failing every call.
+        if let cached, !FileManager.default.isExecutableFile(atPath: cached) {
+            self.cached = nil
+        }
+        return cached
+    }
+
+    func store(_ path: String) { cached = path }
+
+    /// Test hook — resolution is global state, so suites must be able to reset it.
+    func reset() { cached = nil }
 }
 
 public enum ForgeError: LocalizedError, Sendable {

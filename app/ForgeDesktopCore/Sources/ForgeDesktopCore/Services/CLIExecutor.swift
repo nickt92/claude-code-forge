@@ -39,6 +39,106 @@ extension CLIExecutor {
     }
 }
 
+/// Accumulates stderr while a streaming process runs.
+private final class StderrSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ chunk: Data) {
+        lock.withLock { data.append(chunk) }
+    }
+
+    func string() -> String {
+        let snapshot = lock.withLock { data }
+        return String(data: snapshot, encoding: .utf8) ?? ""
+    }
+}
+
+/// Drains stdout and stderr while the process runs, and reports once the
+/// process has exited *and* both pipes have reached EOF.
+///
+/// Reading a pipe only inside `terminationHandler` deadlocks as soon as the
+/// child writes more than the pipe buffer, which is about 64KB: the child
+/// blocks in `write()`, so it never exits, so the handler never runs, so
+/// nothing ever drains the pipe. `forge analyze --json` and `forge dashboard`
+/// both exceed that routinely, and the symptom was a permanently wedged app —
+/// `isBusy` stuck true with no cancel affordance.
+///
+/// Waiting for EOF on both pipes as well as exit is what makes the output
+/// complete: a process can exit while its buffered output is still in flight.
+private final class ProcessOutputCollector: @unchecked Sendable {
+    private enum Stream { case out, err }
+
+    private let lock = NSLock()
+    private var stdoutData = Data()
+    private var stderrData = Data()
+    private var stdoutAtEOF = false
+    private var stderrAtEOF = false
+    private var exitStatus: Int32?
+    private var delivered = false
+    private let onComplete: (Data, Data, Int32) -> Void
+
+    init(stdout: Pipe, stderr: Pipe, onComplete: @escaping (Data, Data, Int32) -> Void) {
+        self.onComplete = onComplete
+
+        stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            self?.consume(handle: handle, into: .out)
+        }
+        stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            self?.consume(handle: handle, into: .err)
+        }
+    }
+
+    private func consume(handle: FileHandle, into stream: Stream) {
+        let data = handle.availableData
+        if data.isEmpty {
+            // Empty read means EOF. Clear the handler so the FileHandle stops
+            // scheduling work and can be released.
+            handle.readabilityHandler = nil
+            lock.withLock {
+                switch stream {
+                case .out: stdoutAtEOF = true
+                case .err: stderrAtEOF = true
+                }
+            }
+            deliverIfReady()
+        } else {
+            lock.withLock {
+                switch stream {
+                case .out: stdoutData.append(data)
+                case .err: stderrData.append(data)
+                }
+            }
+        }
+    }
+
+    func processExited(status: Int32) {
+        lock.withLock { exitStatus = status }
+        deliverIfReady()
+    }
+
+    /// Called when the timeout fires: the process is being killed, so report
+    /// whatever was collected rather than waiting for EOF that may not come.
+    func abandon() {
+        lock.withLock {
+            stdoutAtEOF = true
+            stderrAtEOF = true
+        }
+    }
+
+    private func deliverIfReady() {
+        let payload: (Data, Data, Int32)? = lock.withLock {
+            guard !delivered,
+                  stdoutAtEOF, stderrAtEOF,
+                  let status = exitStatus else { return nil }
+            delivered = true
+            return (stdoutData, stderrData, status)
+        }
+        guard let payload else { return }
+        onComplete(payload.0, payload.1, payload.2)
+    }
+}
+
 /// Thread-safe continuation guard to prevent double-resume in Process + timeout races.
 private final class ContinuationGuard: @unchecked Sendable {
     private let lock = NSLock()
@@ -106,10 +206,24 @@ public struct ProcessExecutor: CLIExecutor {
                 }
             }
 
+            // stderr had the same deadlock as run(): it was read only once the
+            // process had exited, so a child that filled the stderr buffer
+            // blocked forever even though stdout was being drained.
+            let stderrSink = StderrSink()
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    return
+                }
+                stderrSink.append(data)
+            }
+
             let timeoutGuard = StreamTimeoutGuard(process: process)
 
             process.terminationHandler = { proc in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                stderrPipe.fileHandleForReading.readabilityHandler = nil
 
                 // Flush remaining buffer
                 if let remaining = lineBuffer.flush() {
@@ -119,8 +233,7 @@ public struct ProcessExecutor: CLIExecutor {
                 guard timeoutGuard.markFinished() else { return }
 
                 if proc.terminationStatus != 0 {
-                    let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                    let stderrString = String(data: stderr, encoding: .utf8) ?? ""
+                    let stderrString = stderrSink.string()
                     Self.logger.error("Stream exit \(proc.terminationStatus): \(stderrString, privacy: .public)")
                     continuation.finish(throwing: ForgeError.cliExitCode(
                         Int(proc.terminationStatus),
@@ -177,24 +290,14 @@ public struct ProcessExecutor: CLIExecutor {
         return try await withCheckedThrowingContinuation { continuation in
             let guard_ = ContinuationGuard(continuation: continuation)
 
-            if let timeout {
-                let item = DispatchWorkItem { [process] in
-                    if process.isRunning {
-                        process.terminate()
-                    }
-                    guard_.resume(with: .failure(ForgeError.claudeTimeout))
-                }
-                guard_.setTimeoutItem(item)
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
-            }
-
-            process.terminationHandler = { proc in
+            // Both pipes are drained while the process runs. Collecting them
+            // only after exit deadlocks on any output larger than the pipe
+            // buffer — see ProcessOutputCollector.
+            let collector = ProcessOutputCollector(stdout: stdoutPipe, stderr: stderrPipe) { stdout, stderr, status in
                 guard_.cancelTimeout()
-                let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
                 let stderrString = String(data: stderr, encoding: .utf8) ?? ""
 
-                if proc.terminationStatus == 0 {
+                if status == 0 {
                     if !stderrString.isEmpty {
                         Self.logger.info("stderr (exit 0): \(stderrString, privacy: .public)")
                     }
@@ -207,12 +310,29 @@ public struct ProcessExecutor: CLIExecutor {
                     if detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         detail = String(data: stdout, encoding: .utf8) ?? ""
                     }
-                    Self.logger.error("Exit \(proc.terminationStatus): \(detail, privacy: .public)")
+                    Self.logger.error("Exit \(status): \(detail, privacy: .public)")
                     guard_.resume(with: .failure(ForgeError.cliExitCode(
-                        Int(proc.terminationStatus),
+                        Int(status),
                         stderr: detail
                     )))
                 }
+            }
+
+            if let timeout {
+                let item = DispatchWorkItem { [process] in
+                    if process.isRunning {
+                        process.terminate()
+                    }
+                    // Stop waiting for EOF the killed child may never deliver.
+                    collector.abandon()
+                    guard_.resume(with: .failure(ForgeError.claudeTimeout))
+                }
+                guard_.setTimeoutItem(item)
+                DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: item)
+            }
+
+            process.terminationHandler = { proc in
+                collector.processExited(status: proc.terminationStatus)
             }
 
             do {

@@ -75,16 +75,60 @@ public final class ClaudeService: @unchecked Sendable {
         claudePath != nil
     }
 
+    /// A settings file scoping what Claude may do inside the user's repository.
+    ///
+    /// The app used to pass `--permission-mode bypassPermissions`, which turns
+    /// off the entire permission model on a tool whose job is reading untrusted
+    /// repository content and writing a file the user then commits. forge
+    /// exempting itself from the model it ships is not defensible.
+    ///
+    /// Replaced by `acceptEdits` — which auto-approves file edits and nothing
+    /// else, so the run is still non-interactive — plus explicit denies. Those
+    /// denies matter: verified against the shipped binary, deny rules are
+    /// evaluated above the bypass short-circuit and are honoured even if
+    /// someone re-adds a bypass flag later.
+    ///
+    /// Returns nil if the policy cannot be written; the caller then refuses to
+    /// run rather than silently falling back to something broader.
+    static func writeScopedPolicy() -> URL? {
+        let policy: [String: Any] = [
+            "permissions": [
+                "deny": [
+                    "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
+                    "Read(~/.config/gh/**)", "Read(~/.kube/config)",
+                    "Read(~/.docker/config.json)",
+                    "Read(~/.npmrc)", "Read(~/.pgpass)", "Read(~/.netrc)",
+                    "Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)",
+                    "Read(**/id_rsa)", "Read(**/id_ed25519)",
+                    "Bash", "WebFetch", "WebSearch",
+                ],
+            ],
+        ]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: policy) else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("forge-claude-policy-\(UUID().uuidString).json")
+        guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return url
+    }
+
     public func runInRepo(prompt: String, repoPath: String, allowedTools: [String] = ["Read", "Edit", "Glob", "Grep"]) async throws -> ClaudeResult {
         guard let path = claudePath else {
             throw ForgeError.claudeNotAvailable
         }
 
+        guard let policy = Self.writeScopedPolicy() else {
+            Self.logger.error("Could not write the scoped permission policy; refusing to run")
+            throw ForgeError.claudeFailed("Could not write a permission policy for this run")
+        }
+        defer { try? FileManager.default.removeItem(at: policy) }
+
         let arguments = [
             "-p", prompt,
             "--output-format", "json",
             "--model", Self.model,
-            "--permission-mode", "bypassPermissions",
+            "--permission-mode", "acceptEdits",
+            "--settings", policy.path,
             "--no-session-persistence",
             "--allowedTools", allowedTools.joined(separator: ","),
             "--max-budget-usd", Self.maxBudget,
@@ -131,12 +175,19 @@ public final class ClaudeService: @unchecked Sendable {
             return AsyncThrowingStream { $0.finish(throwing: ForgeError.claudeNotAvailable) }
         }
 
+        guard let policy = Self.writeScopedPolicy() else {
+            return AsyncThrowingStream {
+                $0.finish(throwing: ForgeError.claudeFailed("Could not write a permission policy for this run"))
+            }
+        }
+
         var arguments = [
             "-p", prompt,
             "--output-format", "stream-json",
             "--verbose",
             "--model", Self.model,
-            "--permission-mode", "bypassPermissions",
+            "--permission-mode", "acceptEdits",
+            "--settings", policy.path,
             "--no-session-persistence",
             "--allowedTools", allowedTools.joined(separator: ","),
             "--max-budget-usd", maxBudget,
@@ -156,6 +207,13 @@ public final class ClaudeService: @unchecked Sendable {
         )
 
         return AsyncThrowingStream { continuation in
+            // The policy file outlives this function, so it is removed when the
+            // stream ends — including on cancellation, which is why this is not
+            // a defer in the Task below.
+            continuation.onTermination = { @Sendable _ in
+                try? FileManager.default.removeItem(at: policy)
+            }
+
             Task {
                 let context = StreamParsingContext()
                 do {
