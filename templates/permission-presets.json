@@ -4,7 +4,7 @@
   "min_claude_code": "2.1.0",
   "_doc": [
     "Claude Code evaluates deny -> ask -> allow and STOPS at the first match.",
-    "Two consequences drive the shape of this file:",
+    "Three consequences drive the shape of this file:",
     "",
     "1. An ask rule that is BROADER than an allow rule silently kills it.",
     "   Bash(git config:*) in ask would defeat Bash(git config --get:*) in allow.",
@@ -12,11 +12,17 @@
     "",
     "2. To restrict something, prefer REMOVING it from allow over adding it to",
     "   ask. Removing lets the command fall through to Claude Code's normal",
-    "   prompt; adding to ask does the same thing but also survives",
-    "   bypassPermissions mode. Use ask only when it must hold under bypass.",
+    "   prompt. An ask rule at user scope cannot be relaxed by any project or",
+    "   local setting, so every entry is a permanent global decision.",
     "",
-    "deny is ignored under bypassPermissions; ask is not. Anything that must",
-    "hold in bypass mode therefore belongs in ask, never deny."
+    "3. deny IS honoured under bypassPermissions - the deny checks sit above the",
+    "   bypass short-circuit, and the SDK warning string says bypass",
+    "   'auto-approves every tool call (except explicit deny rules)'. An earlier",
+    "   version of this file claimed the opposite and used it to argue for ask",
+    "   over deny; that reasoning was backwards. deny is the stronger control.",
+    "   It stays small for a different and still-valid reason: a permission rule",
+    "   has no override, so a false positive blocks work with an error the user",
+    "   cannot clear."
   ],
   "global": {
     "_doc": [
@@ -367,7 +373,10 @@
       "is passed. There is no forge-override for a permission rule: a false",
       "positive here does not annoy the user, it blocks their work with an error",
       "they cannot clear. Only commands with no legitimate agent use belong here.",
-      "Everything else is ask."
+      "",
+      "Because these are opt-in, no rule from this list is installed by default -",
+      "which is why command-guard keeps its own hard block for filesystem",
+      "formatting rather than relying on Bash(mkfs*) being present."
     ],
     "deny": [
       "Bash(mkfs*)",

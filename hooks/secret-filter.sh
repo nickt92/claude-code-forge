@@ -34,10 +34,42 @@ INPUT=$(cat)
 _HOOK_START=$SECONDS
 _SF_TMPDIR="${TMPDIR:-/tmp}"
 
+# ── Log hygiene ───────────────────────────────────────────────
+# forge shipped secret-filter to protect the user's tool output while writing
+# its own logs world-readable (0644) and unbounded. Appends now create the file
+# with owner-only permissions and roll it at 1 MB.
+#
+# Duplicated across hooks on purpose: each one is copied into ~/.claude/hooks/
+# and runs standalone, with no shared library to source.
+_sf_append() {
+  local f="$1" line="$2" sz
+  mkdir -p "$(dirname "$f")" 2>/dev/null
+  if [ -f "$f" ]; then
+    sz=$(wc -c < "$f" 2>/dev/null || echo 0)
+    if [ "${sz:-0}" -gt 1048576 ]; then
+      # The rotated file keeps its inode and therefore its mode. Without this
+      # chmod, an upgrade from a pre-2.0 install freezes ~1 MB of 0644 log
+      # permanently — the exact thing this helper exists to stop.
+      mv -f "$f" "${f}.1" 2>/dev/null
+      chmod 600 "${f}.1" 2>/dev/null
+    fi
+  fi
+  [ -e "$f" ] || ( umask 077; : > "$f" ) 2>/dev/null
+  chmod 600 "$f" 2>/dev/null
+  # Braces, not a trailing 2>/dev/null on the printf: redirections are applied
+  # left to right, so `>> "$f" 2>/dev/null` still prints the open failure to
+  # stderr — on every single tool call when the log directory is missing.
+  { printf '%s\n' "$line" >> "$f"; } 2>/dev/null
+}
+
+_SF_LOG_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+
 _sf_log() {
   local dur=$(( (SECONDS - _HOOK_START) * 1000 ))
-  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "${_SF_TMPDIR}/forge-session-log-${PPID}" 2>/dev/null
-  printf '%s|secret-filter|%s|%s\n' "$(date +%s)" "$dur" "$1" >> "$HOME/.claude/hook-telemetry.log" 2>/dev/null
+  _sf_append "${TMPDIR:-/tmp}/forge-session-log-${PPID}" \
+    "$(date +%s)|secret-filter|${dur}|$1"
+  _sf_append "${_SF_LOG_DIR}/hook-telemetry.log" \
+    "$(date +%s)|secret-filter|${dur}|$1"
 }
 
 TOOL_RESPONSE=$(echo "$INPUT" | jq -r '.tool_response // empty')
@@ -81,8 +113,15 @@ if echo "$TOOL_RESPONSE" | grep -qE 'Bearer [A-Za-z0-9_.+/=-]{20,}'; then
   DETECTED="${DETECTED}Bearer token, "
 fi
 
-# Private keys (PEM format)
-if echo "$TOOL_RESPONSE" | grep -qE '\-{5}BEGIN.*PRIVATE KEY\-{5}'; then
+# Private keys (PEM format).
+#
+# Every literal below is assembled from fragments. Reading this file — or any
+# file that documents these patterns — used to trip the scanner on its own
+# source, which is how a security warning ends up attached to a routine Read
+# of the hook itself. Splitting the marker means the pattern still matches a
+# real key while the source text of the pattern does not match itself.
+_SF_BEGIN='-----BE'"GIN"
+if echo "$TOOL_RESPONSE" | grep -qE -e "${_SF_BEGIN}.*PRIVATE KEY"; then
   DETECTED="${DETECTED}private key, "
 fi
 
@@ -96,8 +135,9 @@ if echo "$TOOL_RESPONSE" | grep -qE 'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,
   DETECTED="${DETECTED}JWT token, "
 fi
 
-# OpenSSH private keys
-if echo "$TOOL_RESPONSE" | grep -qF 'BEGIN OPENSSH PRIVATE KEY'; then
+# OpenSSH private keys — same fragment treatment as the PEM marker above.
+# This literal was the one that fired on a plain Read of this file.
+if echo "$TOOL_RESPONSE" | grep -qF -e "${_SF_BEGIN} OPENSSH"' PRIVATE'' KEY'; then
   DETECTED="${DETECTED}OpenSSH private key, "
 fi
 
@@ -119,9 +159,10 @@ DETECTED="${DETECTED%, }"
 
 # ── Log detection ─────────────────────────────────────────────
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
-LOG_DIR="${CLAUDE_DIR:-$HOME/.claude}"
-LOG_FILE="$LOG_DIR/security.log"
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) SECRET_DETECTED tool=$TOOL_NAME types=\"$DETECTED\"" >> "$LOG_FILE" 2>/dev/null
+# Only the detected TYPES are recorded, never the matched values — the log must
+# not become the thing it is warning about.
+_sf_append "${_SF_LOG_DIR}/security.log" \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ) SECRET_DETECTED tool=${TOOL_NAME} types=\"${DETECTED}\""
 
 # ── Advisory output ───────────────────────────────────────────
 jq -n --arg types "$DETECTED" '{
