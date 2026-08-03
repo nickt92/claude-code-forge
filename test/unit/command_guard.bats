@@ -52,10 +52,15 @@ _decision() {
   echo "$decision"
 }
 
-# File mode as a symbolic string. `stat -f` is BSD/macOS, `stat -c` is GNU —
-# the Linux and Git Bash runners need the second form.
+# File mode as a symbolic string.
+#
+# GNU form first, and the order matters: GNU `stat -f` does not fail on Linux,
+# it succeeds and prints *filesystem* information, so a BSD-first fallback
+# never triggers and the assertion compares against a block-size dump. BSD stat
+# rejects -c outright, so trying GNU first is the only ordering that works on
+# both.
 _mode() {
-  stat -f '%Sp' "$1" 2>/dev/null || stat -c '%A' "$1"
+  stat -c '%A' "$1" 2>/dev/null || stat -f '%Sp' "$1"
 }
 
 # Asserts a rule exists in the shipped ask or deny list.
