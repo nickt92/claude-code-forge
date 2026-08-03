@@ -30,12 +30,26 @@ command.
 **Hooks** are the small remainder: the checks that need a relationship between
 parts of a command, which a rule cannot express. `command-guard` carries four.
 
-Hooks also matter for a reason that is easy to miss. Under `bypassPermissions`,
-user-scope **deny rules are ignored** — but hooks still run, because Claude Code
-gates them only on whether they are configured, not on the permission mode. So
-the hook is the only enforcement forge retains in the mode where enforcement
-matters most. That is why anything which must hold under bypass belongs in `ask`
-rather than `deny`.
+Hooks run regardless of permission mode — Claude Code gates them only on whether
+they are configured — so they still apply under `bypassPermissions`.
+
+An earlier version of this document said the opposite of what follows, and it was
+wrong in the direction that flattered the design. Corrected against the shipped
+binary:
+
+- **Deny rules are honoured under `bypassPermissions`.** The deny checks sit above
+  the bypass short-circuit in the permission pipeline, and the SDK's own warning
+  string states it: bypass "auto-approves every tool call *(except explicit deny
+  rules)* before the callback is consulted."
+- **A hook's `ask` does not guarantee a human sees it.** A hook `deny` returns
+  before `canUseTool` is consulted. A hook `ask` is handed *to* `canUseTool`, so
+  under `--permission-prompt-tool` or an SDK callback it is answered by whatever
+  that approver decides. Interactively it is a real prompt; under automation it
+  may not be.
+
+So `deny` is the stronger control, not the weaker one. `ask` is right where a
+legitimate use exists and a human is the intended judge; `deny` is right where
+nothing legitimate exists.
 
 ## There is no override token
 
@@ -52,10 +66,12 @@ no-op with no human in the loop, on a token the model writes for itself.
 
 The guards now return a permission decision instead:
 
-- **ask** — Claude Code shows the real command and waits for the user. Used for
-  downloads piped into a shell, injection, credential exfiltration, and every
-  destructive SQL pattern.
-- **deny** — reserved for fork bombs, which have no legitimate use.
+- **ask** — surfaces the real command to whoever answers permission prompts.
+  Used for downloads piped into a shell, injection, credential exfiltration,
+  destructive payloads handed to an interpreter, and every destructive SQL
+  pattern.
+- **deny** — fork bombs and filesystem formatting. Not delegable, and honoured
+  under bypass.
 
 The user approving that prompt *is* the override, and it needs nothing added to
 the command. For permission rules the equivalent is `forge permissions --except

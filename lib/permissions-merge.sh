@@ -18,7 +18,8 @@
 #     also mean higher trust gets MORE denies, which is backwards.
 #   - deny is only written when explicitly requested. A permission rule has no
 #     forge-override; a false positive blocks work with an error the user
-#     cannot clear.
+#     cannot clear. Note this is the ONLY reason it is opt-in: deny is honoured
+#     under bypassPermissions, so it is the stronger control, not the weaker.
 #
 # Ownership:
 #   forge removes only what it added. Rules the user already had are recorded

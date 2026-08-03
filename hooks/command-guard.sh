@@ -15,28 +15,45 @@
 # prefixes and wrappers, splits compound commands, and matches each part. That
 # is a strictly better version of what the regexes were attempting.
 #
-# What is left is the four things a permission rule genuinely cannot express,
+# What is left is the six things a permission rule genuinely cannot express,
 # because each one is about the RELATIONSHIP between parts of a command:
 #
 #   1. Fork bomb          — a shape, not a command name
-#   2. Download-and-run   — rules cannot see what a pipe feeds
-#   3. Injection          — rules cannot see inside $(...)
-#   4. Secret exfiltration — needs source AND sink together
+#   2. mkfs               — deny is opt-in, so no rule is installed by default
+#   3. Interpreter -c     — the matcher does not descend into a -c argument
+#   4. Download-and-run   — rules cannot see what a pipe feeds
+#   5. Injection          — rules cannot see inside $(...)
+#   6. Secret exfiltration — needs source AND sink together
 #
-# Why keep a hook at all when rules are better: verified against the shipped
-# binary, PreToolUse hooks run whenever they are configured, with no check on
-# permission mode (`v3()` consults only the settings sources). User-scope deny
-# rules are ignored under bypassPermissions. So this hook is the only
-# enforcement forge retains in the mode where enforcement matters most.
+# Why keep a hook at all when rules are better: PreToolUse hooks run whenever
+# they are configured, with no check on permission mode (`v3()` consults only
+# the settings sources), so a hook still runs under bypassPermissions.
+#
+# Two corrections to what an earlier version of this comment claimed, both
+# verified against the shipped binary, and both in the direction that had
+# flattered the design:
+#
+#   - Deny rules are NOT ignored under bypassPermissions. The deny checks sit
+#     above the bypass short-circuit in the permission pipeline, and the SDK
+#     warning string says so outright: bypass "auto-approves every tool call
+#     (except explicit deny rules)". So `deny` is the stronger control, not the
+#     weaker one.
+#   - A hook's "ask" does NOT guarantee a human sees it. A hook deny returns
+#     before canUseTool is consulted; a hook ask is handed TO canUseTool, so
+#     under `--permission-prompt-tool` or an SDK callback it is answered by
+#     whatever that approver decides. Interactively it is a real prompt. Under
+#     automation it may not be.
+#
+# The practical consequence is that "ask" is right where a legitimate use
+# exists and a human is the intended judge, and "deny" is right where nothing
+# legitimate exists — which is why checks 1 and 2 below are deny.
 #
 # There is no forge-override. The old one bypassed every check for the whole
 # command on a `# forge-override: <reason>` comment line, and its stated
 # security model — "Claude Code's permission prompt shows the full command to
 # the user" — was false exactly when it mattered: if the command is allowlisted
 # there is no prompt, so the override silently turned a block into a no-op with
-# no human in the loop. Three of the four checks below now return
-# permissionDecision "ask" instead, which forces a real prompt showing the real
-# command, works in bypass mode, and needs no self-service escape hatch.
+# no human in the loop.
 #
 # Note: set -e intentionally omitted — grep returns 1 on no-match, which is
 # expected control flow in hook scripts.
@@ -111,9 +128,10 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) \
 [ -z "$COMMAND" ] && { _cg_log allow; exit 0; }
 
 # ── Decision output ───────────────────────────────────────────
-# permissionDecision "ask" forces a real prompt showing the real command, and
-# is honoured in bypass mode. "deny" is reserved for the one check with no
-# legitimate use.
+# "ask" surfaces the real command to whoever answers permission prompts —
+# a human interactively, an SDK callback under automation. "deny" is not
+# delegable: it returns before canUseTool is consulted, and it holds under
+# bypassPermissions. Reserved for the checks with no legitimate use.
 _cg_ask() {
   jq -n --arg reason "$1" '{
     hookSpecificOutput: {
@@ -173,7 +191,35 @@ if printf '%s' "$_CG_UNQUOTED" | grep -qE ':\(\)\s*\{.*:\|:.*\}'; then
   _cg_deny "Fork bomb detected — this would exhaust system resources. No permission rule can express this pattern, so it is blocked outright."
 fi
 
-# ── 2. Download and run ───────────────────────────────────────
+# ── 2. Filesystem formatting ──────────────────────────────────
+# Restored after review. `Bash(mkfs*)` lives in global.deny, which is opt-in via
+# --with-deny, so deleting this check left a default install with no mkfs guard
+# at all — a regression against 1.x rather than a move to a better layer.
+#
+# Anchored at a command position, which is what the 1.x check got wrong: it
+# matched `mkfs` anywhere and so blocked `man mkfs`.
+if printf '%s' "$_CG_UNQUOTED" \
+   | grep -qE '(^|[|;&][[:space:]]*)(sudo[[:space:]]+)?mkfs(\.[a-z0-9]+)?([[:space:]]|$)'; then
+  _cg_deny "mkfs formats a filesystem and destroys everything on the target device. There is no partial version of this."
+fi
+
+# ── 3. Destructive payload inside an interpreter ──────────────
+# `bash -c 'rm -rf /'` is ONE command as far as the permission matcher is
+# concerned: its argv is ["bash","-c","rm -rf /"], and the AST walker does not
+# descend into a -c argument. So Bash(rm:*) never fires on it, as ask or deny.
+#
+# That makes this the definition of what belongs in a hook — the rules provably
+# cannot see it — and deleting 1.x's deep scan was a regression. Kept as ask
+# rather than deny because `bash -c 'rm -rf ./build'` is ordinary.
+if printf '%s' "$COMMAND" \
+   | grep -qE "(^|[^[:alnum:]_/.-])${_CG_INTERP}[[:space:]]+-[ce]\b"; then
+  if printf '%s' "$COMMAND" \
+     | grep -qE '(rm[[:space:]]+(-[A-Za-z]*[[:space:]]+)*-?[A-Za-z]*[rf]|dd[[:space:]]+[^|]*of=/dev/|:\(\)[[:space:]]*\{)'; then
+    _cg_ask "This hands a destructive command to an interpreter as a string. Permission rules cannot see inside a -c argument, so nothing else will check it."
+  fi
+fi
+
+# ── 4. Download and run ───────────────────────────────────────
 # A rule can allow or stop `curl`, and separately allow or stop `bash`, but it
 # cannot see that one is feeding the other.
 if printf '%s' "$_CG_UNQUOTED" \
@@ -187,7 +233,7 @@ if printf '%s' "$_CG_UNQUOTED" | grep -qE "\|[[:space:]]*(sudo[[:space:]]+)?${_C
   _cg_ask "This pipes command output into a shell interpreter. Review the output before running it."
 fi
 
-# ── 3. Injection ──────────────────────────────────────────────
+# ── 5. Injection ──────────────────────────────────────────────
 # Rules match the command string; they cannot evaluate what $(...) will expand
 # to, and neither can this hook — which is exactly why it asks.
 #
@@ -206,7 +252,7 @@ if printf '%s' "$COMMAND" \
   _cg_ask "This builds a shell command out of downloaded content. Approve only if you trust the source."
 fi
 
-# ── 4. Secret exfiltration ────────────────────────────────────
+# ── 6. Secret exfiltration ────────────────────────────────────
 # The one check that genuinely needs two halves of a command at once: a
 # permission rule can ask about reading ~/.ssh, and separately about running
 # curl, but not about reading ~/.ssh AND sending it somewhere. Replaces three
